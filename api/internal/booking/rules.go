@@ -3,8 +3,8 @@ package booking
 import "time"
 
 const (
-	SlotLength  = 30 * time.Minute    // ช่วงเวลาจองละ 30 นาที
-	LeadTime    = 30 * time.Minute    // ต้องจองล่วงหน้าอย่างน้อย 30 นาที
+	SlotLength  = 30 * time.Minute // ช่วงเวลาจองละ 30 นาที
+	LeadTime    = 30 * time.Minute // ต้องจองล่วงหน้าอย่างน้อย 30 นาที
 	MinDuration = 30 * time.Minute
 	MaxDuration = 4 * time.Hour       // กฎเราเอง — กันจองยาวผิดปกติ
 	MaxAdvance  = 90 * 24 * time.Hour // จองล่วงหน้าได้ไม่เกิน 90 วัน

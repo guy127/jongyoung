@@ -32,6 +32,30 @@ func maxConcurrent(bookings []Booking, start, end time.Time) (peak int, at time.
 	return peak, at
 }
 
+// Slot คือช่วงเวลา 30 นาทีหนึ่งช่วงในตารางเวลาว่าง
+type Slot struct {
+	StartAt   time.Time
+	EndAt     time.Time
+	Available int // ที่นั่งว่าง = seats - คนสูงสุดภายในช่วงนี้
+}
+
+// Slots คืนทุกช่วง 30 นาทีของรอบวันทำการ date
+// bookings = booking 'active' ที่ทับกับรอบนั้น; ช่วงที่เริ่มก่อน now+LeadTime จองไม่ได้แล้วจึงไม่อยู่ในลิสต์
+func Slots(h Hours, seats int, bookings []Booking, date, now time.Time) []Slot {
+	opensAt, closesAt := h.Window(date)
+	earliest := now.Add(LeadTime)
+	var slots []Slot
+	for t := opensAt; t.Before(closesAt); t = t.Add(SlotLength) {
+		if t.Before(earliest) {
+			continue
+		}
+		end := t.Add(SlotLength)
+		peak, _ := maxConcurrent(bookings, t, end)
+		slots = append(slots, Slot{StartAt: t, EndAt: end, Available: seats - peak})
+	}
+	return slots
+}
+
 // checkSeats: existing = booking ที่ทับกับ [start,end) โดยไม่รวมตัวที่กำลังแก้ (excludeID)
 func checkSeats(existing []Booking, seats, partySize int, start, end time.Time) error {
 	peak, at := maxConcurrent(existing, start, end)

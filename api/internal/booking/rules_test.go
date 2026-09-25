@@ -9,7 +9,9 @@ import (
 
 func TestValidateRequest(t *testing.T) {
 	now := bkk(2026, 10, 10, 17, 30)
-	req := func(party int, start, end time.Time) Request { return Request{StartAt: start, EndAt: end, PartySize: party} }
+	req := func(party int, start, end time.Time) Request {
+		return Request{StartAt: start, EndAt: end, PartySize: party}
+	}
 	cases := []struct {
 		name string
 		h    Hours
