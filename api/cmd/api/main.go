@@ -14,6 +14,16 @@ import (
 	"jongyoung/internal/platform/database"
 )
 
+//	@title						jongyoung API
+//	@version					1.0
+//	@description				ระบบจองโต๊ะร้านอาหาร + รีวิว — เวลาทั้งหมดเป็น timestamp เต็ม (RFC 3339) ส่วน date = วันทำการ
+//	@host						api.jongyoung.localhost
+//	@BasePath					/api/v1
+//	@schemes					http
+//	@securityDefinitions.apikey	BearerAuth
+//	@in							header
+//	@name						Authorization
+//	@description				พิมพ์ "Bearer " ตามด้วย access token จาก Keycloak
 func main() {
 	if err := run(); err != nil {
 		slog.Error("service stopped", "error", err)

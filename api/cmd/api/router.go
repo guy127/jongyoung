@@ -13,8 +13,12 @@ import (
 	"jongyoung/internal/review"
 	"jongyoung/internal/user"
 
+	_ "jongyoung/docs" // register swagger spec
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
 )
 
@@ -57,6 +61,9 @@ func newRouter(ctx context.Context, cfg config.Config, db *gorm.DB, sqlDB *sql.D
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+
+	// เอกสาร API: http://api.jongyoung.localhost/swagger/index.html (สร้างใหม่ด้วย: swag init -g cmd/api/main.go -o docs --parseInternal)
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	v1 := r.Group("/api/v1")
 	v1.GET("/me", auth, userHandler.Me)

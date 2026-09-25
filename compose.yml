@@ -44,6 +44,17 @@ services:
       postgres:
         condition: service_healthy
 
+  # ใส่ข้อมูลตัวอย่างเฉพาะตอนที่ยังไม่มีร้านเลย (รันซ้ำไม่ทับข้อมูล)
+  # ล้างแล้วใส่ใหม่:  docker compose run --rm seed --reset
+  seed:
+    build: ./api
+    entrypoint: ["/app/seed"]
+    environment:
+      POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   api:
     build: ./api
     restart: unless-stopped

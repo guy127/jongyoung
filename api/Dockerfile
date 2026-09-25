@@ -10,6 +10,7 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 COPY migrations/ ./migrations/
+COPY docs/*.go ./docs/
 
 # build ทุกไบนารีแบบ static: api, migrate (และ seed ในเฟสถัดไป)
 RUN --mount=type=cache,target=/root/.cache/go-build \
