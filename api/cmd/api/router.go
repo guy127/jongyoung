@@ -10,6 +10,7 @@ import (
 	"jongyoung/internal/config"
 	"jongyoung/internal/middleware"
 	"jongyoung/internal/restaurant"
+	"jongyoung/internal/review"
 	"jongyoung/internal/user"
 
 	"github.com/gin-contrib/cors"
@@ -28,6 +29,7 @@ func newRouter(ctx context.Context, cfg config.Config, db *gorm.DB, sqlDB *sql.D
 	userService := user.NewService(user.NewRepository(db))
 	userHandler := user.NewHandler(userService)
 	restaurantHandler := restaurant.NewHandler(restaurant.NewService(restaurant.NewRepository(db), time.Now))
+	reviewHandler := review.NewHandler(review.NewService(review.NewRepository(db)))
 	bookingHandler := booking.NewHandler(booking.NewService(booking.NewRepository(db), time.Now), time.Now)
 
 	var auth gin.HandlerFunc
@@ -70,6 +72,11 @@ func newRouter(ctx context.Context, cfg config.Config, db *gorm.DB, sqlDB *sql.D
 	rest.POST("/:id/images", auth, restaurantHandler.AddImage)
 	rest.DELETE("/:id/images/:imageId", auth, restaurantHandler.DeleteImage)
 	rest.GET("/:id/bookings", auth, bookingHandler.Board)
+	rest.GET("/:id/reviews", reviewHandler.List)
+	rest.GET("/:id/reviews/mine", auth, reviewHandler.Mine)
+	rest.POST("/:id/reviews", auth, reviewHandler.Create)
+	rest.PUT("/:id/reviews", auth, reviewHandler.Update)
+	rest.DELETE("/:id/reviews", auth, reviewHandler.Delete)
 
 	v1.GET("/me/bookings", auth, bookingHandler.ListMine)
 	bookings := v1.Group("/bookings", auth)

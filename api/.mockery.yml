@@ -21,3 +21,6 @@ packages:
   jongyoung/internal/booking:
     config:
       all: true
+  jongyoung/internal/review:
+    config:
+      all: true
