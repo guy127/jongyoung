@@ -41,7 +41,7 @@ func run() error {
 	}
 	defer sqlDB.Close()
 
-	router := newRouter(cfg, sqlDB)
+	router := newRouter(ctx, cfg, db, sqlDB)
 
 	server := &http.Server{Addr: cfg.App.Addr(), Handler: router}
 	serverErr := make(chan error, 1)

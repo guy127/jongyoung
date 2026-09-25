@@ -1,22 +1,39 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"time"
 
 	"jongyoung/internal/config"
+	"jongyoung/internal/middleware"
+	"jongyoung/internal/user"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
-// newRouter ประกอบ middleware และ route ทั้งหมด
-// ลำดับ middleware: Recovery → Logger → CORS → (JWT ต่อ route)
-func newRouter(cfg config.Config, sqlDB *sql.DB) *gin.Engine {
+// newRouter ประกอบ dependency, middleware และ route ทั้งหมด
+// ลำดับ middleware: Recovery → Logger → CORS → (JWT เฉพาะ route ที่ต้อง login)
+func newRouter(ctx context.Context, cfg config.Config, db *gorm.DB, sqlDB *sql.DB) *gin.Engine {
 	if !cfg.App.IsDevelopment() {
 		gin.SetMode(gin.ReleaseMode)
 	}
+
+	// dependency injection
+	userService := user.NewService(user.NewRepository(db))
+	userHandler := user.NewHandler(userService)
+
+	var auth gin.HandlerFunc
+	if cfg.App.DevAuth {
+		auth = middleware.DevAuth(userService)
+	} else {
+		verifier := middleware.NewOIDCVerifier(ctx, cfg.Keycloak.Issuer(), cfg.Keycloak.Audience)
+		auth = middleware.JWT(verifier, userService)
+	}
+
 	r := gin.New()
 	r.Use(gin.Recovery(), gin.Logger())
 	r.Use(cors.New(cors.Config{
@@ -34,6 +51,9 @@ func newRouter(cfg config.Config, sqlDB *sql.DB) *gin.Engine {
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+
+	v1 := r.Group("/api/v1")
+	v1.GET("/me", auth, userHandler.Me)
 
 	return r
 }

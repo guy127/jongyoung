@@ -28,6 +28,8 @@ type App struct {
 	CORSOrigin      string        `env:"CORS_ORIGIN" envDefault:"http://jongyoung.localhost" validate:"required,url"`
 	LogLevel        string        `env:"LOG_LEVEL" envDefault:"info" validate:"oneof=debug info warn error"`
 	ShutdownTimeout time.Duration `env:"APP_SHUTDOWN_TIMEOUT" envDefault:"10s"`
+	// DevAuth ข้ามการตรวจ token (middleware.DevAuth) — ใช้ได้เฉพาะ APP_ENV=development
+	DevAuth bool `env:"DEV_AUTH" envDefault:"false"`
 }
 
 func (a App) Addr() string       { return fmt.Sprintf(":%d", a.Port) }
@@ -70,6 +72,9 @@ func Load() (Config, error) {
 	}
 	if err := cfg.Database.Validate(); err != nil {
 		return Config{}, err
+	}
+	if cfg.App.DevAuth && !cfg.App.IsDevelopment() {
+		return Config{}, errors.New("DEV_AUTH ใช้ได้เฉพาะ APP_ENV=development")
 	}
 	return cfg, nil
 }

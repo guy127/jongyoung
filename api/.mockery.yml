@@ -1,0 +1,17 @@
+# สร้าง mock ด้วย:  cd api && mockery
+# mock ของ interface ทุกตัวถูกเขียนลง mocks_test.go ข้างไฟล์ที่ประกาศ interface (ใช้ได้เฉพาะในเทสต์ของ package นั้น)
+all: false
+dir: '{{.InterfaceDir}}'
+filename: mocks_test.go
+force-file-write: true
+formatter: goimports
+structname: '{{.Mock}}{{.InterfaceName}}'
+pkgname: '{{.SrcPackageName}}'
+template: testify
+packages:
+  jongyoung/internal/middleware:
+    config:
+      all: true
+  jongyoung/internal/user:
+    config:
+      all: true
