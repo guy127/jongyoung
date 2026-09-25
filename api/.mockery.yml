@@ -15,3 +15,6 @@ packages:
   jongyoung/internal/user:
     config:
       all: true
+  jongyoung/internal/restaurant:
+    config:
+      all: true

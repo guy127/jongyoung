@@ -8,6 +8,7 @@ import (
 
 	"jongyoung/internal/config"
 	"jongyoung/internal/middleware"
+	"jongyoung/internal/restaurant"
 	"jongyoung/internal/user"
 
 	"github.com/gin-contrib/cors"
@@ -25,6 +26,7 @@ func newRouter(ctx context.Context, cfg config.Config, db *gorm.DB, sqlDB *sql.D
 	// dependency injection
 	userService := user.NewService(user.NewRepository(db))
 	userHandler := user.NewHandler(userService)
+	restaurantHandler := restaurant.NewHandler(restaurant.NewService(restaurant.NewRepository(db), time.Now))
 
 	var auth gin.HandlerFunc
 	if cfg.App.DevAuth {
@@ -54,6 +56,17 @@ func newRouter(ctx context.Context, cfg config.Config, db *gorm.DB, sqlDB *sql.D
 
 	v1 := r.Group("/api/v1")
 	v1.GET("/me", auth, userHandler.Me)
+
+	rest := v1.Group("/restaurants")
+	rest.GET("", restaurantHandler.List)
+	rest.GET("/:id", restaurantHandler.Get)
+	rest.GET("/:id/availability", restaurantHandler.Availability)
+	rest.GET("/:id/next-available", restaurantHandler.NextAvailable)
+	rest.POST("", auth, restaurantHandler.Create)
+	rest.PUT("/:id", auth, restaurantHandler.Update)
+	rest.DELETE("/:id", auth, restaurantHandler.Delete)
+	rest.POST("/:id/images", auth, restaurantHandler.AddImage)
+	rest.DELETE("/:id/images/:imageId", auth, restaurantHandler.DeleteImage)
 
 	return r
 }
