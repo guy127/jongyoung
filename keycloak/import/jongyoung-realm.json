@@ -1,0 +1,86 @@
+{
+  "realm": "jongyoung",
+  "enabled": true,
+  "displayName": "จองยัง",
+  "registrationAllowed": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "sslRequired": "none",
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 3600,
+  "ssoSessionMaxLifespan": 36000,
+  "clients": [
+    {
+      "clientId": "jongyoung-web",
+      "name": "jongyoung web (next-auth)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "dev-only-jongyoung-web-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://jongyoung.localhost/*",
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://jongyoung.localhost",
+        "http://localhost:3000"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://jongyoung.localhost/*##http://localhost:3000/*"
+      },
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email", "basic"],
+      "protocolMappers": [
+        {
+          "name": "audience jongyoung-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "jongyoung-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "0b8e6f0e-2d4a-4a57-9a61-1f0f3c1a0001",
+      "username": "owner1",
+      "email": "owner1@jongyoung.test",
+      "firstName": "สมศรี",
+      "lastName": "ใจงาม",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "owner1-pass", "temporary": false }]
+    },
+    {
+      "id": "0b8e6f0e-2d4a-4a57-9a61-1f0f3c1a0002",
+      "username": "owner2",
+      "email": "owner2@jongyoung.test",
+      "firstName": "วีระ",
+      "lastName": "ทองดี",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "owner2-pass", "temporary": false }]
+    },
+    {
+      "id": "0b8e6f0e-2d4a-4a57-9a61-1f0f3c1a0003",
+      "username": "customer1",
+      "email": "customer1@jongyoung.test",
+      "firstName": "มะลิ",
+      "lastName": "วงศ์ดี",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "customer1-pass", "temporary": false }]
+    }
+  ]
+}

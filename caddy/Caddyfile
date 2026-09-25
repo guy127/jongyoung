@@ -1,0 +1,18 @@
+# ใช้ *.jongyoung.localhost เป็นโดเมนกลาง ให้ browser (บนเครื่อง) และ container (ใน compose)
+# เรียกทุก service ด้วยชื่อเดียวกัน → issuer ของ Keycloak ตรงกันทั้งสองฝั่ง (CLAUDE.md 2.3)
+# .localhost resolve เป็น 127.0.0.1 เองตาม RFC 6761 ไม่ต้องแก้ /etc/hosts
+{
+	auto_https off
+}
+
+http://jongyoung.localhost {
+	reverse_proxy web:3000
+}
+
+http://api.jongyoung.localhost {
+	reverse_proxy api:8080
+}
+
+http://keycloak.jongyoung.localhost {
+	reverse_proxy keycloak:8080
+}

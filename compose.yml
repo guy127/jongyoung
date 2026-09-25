@@ -1,0 +1,79 @@
+# รันทั้งระบบ:  cp .env.example .env && docker compose up -d --build
+# เปิด http://jongyoung.localhost (web), http://api.jongyoung.localhost/healthz (api),
+#     http://keycloak.jongyoung.localhost (keycloak)
+name: jongyoung
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5433:5432" # เผื่อต่อจากเครื่องด้วย psql/DBeaver และให้ `go run` นอก docker ใช้ได้
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 3s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+      # ให้ Keycloak ออก issuer เป็นโดเมนกลางเสมอ ไม่ว่าใครเรียก (browser หรือ container)
+      KC_HOSTNAME: http://keycloak.jongyoung.localhost
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak/import:/opt/keycloak/data/import:ro
+
+  migrate:
+    build: ./api
+    entrypoint: ["/app/migrate", "up"]
+    environment:
+      POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    environment:
+      APP_ENV: development
+      POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      KEYCLOAK_BASE_URL: http://keycloak.jongyoung.localhost
+      KEYCLOAK_REALM: jongyoung
+      KEYCLOAK_AUDIENCE: jongyoung-api
+      CORS_ORIGIN: http://jongyoung.localhost
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_started
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      default:
+        aliases:
+          # container อื่น (api, web) resolve โดเมนเดียวกับที่ browser ใช้ → วิ่งผ่าน caddy
+          - jongyoung.localhost
+          - api.jongyoung.localhost
+          - keycloak.jongyoung.localhost
+
+volumes:
+  pgdata:
