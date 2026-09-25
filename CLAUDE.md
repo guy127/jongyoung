@@ -117,6 +117,8 @@ user, err := userSvc.EnsureExists(ctx, claims.Subject, claims.Email, claims.Name
 rctx := reqctx.WithUserID(ctx.Request.Context(), user.ID)
 ```
 - ผูกด้วย `sub` **ห้ามผูกด้วย email** เพราะ email เปลี่ยนได้
+- `EnsureExists` = upsert จริง: ไม่มี → สร้าง; มีแล้วแต่ `email`/`display_name` ใน claims ต่างจากที่เก็บ → อัปเดต
+  (ผู้ใช้แก้โปรไฟล์ใน Keycloak แล้วต้องเห็นชื่อใหม่ในระบบเรา)
 - `users.keycloak_uid` มี unique index — แต่ถ้าใช้ soft delete ต้องเป็น **partial unique index** (`WHERE deleted_at IS NULL`) ไม่งั้นคนที่ถูกลบแล้วล็อกอินใหม่จะชนกับแถวเก่า
 - `middleware.DevAuth` (ข้าม token ตอน dev) ใช้ได้เฉพาะ `APP_ENV=development` และต้องมี log เตือน
 
@@ -243,6 +245,12 @@ reviews
 - แปลงเป็นเวลาไทยที่ฝั่ง web เท่านั้น (`Asia/Bangkok` ไม่มี DST — พูดถึงได้ตอนสัมภาษณ์ว่าถ้ามี DST ต้องเก็บ timezone ของร้านด้วย)
 - migration มีทั้ง Up และ Down และทดสอบ `goose down` แล้ว
 - seed data อยู่ที่ `cmd/seed` **ห้ามใส่ใน migrations/** (integration test รันทุกไฟล์ใน migrations/)
+- seed ต้องมีร้านหลายแบบเพื่อโชว์ว่ารองรับทุกเคส อย่างน้อย:
+  1. ร้านเวลาปกติ (11:00–22:00) ที่มีการจองคืนนี้จนเกือบเต็ม/เต็มบางช่วง
+  2. ร้านเปิดข้ามเที่ยงคืน (18:00–02:00)
+  3. ร้านเปิด 24 ชม. (`open_minute = close_minute`)
+  4. ร้านที่ยังไม่มีรีวิว
+  5. ร้าน ★5.0 จาก 1 รีวิว คู่กับร้าน ★4.8 จากรีวิวเยอะ (โชว์ Bayesian sort)
 
 ---
 
@@ -265,6 +273,9 @@ reviews
 | ร้านที่ถูก soft delete | หายจาก list และจองใหม่ไม่ได้ (404) แต่ประวัติการจอง/รีวิวเดิมยังอ่านได้ |
 
 การตรวจลดที่นั่ง/ย่นเวลาต้องล็อกแถวร้าน (`FOR UPDATE`) เหมือนตอนจอง — ไม่งั้นมีคนจองแทรกระหว่างตรวจ
+- **ลดที่นั่ง:** อ่าน booking ที่ `active` และยังไม่จบ (`end_at > now`) ของร้าน → `peak, at := maxConcurrent(bookings)` (ตัวเดียวกับ 5.3 ห้ามเขียนใหม่)
+  → `peak > newSeats` → 409 `SEATS_BELOW_BOOKED` พร้อม `details: { at, booked: peak }`
+- **ย่นเวลาเปิด–ปิด:** ทุก booking ในอนาคตต้องยังผ่าน `fitsOpeningHours` (5.4) ด้วยเวลาใหม่ → ไม่ผ่านตัวไหน → 409 `HOURS_CONFLICT` พร้อมช่วงที่ชน
 
 ### 5.2 การจอง — เงื่อนไขครบทุกข้อ
 ลูกค้ากรอก 3 อย่าง: **จำนวนคน / วันที่ / เวลาเริ่ม–สิ้นสุด**
@@ -273,16 +284,23 @@ reviews
 |---|---|---|
 | 1 | ร้านมีอยู่จริงและไม่ถูกลบ | 404 |
 | 2 | `end_at > start_at` | 400 |
-| 3 | `start_at` ยังไม่ผ่านไปแล้ว (เทียบ `time.Now()` ที่ server) | 400 |
+| 3 | จองล่วงหน้าอย่างน้อย 30 นาที: `start_at >= now + 30 นาที` (เทียบ `time.Now()` ที่ server) — กันจองรอบที่อีก 2 นาทีจะเริ่ม | 400 |
 | 4 | ช่วงจองอยู่ในเวลาเปิด–ปิดของร้าน (รองรับเปิดข้ามเที่ยงคืน) | 400 |
 | 5 | `party_size <= restaurant.seats` (ขอเกินความจุร้านไปเลย) | 400 |
-| 6 | **ที่นั่งไม่เกินในทุกวินาที** — ดู 5.3 | **409** |
-| 7 | ผู้ใช้คนเดียวกันจองร้านเดียวกันซ้อนเวลากันเองไม่ได้ | 409 |
+| 6 | **ที่นั่งไม่เกินในทุกวินาที** — ดู 5.3 | **409** `NOT_ENOUGH_SEATS` |
+| 7 | ผู้ใช้คนเดียวกันจองร้านเดียวกันซ้อนเวลากันเองไม่ได้ — **ตรวจใน FOR UPDATE block เดียวกับข้อ 6** (ดู 5.3) | **409** `DUPLICATE_BOOKING` |
 | 8 | จองล่วงหน้าไม่เกิน 90 วัน และช่วงละไม่เกิน 4 ชม. (กฎเราเอง — กัน abuse, อธิบายได้) | 400 |
 | 9 | เวลาเริ่ม/สิ้นสุดเป็นช่วงละ 30 นาที (:00 หรือ :30) | 400 |
 
 **กดจองซ้ำ / เน็ตกระตุก:** ไม่ใช้ `Idempotency-Key` — กฎข้อ 7 กันการจองซ้ำให้อยู่แล้ว
-(คำขอที่สองทับเวลาคำขอแรก → 409) + หน้าเว็บ disable ปุ่มระหว่างยิง และเมื่อได้ 409 ให้ refetch "การจองของฉัน"
+(คำขอที่สองรอล็อก → เห็นการจองของคำขอแรก → 409 `DUPLICATE_BOOKING`) + หน้าเว็บ disable ปุ่มระหว่างยิง
+กฎ 7 กันซ้ำได้ **ก็ต่อเมื่อ** อยู่หลัง `FOR UPDATE` — ถ้าเช็คก่อนเข้าทรานแซกชัน สองคำขอจะอ่านเจอ "ยังไม่มี" ทั้งคู่แล้วเขียนทั้งคู่
+
+**409 สองแบบ หน้าเว็บต้องทำต่างกัน:**
+| code | ความหมาย | หน้าเว็บทำอะไร |
+|---|---|---|
+| `NOT_ENOUGH_SEATS` | ที่นั่งไม่พอจริง | refetch availability, บอกที่นั่งที่เหลือจริง, เสนอช่วงที่ยังว่างพอ |
+| `DUPLICATE_BOOKING` | ผู้ใช้มีการจองช่วงนี้อยู่แล้ว (มักเพราะกดซ้ำแล้วคำขอแรกสำเร็จ) | **ห้ามบอกว่าร้านเต็ม** → แจ้ง "คุณจองช่วงนี้ไว้แล้ว" แล้วพาไป `/me/bookings` |
 
 ### 5.3 ⭐ กติกาที่นั่ง — จุดสำคัญที่สุดของโจทย์
 
@@ -302,49 +320,64 @@ naive SUM = 7+7+3 = 17 → ปฏิเสธ **แต่คำตอบที�
 ```go
 // internal/booking/availability.go
 
-// existing = booking ที่ status='active' และช่วงทับกับ [start,end) โดยไม่รวมตัวที่กำลังแก้
-func checkSeats(existing []Booking, seats, partySize int, start, end time.Time) error {
-    // จุดที่ต้องตรวจ = จุดเริ่มของช่วงใหม่ + ทุกจุดที่มีคนเข้าร้านเพิ่มภายในช่วงใหม่
-    points := []time.Time{start}
-    for _, b := range existing {
-        if b.StartAt.After(start) && b.StartAt.Before(end) {
-            points = append(points, b.StartAt)
-        }
-    }
-    for _, t := range points {
-        occupied := 0
-        for _, b := range existing {
+// maxConcurrent คืนจำนวนคนสูงสุดที่อยู่ในร้านพร้อมกัน และเวลาที่เกิด
+// ใช้ทั้งตอนจอง/แก้ไข (5.3) และตอนเจ้าของลดที่นั่ง (5.1) — มีฟังก์ชันเดียว ห้ามเขียนซ้ำ
+func maxConcurrent(bookings []Booking) (peak int, at time.Time) {
+    // จุดที่ต้องตรวจ = เวลาเริ่มของทุก booking
+    // เพราะจำนวนคนในร้านเพิ่มขึ้นได้เฉพาะตอนมีคนเริ่มเข้า ระหว่างสองจุดค่าคงที่ (จุดที่คนออก ค่าลดลง ไม่ต้องตรวจ)
+    for _, p := range bookings {
+        t := p.StartAt
+        n := 0
+        for _, b := range bookings {
             // อยู่ในร้าน ณ เวลา t คือ start_at <= t < end_at
             if !b.StartAt.After(t) && b.EndAt.After(t) {
-                occupied += b.PartySize
+                n += b.PartySize
             }
         }
-        if occupied+partySize > seats {
-            return ErrNotEnoughSeats // → 409
+        if n > peak {
+            peak, at = n, t
         }
+    }
+    return peak, at
+}
+
+// checkSeats: existing = booking 'active' ที่ทับกับช่วงของ req (ไม่รวมตัวที่กำลังแก้)
+// booking ที่มีอยู่ถูกต้องอยู่แล้ว (ไม่เกิน seats) → ถ้า peak รวม req เกิน ต้องเกินในช่วงของ req แน่นอน
+func checkSeats(existing []Booking, seats int, req Booking) error {
+    all := append(slices.Clone(existing), req) // clone กัน append ไปเขียนทับ slice ของผู้เรียก
+    if peak, at := maxConcurrent(all); peak > seats {
+        return &NotEnoughSeatsError{At: at, Available: seats - (peak - req.PartySize)} // → 409 NOT_ENOUGH_SEATS
     }
     return nil
 }
 ```
-เหตุผลที่ตรวจแค่จุดเริ่ม: จำนวนคนในร้านเพิ่มขึ้นได้เฉพาะตอนมีคนเริ่มจองใหม่ ระหว่างสองจุดค่าคงที่
-(จุดที่คนออกไม่ต้องตรวจ เพราะค่าลดลง)
 
-**การกันสองคนกดพร้อมกัน — ต้องอยู่ในทรานแซกชันเดียวกับการนับ:**
+**การกันสองคนกดพร้อมกัน — กฎ 6 และกฎ 7 ต้องอยู่ในทรานแซกชันเดียวกัน หลังล็อก:**
 ```go
 err := db.Transaction(func(tx *gorm.DB) error {
-    // 1) ล็อกแถวร้าน — คนที่สองจะรอที่บรรทัดนี้
+    // 1) ล็อกแถวร้าน — คำขอที่สอง (ร้านเดียวกัน) จะรอที่บรรทัดนี้จนคำขอแรก commit
     if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-        First(&r, "id = ?", restaurantID).Error; err != nil { return err }
+        First(&r, "id = ? AND deleted_at IS NULL", restaurantID).Error; err != nil { return err }
 
-    // 2) อ่าน booking ที่ทับกัน "ข้างใน" ล็อก
+    // 2) กฎ 7: ผู้ใช้คนนี้มีการจองร้านนี้ที่ทับช่วงนี้อยู่แล้วไหม — ต้องอยู่หลังล็อก และตรวจก่อนกฎ 6
+    //    (กดซ้ำ: คำขอที่สองต้องได้ DUPLICATE_BOOKING ไม่ใช่ NOT_ENOUGH_SEATS)
+    var dup int64
+    tx.Model(&Booking{}).
+       Where("restaurant_id = ? AND user_id = ? AND status = 'active'", restaurantID, userID).
+       Where("start_at < ? AND end_at > ?", end, start).
+       Where("id <> ?", excludeID).      // จองใหม่ใช้ uuid.Nil
+       Count(&dup)
+    if dup > 0 { return ErrDuplicateBooking } // → 409 DUPLICATE_BOOKING
+
+    // 3) กฎ 6: อ่าน booking ที่ทับกัน "ข้างใน" ล็อก
     var existing []Booking
     tx.Where("restaurant_id = ? AND status = 'active'", restaurantID).
        Where("start_at < ? AND end_at > ?", end, start).
        Where("id <> ?", excludeID).      // ⚠️ ตอนแก้ไข: ห้ามนับที่นั่งเดิมของตัวเองซ้ำ
        Find(&existing)
+    if err := checkSeats(existing, r.Seats, booking); err != nil { return err }
 
-    // 3) ตัดสิน แล้วเขียน — ทั้งหมดในล็อกเดียว
-    if err := checkSeats(existing, r.Seats, partySize, start, end); err != nil { return err }
+    // 4) เขียน — ทั้งหมดในล็อกเดียว
     return tx.Create(&booking).Error
 })
 ```
@@ -357,12 +390,29 @@ err := db.Transaction(func(tx *gorm.DB) error {
 ข้ามวัน open=18:00 close=02:00 → close_minute(120) <= open_minute(1080)
 ```
 วิธีตรวจ: แปลงช่วงจองเป็น "นาทีนับจากเวลาเปิดของรอบนั้น" แล้วเทียบกับความยาวรอบเปิด
-`duration = (close - open + 1440) % 1440` (ถ้าได้ 0 = เปิด 24 ชม.)
-เขียน test ครอบทั้งสองแบบ + เคสจองคาบเกี่ยวเวลาปิด (22:30–23:30 ที่ร้านปิด 23:00 → 400)
+```go
+// ความยาวของรอบเปิด (นาที)
+duration := (close - open + 1440) % 1440
+if duration == 0 {
+    duration = 1440 // open == close = เปิด 24 ชม. — ⚠️ ถ้าไม่มีบรรทัดนี้ ร้าน 24 ชม. จะจองไม่ได้เลย
+}
+```
+`fitsOpeningHours(r, start, end)` = หารอบเปิดที่ `start` อยู่ แล้วเช็ค `offset(start) >= 0 && offset(end) <= duration`
+ใช้ทั้งตอนจอง (กฎ 4) และตอนเจ้าของย่นเวลา (5.1)
+เขียน test ครอบทั้งร้านปกติ, ข้ามคืน, 24 ชม. + เคสจองคาบเกี่ยวเวลาปิด (22:30–23:30 ที่ร้านปิด 23:00 → 400)
 
-**`date` = วันทำการ (รอบที่เริ่มเปิดในวันนั้น)** — ทั้ง `GET /availability?date=` และฟอร์มจอง
-ร้านเปิด 18:00–02:00 ขอ `date=2026-10-10` → ได้ slot 18:00 ของวันที่ 10 ถึง 02:00 ของวันที่ 11 ต่อเนื่องในรอบเดียว
-เลือกวันที่ 10 แล้วใส่เวลา 00:30 → หมายถึง 00:30 ของวันที่ 11
+**`date` = วันทำการ (รอบที่เริ่มเปิดในวันนั้น)** — ใช้ความหมายเดียวกันทุกที่:
+`GET /restaurants/:id/availability?date=`, `GET /restaurants/:id/bookings?date=` (ของ owner) และฟอร์มจอง
+```
+opens_at  = date + open_minute (เวลาไทย)
+closes_at = opens_at + duration
+รอบของ date = [opens_at, closes_at)
+```
+- ร้านเปิด 18:00–02:00 ขอ `date=2026-10-10` → slot 18:00 ของวันที่ 10 ถึง 02:00 ของวันที่ 11 ต่อเนื่องในรอบเดียว
+- เลือกวันที่ 10 แล้วใส่เวลา 00:30 → หมายถึง 00:30 ของวันที่ 11
+- ⚠️ ขอ `date=2026-10-11` ต้อง **ไม่มี** slot 00:00–02:00 ของเช้าวันที่ 11 — ช่วงนั้นเป็นของรอบวันที่ 10 ไปแล้ว (เคสที่พลาดง่ายสุด ต้องมีเทสต์)
+- owner ดูการจอง `?date=` → เอา booking ที่ `start_at` อยู่ใน `[opens_at, closes_at)` ของรอบนั้น
+  (คนจองตี 1 คืนวันเสาร์ต้องอยู่ในบอร์ดของวันเสาร์ ไม่ใช่วันอาทิตย์)
 
 ### 5.5 แก้ไขและยกเลิก
 | กฎ | ผล |
@@ -399,9 +449,19 @@ rating_count = rating_count + 1                                               ra
   `score = (C·m + rating_sum) / (C + rating_count)` โดย `C = 5`,
   `m` = ค่าเฉลี่ยของทุกรีวิวในระบบ = `SUM(rating_sum) / SUM(rating_count)` ของร้านที่ไม่ถูกลบ (ไม่มีรีวิวเลย → `COALESCE`)
   **ร้านที่ยังไม่มีรีวิว (`rating_count = 0`) อยู่ท้ายสุดเสมอ** — ไม่งั้นจะได้คะแนน = m พอดีและแซงร้านที่มีรีวิวจริงแต่ต่ำกว่าค่าเฉลี่ย
+  `score` ไม่ใช่คอลัมน์ในตาราง — ต้องคำนวณใน query (raw SQL ผ่าน GORM `Raw`):
   ```sql
-  ORDER BY (rating_count = 0), score DESC, rating_count DESC, id
+  WITH g AS (
+    SELECT COALESCE(SUM(rating_sum)::float / NULLIF(SUM(rating_count), 0), 0) AS m
+    FROM restaurants WHERE deleted_at IS NULL
+  )
+  SELECT r.*, (5 * g.m + r.rating_sum) / (5 + r.rating_count) AS score
+  FROM restaurants r CROSS JOIN g
+  WHERE r.deleted_at IS NULL
+  ORDER BY (r.rating_count = 0), score DESC, r.rating_count DESC, r.id
+  LIMIT :limit OFFSET :offset
   ```
+  `::float` สำคัญ — ไม่งั้น `SUM(int) / SUM(int)` เป็นหารจำนวนเต็ม ค่าเฉลี่ย 4.37 จะกลายเป็น 4
   (ทางเลือกที่พิจารณาแล้ว: เกณฑ์ขั้นต่ำ ≥ 5 รีวิว — ง่ายกว่าแต่มีเส้นตัดแข็ง; เขียนเปรียบเทียบไว้ใน README)
 - `sort=reviews` → **Most reviewed**: เรียงตาม `rating_count`
 - default → ร้านใหม่สุด
@@ -422,8 +482,8 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 | POST | `/restaurants` | ✓ | |
 | PUT / DELETE | `/restaurants/:id` | ✓ owner | |
 | POST / DELETE | `/restaurants/:id/images` | ✓ owner | รับ URL |
-| GET | `/restaurants/:id/bookings` | ✓ owner | `?date=` — Owner ดูการจองของร้าน |
-| POST | `/bookings` | ✓ | 409 ถ้าที่นั่งไม่พอหรือซ้อนการจองของตัวเอง |
+| GET | `/restaurants/:id/bookings` | ✓ owner | `?date=YYYY-MM-DD` (**วันทำการ** เหมือน availability) — Owner ดูการจองของร้าน |
+| POST | `/bookings` | ✓ | 409 `NOT_ENOUGH_SEATS` หรือ `DUPLICATE_BOOKING` |
 | GET | `/me/bookings` | ✓ | `?status=upcoming\|past\|cancelled` |
 | GET | `/bookings/:id` | ✓ เจ้าของ booking หรือ owner ร้าน | |
 | PUT | `/bookings/:id` | ✓ เจ้าของ booking | แก้จำนวนคน/วัน/เวลา |
@@ -432,6 +492,22 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 | POST | `/restaurants/:id/reviews` | ✓ | สร้าง; มีอยู่แล้ว → 409; เจ้าของร้าน → 403 |
 | PUT | `/restaurants/:id/reviews` | ✓ | แก้ของตัวเอง; ยังไม่มี → 404 |
 | DELETE | `/restaurants/:id/reviews` | ✓ | ลบของตัวเอง |
+
+**Response ของ availability** — เวลาเป็น timestamp เต็ม (RFC 3339, UTC) ทุกตัว ห้ามส่ง `"00:30"` ลอย ๆ
+เพราะร้านข้ามคืน "00:30" อาจเป็นวันถัดไป — ให้ web แปลงเป็นเวลาไทยเอง
+```json
+{
+  "business_date": "2026-10-10",
+  "opens_at":  "2026-10-10T11:00:00Z",
+  "closes_at": "2026-10-10T19:00:00Z",
+  "seats": 20,
+  "slots": [
+    { "start_at": "2026-10-10T11:00:00Z", "end_at": "2026-10-10T11:30:00Z", "booked": 7, "available": 13 },
+    { "start_at": "2026-10-10T17:30:00Z", "end_at": "2026-10-10T18:00:00Z", "booked": 20, "available": 0 }
+  ]
+}
+```
+(ตัวอย่างคือร้าน 18:00–02:00 เวลาไทย = 11:00Z–19:00Z; `booked` ของแต่ละ slot = คนที่อยู่ในร้าน ณ ต้น slot)
 
 **Status code ที่ต้องใช้ให้ถูก**
 `200/201/204` สำเร็จ · `400` รูปแบบ/เงื่อนไขเวลาผิด · `401` ไม่มี/token ไม่ถูก/หมดอายุ ·
@@ -443,6 +519,10 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 { "error": { "code": "NOT_ENOUGH_SEATS", "message": "ช่วง 12:30–13:00 เหลือ 3 ที่นั่ง", "details": { "available": 3 } } }
 ```
 ฝั่ง web แปล `code` เป็นข้อความไทย — ไม่พึ่ง `message` จาก API ในการตัดสินใจ
+
+error code ของ 409 (ต้องแยกกัน เพราะหน้าเว็บทำต่างกัน):
+`NOT_ENOUGH_SEATS` · `DUPLICATE_BOOKING` · `BOOKING_CANCELLED` · `BOOKING_ALREADY_STARTED` ·
+`SEATS_BELOW_BOOKED` · `HOURS_CONFLICT` · `REVIEW_EXISTS`
 
 **Middleware order:** Recovery → RequestID/Logger → CORS (`http://jongyoung.localhost` เท่านั้น) → RateLimit(เบา ๆ) → JWT (verify + JIT provisioning) → เช็คความเป็นเจ้าของใน service
 
@@ -460,7 +540,9 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 | `/api/auth/[...nextauth]`, `/api/auth/logout` | next-auth + logout | – |
 
 - ฟอร์มใช้ react-hook-form + zod
-- **การจอง: ห้ามใช้ optimistic update** — ต้องรอผลจริง; ได้ 409 ให้ refetch availability พร้อมบอกจำนวนที่นั่งที่เหลือจริง และเสนอช่วงที่ยังว่างพอ
+- **การจอง: ห้ามใช้ optimistic update** — ต้องรอผลจริง; ได้ 409 ให้ดู `error.code` (ตาราง 5.2):
+  `NOT_ENOUGH_SEATS` → refetch availability บอกที่นั่งที่เหลือจริง และเสนอช่วงที่ยังว่างพอ /
+  `DUPLICATE_BOOKING` → "คุณจองช่วงนี้ไว้แล้ว" แล้วพาไป `/me/bookings` (ห้ามบอกว่าร้านเต็ม)
   (รีวิวใช้ optimistic ได้)
 - ปุ่มกดจองต้อง disable ระหว่างยิง กันกดรัว
 - ซ่อนปุ่มแก้/ลบเมื่อไม่ใช่เจ้าของ — เป็นเรื่อง UX เท่านั้น API ต้องกันซ้ำเสมอ
@@ -472,7 +554,7 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 
 ## 8. Design system
 
-**ต้นแบบหน้าตา:** [guy127/introduce_myself](https://github.com/guy127/introduce_myself) — **ไม่ใช่ wongnok**
+**ต้นแบบหน้าตา:** [guy127/introduce_myself](https://github.com/guy127/introduce_myself)
 **Mockup ทุกหน้า (Claude Design):** https://claude.ai/artifact/Cb7eGqYexzQd73X6AiqvKR
 
 **คาแรกเตอร์:** กลางคืนอบอุ่น + กระจกขุ่น — พื้นมืดโทนอุ่นมีแสงเรืองแดง/อำพัน/ฟ้า, การ์ดกระจก (blur),
@@ -551,17 +633,28 @@ hover การ์ด: translateY(-6px) — ปิดเมื่อ prefers-red
 1. ร้าน 10 ที่ มีคนจอง 7 ขอเพิ่ม 5 ในช่วงทับกัน → **ปฏิเสธ**
 2. A 7 (12:00–12:30), B 7 (12:30–13:00), C ขอ 3 (12:00–13:00) → **ผ่าน** ⭐ เคสที่ naive SUM พลาด
 3. A 7 + B 3 เต็มพอดี → A แก้เป็น 8 = ปฏิเสธ / A แก้เป็น 5 = ผ่าน (ทดสอบ `excludeID`)
-4. จองเวลาที่ผ่านมาแล้ว → ปฏิเสธ
+4. จองเวลาที่ผ่านมาแล้ว → ปฏิเสธ; จองรอบที่เริ่มในอีก 29 นาที → ปฏิเสธ / อีก 30 นาทีพอดี → ผ่าน (lead time boundary)
 5. จองนอกเวลาเปิด + ร้านเปิดข้ามเที่ยงคืน 18:00–02:00 (ทั้งเคสผ่านและไม่ผ่าน)
 6. จองคาบเกี่ยวเวลาปิดร้าน → ปฏิเสธ
 7. ยกเลิกช้ากว่า `cancel_before_minutes` → ปฏิเสธ; ตรงเวลาพอดี → ผ่าน (boundary)
 8. `party_size > seats` → ปฏิเสธ
 9. booking ที่ยกเลิกแล้วไม่ถูกนับเป็นที่นั่งที่ถูกใช้
+10. ร้าน 24 ชม. (`open = close`) → จองได้ทุกเวลา รวมช่วงคร่อมเที่ยงคืน
+11. วันทำการ: ร้าน 18:00–02:00 ขอ `date=11` → ไม่มี slot 00:00–02:00 ของเช้าวันที่ 11 (เป็นของรอบวันที่ 10); ขอ `date=10` → มีครบถึง 02:00 ของวันที่ 11
+12. `maxConcurrent`: ไม่มี booking → 0; A/B/C ของเคส 2 → peak 10 ที่ 12:00
+
+service test (booking / restaurant):
+- กฎ 7: ผู้ใช้เดิมจองร้านเดิมซ้อนเวลา → `DUPLICATE_BOOKING`; คนละร้าน/ไม่ทับกัน → ผ่าน; ตอนแก้ไขไม่นับตัวเอง (`excludeID`)
+- ลดที่นั่งต่ำกว่า `maxConcurrent` ของ booking ในอนาคต → `SEATS_BELOW_BOOKED`; เท่ากับ peak พอดี → ผ่าน
+- ย่นเวลาเปิด–ปิดจน booking ในอนาคตตกนอกเวลา → `HOURS_CONFLICT`; booking ในอดีตไม่นับ
+- owner `?date=`: booking ตี 1 คืนวันเสาร์อยู่ในบอร์ดวันเสาร์ ไม่ใช่วันอาทิตย์
+- `EnsureExists`: ครั้งแรกสร้าง; ครั้งถัดไป email/ชื่อเปลี่ยน → อัปเดต
 
 - service test: mock repository ด้วย mockery (`mocks_test.go`)
 - repository test: testcontainers (Postgres จริง) รัน migrations/ ทุกไฟล์
 - handler test: `httptest` ยิงใส่ Gin router — เช็ค 401 (ไม่มี token), 403 (ไม่ใช่เจ้าของ / รีวิวร้านตัวเอง), 409 (ที่นั่งไม่พอ, รีวิวซ้ำ)
 - integration test การจองพร้อมกัน: ยิง 2 goroutine จองพร้อมกันบนที่นั่งที่เหลือพอสำหรับคนเดียว → ต้องสำเร็จ 1 ล้มเหลว 1
+- integration test กดซ้ำ: ผู้ใช้คนเดียวยิงคำขอเดียวกัน 2 goroutine → สำเร็จ 1, อีกอันได้ `DUPLICATE_BOOKING` (ไม่ใช่ `NOT_ENOUGH_SEATS`)
 - Bayesian sort: ★5.0 จาก 1 รีวิวต้องไม่อยู่เหนือ ★4.8 จาก 46 รีวิว; ร้านไม่มีรีวิวอยู่ท้ายสุด
 
 ---
@@ -587,7 +680,8 @@ hover การ์ด: translateY(-6px) — ปิดเมื่อ prefers-red
 | ร้านเปิด 18:00–02:00 เก็บยังไง | นาทีจากเที่ยงคืน; `close <= open` = ข้ามวัน; ตรวจด้วย offset จากเวลาเปิด; `date` = วันทำการ |
 | ★5.0 จาก 1 รีวิว vs ★4.8 จาก 300 | Bayesian average ดึงร้านที่รีวิวน้อยเข้าหาค่าเฉลี่ยรวม (C = 5) ร้านไม่มีรีวิวอยู่ท้าย |
 | ค่าเฉลี่ยคำนวณเมื่อไหร่ | เก็บ `rating_sum`/`rating_count` อัปเดตแบบ atomic ในทรานแซกชันเดียวกับรีวิว → หน้า list ไม่ต้อง AVG/JOIN, ไม่มี N+1 |
-| กดจองซ้ำ/เน็ตกระตุก | กฎ "คนเดียวกันจองร้านเดียวกันซ้อนเวลาไม่ได้" → คำขอที่สอง 409 + ปุ่ม disable ระหว่างยิง |
+| กดจองซ้ำ/เน็ตกระตุก | กฎ "คนเดียวกันจองร้านเดียวกันซ้อนเวลาไม่ได้" ตรวจหลัง `FOR UPDATE` → คำขอที่สองรอล็อกแล้วเห็นการจองแรก → 409 `DUPLICATE_BOOKING` (หน้าเว็บพาไปการจองของฉัน ไม่บอกว่าร้านเต็ม) |
+| ร้านเปิด 24 ชม. | `open == close` → `duration` ได้ 0 จาก modulo ต้องตีความเป็น 1440 |
 | Server vs Client Component | หน้า list/detail = server (ไม่ต้องใช้ token, โหลดเร็ว); หน้าที่ต้อง login และฟอร์ม = client (TanStack + axios) |
 | session/token เก็บที่ไหน | next-auth เก็บ session ใน cookie; axios ดึง access token จาก `getSession()` แนบ Bearer — ความเสี่ยง XSS รับมือด้วย token อายุสั้น + ไม่ render HTML จากผู้ใช้; ทางที่ปลอดภัยกว่าคือ BFF proxy |
 | issuer ไม่ตรงระหว่าง browser กับ container | Caddy + โดเมน `*.jongyoung.localhost` ให้ทุกฝ่ายเห็น Keycloak ชื่อเดียวกัน |
@@ -601,7 +695,9 @@ hover การ์ด: translateY(-6px) — ปิดเมื่อ prefers-red
 
 - ห้ามใช้ naive `SUM` ตรวจที่นั่ง (ดู 5.3)
 - ห้ามลืม `excludeID` ตอนแก้ไขการจอง
-- ห้ามเช็คที่นั่งนอกทรานแซกชัน
+- ห้ามเช็คที่นั่ง (กฎ 6) และการจองซ้อนตัวเอง (กฎ 7) นอกทรานแซกชัน / ก่อน `FOR UPDATE`
+- ห้ามเขียน logic หาค่าสูงสุดของคนในร้านซ้ำ — ใช้ `maxConcurrent` ตัวเดียว
+- ห้ามส่งเวลาใน API เป็น `"HH:MM"` ลอย ๆ — ใช้ timestamp เต็มเสมอ
 - ห้ามอัปเดต `rating_sum/rating_count` ด้วยการอ่านค่ามาบวกใน Go แล้วเขียนกลับ
 - ห้ามรับ `user_id` จาก request body/query — เอาจาก token เท่านั้น
 - ห้ามตรวจกติกาแค่ที่หน้าเว็บ
@@ -612,7 +708,6 @@ hover การ์ด: translateY(-6px) — ปิดเมื่อ prefers-red
 - ห้ามลบข้อมูลจริงเมื่อยกเลิกการจอง (ใช้ `status`) — ต้องเก็บประวัติ
 - ห้ามใส่ seed data ใน `migrations/`
 - ห้ามใส่ library ที่อธิบายไม่ได้ว่าทำอะไร
-- ห้ามลอกหน้าตา wongnok
 
 ---
 
