@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"jongyoung/internal/booking"
 	"jongyoung/internal/config"
 	"jongyoung/internal/middleware"
 	"jongyoung/internal/restaurant"
@@ -27,6 +28,7 @@ func newRouter(ctx context.Context, cfg config.Config, db *gorm.DB, sqlDB *sql.D
 	userService := user.NewService(user.NewRepository(db))
 	userHandler := user.NewHandler(userService)
 	restaurantHandler := restaurant.NewHandler(restaurant.NewService(restaurant.NewRepository(db), time.Now))
+	bookingHandler := booking.NewHandler(booking.NewService(booking.NewRepository(db), time.Now), time.Now)
 
 	var auth gin.HandlerFunc
 	if cfg.App.DevAuth {
@@ -67,6 +69,14 @@ func newRouter(ctx context.Context, cfg config.Config, db *gorm.DB, sqlDB *sql.D
 	rest.DELETE("/:id", auth, restaurantHandler.Delete)
 	rest.POST("/:id/images", auth, restaurantHandler.AddImage)
 	rest.DELETE("/:id/images/:imageId", auth, restaurantHandler.DeleteImage)
+	rest.GET("/:id/bookings", auth, bookingHandler.Board)
+
+	v1.GET("/me/bookings", auth, bookingHandler.ListMine)
+	bookings := v1.Group("/bookings", auth)
+	bookings.POST("", bookingHandler.Create)
+	bookings.GET("/:id", bookingHandler.Get)
+	bookings.PUT("/:id", bookingHandler.Update)
+	bookings.DELETE("/:id", bookingHandler.Cancel)
 
 	return r
 }
