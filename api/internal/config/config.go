@@ -32,7 +32,7 @@ type App struct {
 	DevAuth bool `env:"DEV_AUTH" envDefault:"false"`
 }
 
-func (a App) Addr() string       { return fmt.Sprintf(":%d", a.Port) }
+func (a App) Addr() string        { return fmt.Sprintf(":%d", a.Port) }
 func (a App) IsDevelopment() bool { return a.Env == "development" }
 
 type Database struct {
