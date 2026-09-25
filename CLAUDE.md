@@ -79,7 +79,7 @@ client secret ใน realm export เป็น **ค่าสำหรับ dev
    → GET /api/auth/logout (route handler) → redirect ไป Keycloak end_session พร้อม id_token_hint + ลบ cookie ของ next-auth
 ```
 
-- `proxy.ts` (middleware ของ next-auth) กันหน้า `/me/*` และ `/owner/*` ถ้ายังไม่ login
+- `proxy.ts` (middleware ของ next-auth) กันหน้า `/me/*`, `/owner/*` และ `/bookings/*` ถ้ายังไม่ login
 - Go เปิด CORS ให้ **เฉพาะ** origin `http://jongyoung.localhost`
 
 **ทำไมให้ browser ถือ access token (เลือกแบบนี้แทนการเก็บ token ฝั่ง server ล้วน):**
@@ -117,9 +117,16 @@ user, err := userSvc.EnsureExists(ctx, claims.Subject, claims.Email, claims.Name
 rctx := reqctx.WithUserID(ctx.Request.Context(), user.ID)
 ```
 - ผูกด้วย `sub` **ห้ามผูกด้วย email** เพราะ email เปลี่ยนได้
-- `EnsureExists` = upsert จริง: ไม่มี → สร้าง; มีแล้วแต่ `email`/`display_name` ใน claims ต่างจากที่เก็บ → อัปเดต
-  (ผู้ใช้แก้โปรไฟล์ใน Keycloak แล้วต้องเห็นชื่อใหม่ในระบบเรา)
+- `EnsureExists` = **upsert ไม่ใช่ get-or-create ครั้งเดียวจบ** — ถ้า `email` หรือ `display_name` ใน claims
+  ต่างจากที่เก็บไว้ ต้องอัปเดตให้ตรง (ผู้ใช้เปลี่ยนชื่อ/อีเมลใน Keycloak แล้วระบบเราต้องตามทัน)
+  ```sql
+  INSERT INTO users (id, keycloak_uid, email, display_name) VALUES (...)
+  ON CONFLICT (keycloak_uid) WHERE deleted_at IS NULL
+  DO UPDATE SET email = EXCLUDED.email, display_name = EXCLUDED.display_name, updated_at = now()
+  RETURNING *;
+  ```
 - `users.keycloak_uid` มี unique index — แต่ถ้าใช้ soft delete ต้องเป็น **partial unique index** (`WHERE deleted_at IS NULL`) ไม่งั้นคนที่ถูกลบแล้วล็อกอินใหม่จะชนกับแถวเก่า
+  (`ON CONFLICT ... WHERE deleted_at IS NULL` ต้องเขียน predicate ให้ตรงกับ index นี้ ไม่งั้น Postgres หา index ไม่เจอ)
 - `middleware.DevAuth` (ข้าม token ตอน dev) ใช้ได้เฉพาะ `APP_ENV=development` และต้องมี log เตือน
 
 **บทบาท owner/customer ไม่ต้องอยู่ใน Keycloak เลย** — โจทย์บอก "หนึ่งบัญชี สองบทบาท"
@@ -151,7 +158,8 @@ jongyoung/
 │   │   ├── user/                 # handler, service, repository, model, dto, error
 │   │   ├── restaurant/
 │   │   ├── booking/
-│   │   │   ├── availability.go   # ⭐ หัวใจของโจทย์
+│   │   │   ├── businessday.go    # ⭐ แปลงวันทำการ ↔ ช่วงเวลาจริง (ใช้ร่วมกันทั้งระบบ)
+│   │   │   ├── availability.go   # ⭐ หัวใจของโจทย์ (maxConcurrent, checkSeats, slots)
 │   │   │   └── availability_test.go
 │   │   └── review/
 │   ├── migrations/               # goose (Up + Down ทุกไฟล์) — ห้ามใส่ seed data
@@ -160,16 +168,17 @@ jongyoung/
 │   └── Dockerfile
 ├── web/                          # Next.js
 │   ├── app/
-│   │   ├── page.tsx              # รายการร้าน
+│   │   ├── page.tsx              # รายการร้าน + แถบค้นหา (วันที่/เวลา/จำนวนคน)
 │   │   ├── restaurants/[id]/
+│   │   ├── bookings/[id]/        # หน้ายืนยันการจอง
 │   │   ├── me/bookings/
 │   │   ├── owner/restaurants/
 │   │   └── api/auth/             # [...nextauth], logout
-│   ├── components/bases/         # ปุ่ม, input, badge ฯลฯ
-│   ├── containers/               # Navbar, Footer
+│   ├── components/bases/         # ปุ่ม, input, badge, TimeChip ฯลฯ
+│   ├── containers/               # Navbar (สลับโหมด), OwnerNavbar, Footer
 │   ├── services/                 # hook TanStack Query ต่อ resource
-│   ├── lib/                      # axios.ts, auth/auth-options.ts, formatters
-│   ├── proxy.ts                  # กันหน้า /me, /owner
+│   ├── lib/                      # axios.ts, auth/auth-options.ts, formatters (เวลาไทย + ป้ายข้ามวัน), ics.ts
+│   ├── proxy.ts                  # กันหน้า /me, /owner, /bookings
 │   └── Dockerfile
 ├── docs/                         # spec, UI design, ER diagram
 ├── .gitlab-ci.yml
@@ -200,7 +209,7 @@ restaurants
   owner_id              uuid not null references users(id)
   name                  text not null
   description           text
-  cuisine               text                          -- ใช้ filter + แนะนำร้านประเภทเดียวกันตอนร้านเต็ม
+  cuisine               text                          -- ใช้ filter + แนะนำ "ร้านประเภทเดียวกัน" ตอนร้านเต็ม
   address               text not null                 -- แสดงในหน้ายืนยัน + ลิงก์ Google Maps (ไม่เก็บพิกัด)
   seats                 int  not null check (seats > 0)
   open_minute           int  not null check (open_minute between 0 and 1439)
@@ -242,16 +251,25 @@ reviews
 ```
 
 - **ไม่มีตารางโต๊ะ** — โจทย์นับเป็นที่นั่งรวม ร้าน 10 ที่ = รับพร้อมกันได้ 10 คน
+- **ไม่เก็บพิกัด** → แผนที่เป็นลิงก์ Google Maps ค้นจาก `address` และไม่มีฟีเจอร์ "ร้านใกล้เคียง"
 - เวลาเก็บเป็น `timestamptz` (UTC) ทั้งหมด; `open_minute/close_minute` เก็บเป็นนาทีจากเที่ยงคืน **เวลาไทย**
 - แปลงเป็นเวลาไทยที่ฝั่ง web เท่านั้น (`Asia/Bangkok` ไม่มี DST — พูดถึงได้ตอนสัมภาษณ์ว่าถ้ามี DST ต้องเก็บ timezone ของร้านด้วย)
 - migration มีทั้ง Up และ Down และทดสอบ `goose down` แล้ว
 - seed data อยู่ที่ `cmd/seed` **ห้ามใส่ใน migrations/** (integration test รันทุกไฟล์ใน migrations/)
-- seed ต้องมีร้านหลายแบบเพื่อโชว์ว่ารองรับทุกเคส อย่างน้อย:
-  1. ร้านเวลาปกติ (11:00–22:00) ที่มีการจองคืนนี้จนเกือบเต็ม/เต็มบางช่วง
-  2. ร้านเปิดข้ามเที่ยงคืน (18:00–02:00)
-  3. ร้านเปิด 24 ชม. (`open_minute = close_minute`)
-  4. ร้านที่ยังไม่มีรีวิว
-  5. ร้าน ★5.0 จาก 1 รีวิว คู่กับร้าน ★4.8 จากรีวิวเยอะ (โชว์ Bayesian sort)
+
+### 4.1 Seed data ที่ต้องมี (ต้องครบ 5 แบบเพื่อโชว์ว่ารองรับ)
+
+| ร้าน | เวลา | open/close_minute | โชว์อะไร |
+|---|---|---|---|
+| ร้านอาหารตามสั่ง | 10:00–21:00 | 600 / 1260 | เคสปกติ + มีช่วงเกือบเต็มคืนนี้ (โชว์ "เหลือน้อย") |
+| ร้านในห้าง | 11:00–22:00 | 660 / 1320 | เคสปกติ + รีวิวเยอะ (46 รีวิว ★4.8) |
+| ร้านบุฟเฟ่ต์ | 17:00–23:00 | 1020 / 1380 | เปิดเฉพาะเย็น + มีรีวิวเดียว ★5.0 (ทดสอบ Bayesian + ป้าย "รีวิวน้อย") |
+| ร้านซีฟู้ด/บาร์ | 18:00–02:00 | 1080 / 120 | **ข้ามเที่ยงคืน** |
+| ร้านโจ๊ก 24 ชม. | 00:00–00:00 | 0 / 0 | **เปิด 24 ชม.** |
+
+ต้องมีร้านที่ยังไม่มีรีวิวอย่างน้อย 1 ร้าน (ทดสอบลำดับท้ายสุด), ร้านที่เต็มทั้งรอบคืนนี้อย่างน้อย 1 ร้าน (โชว์ empty state)
+และ booking ล่วงหน้าของ `customer1` อย่างน้อย 2 รายการ (รายการหนึ่งอยู่ในรอบข้ามเที่ยงคืน) + booking ที่ผ่านมาแล้ว 1 รายการ
+ทุกร้านต้องมี `address` และรูปอย่างน้อย 1 รูป
 
 ---
 
@@ -265,43 +283,50 @@ reviews
 |---|---|
 | สร้างร้านได้ทุกคนที่ล็อกอิน | 201 |
 | แก้/ลบได้เฉพาะร้านตัวเอง | ไม่ใช่เจ้าของ → **403** |
-| ต้องมีรูปอย่างน้อย 1 รูป (URL) | ไม่มี → 400 |
+| ต้องมีรูปอย่างน้อย 1 รูป (URL) และมี `address` | ไม่มี → 400 |
 | `seats > 0` | |
 | `cancel_before_minutes >= 30` | ตั้งต่ำกว่า → 400 |
-| **ลดจำนวนที่นั่งต่ำกว่าที่มีคนจองไว้แล้ว** | ปฏิเสธ **409** พร้อมบอกว่าช่วงไหนชน (ไม่ทำให้ booking ที่มีอยู่กลายเป็น invalid) |
-| **แก้เวลาเปิด–ปิดให้แคบกว่า booking ที่มีอยู่** | ปฏิเสธ 409 ด้วยเหตุผลเดียวกัน |
+| **ลดจำนวนที่นั่งต่ำกว่าที่มีคนจองไว้แล้ว** | ปฏิเสธ **409** `SEATS_BELOW_EXISTING_BOOKINGS` พร้อม `details: { at, peak }` |
+| **แก้เวลาเปิด–ปิดให้แคบกว่า booking ที่มีอยู่** | ปฏิเสธ 409 `HOURS_CONFLICT_EXISTING_BOOKINGS` พร้อม booking ที่ตกนอกเวลา |
 | **ลบร้านที่ยังมี booking ในอนาคต** | soft delete ได้ แต่ต้องยกเลิก booking ในอนาคตทั้งหมดในทรานแซกชันเดียวกัน (อธิบายเหตุผลได้ว่าทำไมเลือกแบบนี้ ไม่ใช่ block การลบ) |
 | ร้านที่ถูก soft delete | หายจาก list และจองใหม่ไม่ได้ (404) แต่ประวัติการจอง/รีวิวเดิมยังอ่านได้ |
 
 การตรวจลดที่นั่ง/ย่นเวลาต้องล็อกแถวร้าน (`FOR UPDATE`) เหมือนตอนจอง — ไม่งั้นมีคนจองแทรกระหว่างตรวจ
-- **ลดที่นั่ง:** อ่าน booking ที่ `active` และยังไม่จบ (`end_at > now`) ของร้าน → `peak, at := maxConcurrent(bookings)` (ตัวเดียวกับ 5.3 ห้ามเขียนใหม่)
-  → `peak > newSeats` → 409 `SEATS_BELOW_BOOKED` พร้อม `details: { at, booked: peak }`
-- **ย่นเวลาเปิด–ปิด:** ทุก booking ในอนาคตต้องยังผ่าน `fitsOpeningHours` (5.4) ด้วยเวลาใหม่ → ไม่ผ่านตัวไหน → 409 `HOURS_CONFLICT` พร้อมช่วงที่ชน
+- ลดที่นั่ง: `peak, at := maxConcurrent(bookingในอนาคต, now, ไกลสุด)` → `peak > newSeats` → 409 (ใช้ **`maxConcurrent()` ตัวเดียวกับการจอง** ดู 5.3)
+- ย่นเวลา: booking ในอนาคตทุกตัวต้องยังผ่าน `fitsOpeningHours` (5.4) ด้วยเวลาใหม่
+ห้ามเขียน logic นับที่นั่งหรือเช็คเวลาเปิดขึ้นใหม่ที่นี่
 
 ### 5.2 การจอง — เงื่อนไขครบทุกข้อ
-ลูกค้ากรอก 3 อย่าง: **จำนวนคน / วันที่ / เวลาเริ่ม–สิ้นสุด**
+ลูกค้ากรอก 3 อย่าง: **จำนวนคน / วันทำการ / เวลาเริ่ม–สิ้นสุด**
 
 | # | เงื่อนไข | ผิดแล้วตอบ |
 |---|---|---|
 | 1 | ร้านมีอยู่จริงและไม่ถูกลบ | 404 |
 | 2 | `end_at > start_at` | 400 |
-| 3 | จองล่วงหน้าอย่างน้อย 30 นาที: `start_at >= now + 30 นาที` (เทียบ `time.Now()` ที่ server) — กันจองรอบที่อีก 2 นาทีจะเริ่ม | 400 |
-| 4 | ช่วงจองอยู่ในเวลาเปิด–ปิดของร้าน (รองรับเปิดข้ามเที่ยงคืน) | 400 |
-| 5 | `party_size <= restaurant.seats` (ขอเกินความจุร้านไปเลย) | 400 |
-| 6 | **ที่นั่งไม่เกินในทุกวินาที** — ดู 5.3 | **409** `NOT_ENOUGH_SEATS` |
-| 7 | ผู้ใช้คนเดียวกันจองร้านเดียวกันซ้อนเวลากันเองไม่ได้ — **ตรวจใน FOR UPDATE block เดียวกับข้อ 6** (ดู 5.3) | **409** `DUPLICATE_BOOKING` |
-| 8 | จองล่วงหน้าไม่เกิน 90 วัน และช่วงละไม่เกิน 4 ชม. (กฎเราเอง — กัน abuse, อธิบายได้) | 400 |
-| 9 | เวลาเริ่ม/สิ้นสุดเป็นช่วงละ 30 นาที (:00 หรือ :30) | 400 |
+| 3 | `start_at` ยังไม่ผ่านไปแล้ว | 400 |
+| 4 | **จองล่วงหน้าอย่างน้อย 30 นาที** (`start_at >= now + 30m`) — กันจองรอบที่กำลังจะเริ่มใน 2 นาที | 400 `TOO_LATE_TO_BOOK` |
+| 5 | ช่วงจองอยู่ในเวลาเปิด–ปิดของร้าน (รองรับเปิดข้ามเที่ยงคืน + 24 ชม.) | 400 |
+| 6 | `party_size <= restaurant.seats` (ขอเกินความจุร้านไปเลย) | 400 |
+| 7 | **ที่นั่งไม่เกินในทุกวินาที** — ดู 5.3 | **409** `NOT_ENOUGH_SEATS` |
+| 8 | ผู้ใช้คนเดียวกันจองร้านเดียวกันซ้อนเวลากันเองไม่ได้ | **409** `DUPLICATE_BOOKING` |
+| 9 | จองล่วงหน้าไม่เกิน 90 วัน และช่วงละ 30 นาที – 4 ชม. (กฎเราเอง — กัน abuse, อธิบายได้) | 400 |
+| 10 | เวลาเริ่ม/สิ้นสุดเป็นช่วงละ 30 นาที (:00 หรือ :30) | 400 |
 
-**กดจองซ้ำ / เน็ตกระตุก:** ไม่ใช้ `Idempotency-Key` — กฎข้อ 7 กันการจองซ้ำให้อยู่แล้ว
-(คำขอที่สองรอล็อก → เห็นการจองของคำขอแรก → 409 `DUPLICATE_BOOKING`) + หน้าเว็บ disable ปุ่มระหว่างยิง
-กฎ 7 กันซ้ำได้ **ก็ต่อเมื่อ** อยู่หลัง `FOR UPDATE` — ถ้าเช็คก่อนเข้าทรานแซกชัน สองคำขอจะอ่านเจอ "ยังไม่มี" ทั้งคู่แล้วเขียนทั้งคู่
+**กดจองซ้ำ / เน็ตกระตุก:** ไม่ใช้ `Idempotency-Key` — **กฎข้อ 8 กันการจองซ้ำให้อยู่แล้ว**
+แต่กันได้ต่อเมื่อกฎข้อ 8 ถูกตรวจ **ในทรานแซกชันที่ล็อกแถวร้านแล้ว และตรวจก่อนกฎข้อ 7** (ดู 5.3)
+ถ้าตรวจก่อนเข้าทรานแซกชัน สองคำขอที่มาพร้อมกันจะอ่านเจอว่า "ยังไม่มี" ทั้งคู่แล้วเขียนทั้งคู่
+ถ้าตรวจหลังกฎข้อ 7 คำขอที่สองอาจได้ `NOT_ENOUGH_SEATS` ทั้งที่จริงคือกดซ้ำ
 
-**409 สองแบบ หน้าเว็บต้องทำต่างกัน:**
+409 สองแบบต้องแยกกันให้ชัด เพราะผู้ใช้ต้องทำคนละอย่าง:
+
 | code | ความหมาย | หน้าเว็บทำอะไร |
 |---|---|---|
-| `NOT_ENOUGH_SEATS` | ที่นั่งไม่พอจริง | refetch availability, บอกที่นั่งที่เหลือจริง, เสนอช่วงที่ยังว่างพอ |
-| `DUPLICATE_BOOKING` | ผู้ใช้มีการจองช่วงนี้อยู่แล้ว (มักเพราะกดซ้ำแล้วคำขอแรกสำเร็จ) | **ห้ามบอกว่าร้านเต็ม** → แจ้ง "คุณจองช่วงนี้ไว้แล้ว" แล้วพาไป `/me/bookings` |
+| `NOT_ENOUGH_SEATS` | ร้านเต็มในช่วงนั้น | refetch availability + บอกที่นั่งที่เหลือจริง + เสนอช่วงที่ยังว่าง |
+| `DUPLICATE_BOOKING` | ผู้ใช้มีการจองร้านนี้ที่ทับช่วงนี้อยู่แล้ว | แจ้ง **"คุณมีการจองที่ทับช่วงนี้อยู่แล้ว"** + ปุ่มไป `/bookings/:id` ของรายการเดิม (`details.booking_id`) — ใช้สีกลาง ไม่ใช่แดง และ **ห้ามบอกว่าร้านเต็ม** |
+
+ห้ามแสดง `DUPLICATE_BOOKING` เป็น "จองสำเร็จ" — รายการเดิมอาจไม่ได้มาจากการกดซ้ำ
+(เช่น จองไว้ 18:00–19:00 เมื่อสัปดาห์ก่อน วันนี้ขอ 18:30–20:00) ให้ผู้ใช้เห็นรายการเดิมแล้วตัดสินใจเองว่าจะแก้ไขรายการนั้นไหม
+(ในระบบที่การซ้ำเป็นเรื่องถูกต้องได้ เช่น ตัดเงินมัดจำ กฎธุรกิจกันซ้ำให้ไม่ได้ ต้องใช้ `Idempotency-Key` จริง — เตรียมตอบข้อนี้)
 
 ### 5.3 ⭐ กติกาที่นั่ง — จุดสำคัญที่สุดของโจทย์
 
@@ -316,113 +341,125 @@ SELECT SUM(party_size) FROM bookings WHERE start_at < :newEnd AND end_at > :newS
 A จอง 7 คน 12:00–12:30, B จอง 7 คน 12:30–13:00, C ขอ 3 คน 12:00–13:00
 naive SUM = 7+7+3 = 17 → ปฏิเสธ **แต่คำตอบที่ถูกคือจองได้** เพราะ A ไม่ทับ B → ไม่มีวินาทีใดเกิน 10
 
-**ต้องใช้ sweep line** — ตรวจเฉพาะ "จุดเปลี่ยนแปลง":
+**ต้องใช้ sweep line** — ตรวจเฉพาะ "จุดเปลี่ยนแปลง" เขียนเป็นสองฟังก์ชัน ใช้ซ้ำได้ทั้งระบบ:
 
 ```go
 // internal/booking/availability.go
 
-// maxConcurrent คืนจำนวนคนสูงสุดที่อยู่ในร้านพร้อมกัน และเวลาที่เกิด
-// ใช้ทั้งตอนจอง/แก้ไข (5.3) และตอนเจ้าของลดที่นั่ง (5.1) — มีฟังก์ชันเดียว ห้ามเขียนซ้ำ
-func maxConcurrent(bookings []Booking) (peak int, at time.Time) {
-    // จุดที่ต้องตรวจ = เวลาเริ่มของทุก booking
-    // เพราะจำนวนคนในร้านเพิ่มขึ้นได้เฉพาะตอนมีคนเริ่มเข้า ระหว่างสองจุดค่าคงที่ (จุดที่คนออก ค่าลดลง ไม่ต้องตรวจ)
-    for _, p := range bookings {
-        t := p.StartAt
-        n := 0
+// maxConcurrent คืนจำนวนคนสูงสุดที่อยู่ในร้านพร้อมกันภายในช่วง [start,end) และเวลาที่เกิดค่าสูงสุดนั้น
+// ใช้ทั้งตอนจอง (5.2), ตอนแก้ไข (5.5), ตอนลดที่นั่ง (5.1) และตอนคำนวณ slot ของ availability (6)
+func maxConcurrent(bookings []Booking, start, end time.Time) (peak int, at time.Time) {
+    // จุดที่ต้องตรวจ = จุดเริ่มของช่วง + ทุกจุดที่มีคนเข้าร้านเพิ่มภายในช่วงนั้น
+    points := []time.Time{start}
+    for _, b := range bookings {
+        if b.StartAt.After(start) && b.StartAt.Before(end) {
+            points = append(points, b.StartAt)
+        }
+    }
+    at = start
+    for _, t := range points {
+        occupied := 0
         for _, b := range bookings {
             // อยู่ในร้าน ณ เวลา t คือ start_at <= t < end_at
             if !b.StartAt.After(t) && b.EndAt.After(t) {
-                n += b.PartySize
+                occupied += b.PartySize
             }
         }
-        if n > peak {
-            peak, at = n, t
+        if occupied > peak {
+            peak, at = occupied, t
         }
     }
     return peak, at
 }
 
-// checkSeats: existing = booking 'active' ที่ทับกับช่วงของ req (ไม่รวมตัวที่กำลังแก้)
-// booking ที่มีอยู่ถูกต้องอยู่แล้ว (ไม่เกิน seats) → ถ้า peak รวม req เกิน ต้องเกินในช่วงของ req แน่นอน
-func checkSeats(existing []Booking, seats int, req Booking) error {
-    all := append(slices.Clone(existing), req) // clone กัน append ไปเขียนทับ slice ของผู้เรียก
-    if peak, at := maxConcurrent(all); peak > seats {
-        return &NotEnoughSeatsError{At: at, Available: seats - (peak - req.PartySize)} // → 409 NOT_ENOUGH_SEATS
+// existing = booking ที่ status='active' และช่วงทับกับ [start,end) โดยไม่รวมตัวที่กำลังแก้
+func checkSeats(existing []Booking, seats, partySize int, start, end time.Time) error {
+    peak, at := maxConcurrent(existing, start, end)
+    if peak+partySize > seats {
+        return &NotEnoughSeatsError{At: at, Available: seats - peak} // → 409 NOT_ENOUGH_SEATS
     }
     return nil
 }
 ```
+เหตุผลที่ตรวจแค่จุดเริ่ม: จำนวนคนในร้านเพิ่มขึ้นได้เฉพาะตอนมีคนเริ่มจองใหม่ ระหว่างสองจุดค่าคงที่
+(จุดที่คนออกไม่ต้องตรวจ เพราะค่าลดลง)
 
-**การกันสองคนกดพร้อมกัน — กฎ 6 และกฎ 7 ต้องอยู่ในทรานแซกชันเดียวกัน หลังล็อก:**
+**ทุกการตรวจต้องอยู่ในทรานแซกชันเดียวที่ล็อกแถวร้านแล้ว — รวมกฎข้อ 8 ด้วย:**
 ```go
 err := db.Transaction(func(tx *gorm.DB) error {
-    // 1) ล็อกแถวร้าน — คำขอที่สอง (ร้านเดียวกัน) จะรอที่บรรทัดนี้จนคำขอแรก commit
+    // 1) ล็อกแถวร้าน — คนที่สองจะรอที่บรรทัดนี้
     if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
         First(&r, "id = ? AND deleted_at IS NULL", restaurantID).Error; err != nil { return err }
 
-    // 2) กฎ 7: ผู้ใช้คนนี้มีการจองร้านนี้ที่ทับช่วงนี้อยู่แล้วไหม — ต้องอยู่หลังล็อก และตรวจก่อนกฎ 6
-    //    (กดซ้ำ: คำขอที่สองต้องได้ DUPLICATE_BOOKING ไม่ใช่ NOT_ENOUGH_SEATS)
-    var dup int64
-    tx.Model(&Booking{}).
-       Where("restaurant_id = ? AND user_id = ? AND status = 'active'", restaurantID, userID).
+    // 2) กฎข้อ 8 — จองซ้อนตัวเอง ต้องเช็ค "ข้างใน" ล็อก และก่อนกฎข้อ 7
+    var dup Booking
+    err := tx.Where("restaurant_id = ? AND user_id = ? AND status = 'active'", restaurantID, userID).
        Where("start_at < ? AND end_at > ?", end, start).
-       Where("id <> ?", excludeID).      // จองใหม่ใช้ uuid.Nil
-       Count(&dup)
-    if dup > 0 { return ErrDuplicateBooking } // → 409 DUPLICATE_BOOKING
+       Where("id <> ?", excludeID).       // จองใหม่ใช้ uuid.Nil
+       First(&dup).Error
+    if err == nil { return &DuplicateBookingError{BookingID: dup.ID} }   // → 409 DUPLICATE_BOOKING
+    if !errors.Is(err, gorm.ErrRecordNotFound) { return err }
 
-    // 3) กฎ 6: อ่าน booking ที่ทับกัน "ข้างใน" ล็อก
+    // 3) กฎข้อ 7 — อ่าน booking ที่ทับกัน "ข้างใน" ล็อก
     var existing []Booking
     tx.Where("restaurant_id = ? AND status = 'active'", restaurantID).
        Where("start_at < ? AND end_at > ?", end, start).
        Where("id <> ?", excludeID).      // ⚠️ ตอนแก้ไข: ห้ามนับที่นั่งเดิมของตัวเองซ้ำ
        Find(&existing)
-    if err := checkSeats(existing, r.Seats, booking); err != nil { return err }
 
-    // 4) เขียน — ทั้งหมดในล็อกเดียว
+    // 4) ตัดสิน แล้วเขียน — ทั้งหมดในล็อกเดียว
+    if err := checkSeats(existing, r.Seats, partySize, start, end); err != nil { return err }
     return tx.Create(&booking).Error
 })
 ```
-ห้ามเช็คก่อนแล้วค่อย insert นอกทรานแซกชัน — ร้านเหลือ 6 ที่ สองคนกดคนละ 6 ที่พร้อมกัน
-ต้องสำเร็จคนเดียว อีกคนได้ 409 (ทางเลือกอื่นที่อธิบายได้: advisory lock ต่อร้าน, `SERIALIZABLE` + retry — เลือก FOR UPDATE เพราะง่ายสุดและเข้าใจได้)
+ห้ามเช็คที่นั่งนอกทรานแซกชัน — ร้านเหลือ 6 ที่ สองคนกดคนละ 6 ที่พร้อมกัน
+ต้องสำเร็จคนเดียว อีกคนได้ 409 (ทางเลือกอื่นที่อธิบายได้: advisory lock ต่อร้าน, `SERIALIZABLE` + retry,
+หรือ `EXCLUDE USING gist` บน `(user_id, restaurant_id, tstzrange(start_at,end_at))` ให้ DB กันซ้ำเอง —
+เลือก FOR UPDATE เพราะง่ายสุดและอธิบายได้ในหนึ่งประโยค)
 
-### 5.4 เวลาเปิด–ปิด รวมร้านที่เปิดข้ามเที่ยงคืน
+### 5.4 เวลาเปิด–ปิด และนิยาม "วันทำการ"
+
 ```
-ปกติ   open=11:00 close=22:00 → open_minute(660) < close_minute(1320)
-ข้ามวัน open=18:00 close=02:00 → close_minute(120) <= open_minute(1080)
+ปกติ    open=11:00 close=22:00 → open_minute(660) < close_minute(1320)
+ข้ามวัน  open=18:00 close=02:00 → close_minute(120) <= open_minute(1080)
+24 ชม.  open=00:00 close=00:00 → เท่ากัน
 ```
-วิธีตรวจ: แปลงช่วงจองเป็น "นาทีนับจากเวลาเปิดของรอบนั้น" แล้วเทียบกับความยาวรอบเปิด
+
 ```go
-// ความยาวของรอบเปิด (นาที)
-duration := (close - open + 1440) % 1440
-if duration == 0 {
-    duration = 1440 // open == close = เปิด 24 ชม. — ⚠️ ถ้าไม่มีบรรทัดนี้ ร้าน 24 ชม. จะจองไม่ได้เลย
-}
+// internal/booking/businessday.go
+duration := (closeMin - openMin + 1440) % 1440
+if duration == 0 { duration = 1440 }   // ⚠️ ร้าน 24 ชม. — ถ้าไม่ใส่บรรทัดนี้จะจองไม่ได้เลย
 ```
-`fitsOpeningHours(r, start, end)` = หารอบเปิดที่ `start` อยู่ แล้วเช็ค `offset(start) >= 0 && offset(end) <= duration`
-ใช้ทั้งตอนจอง (กฎ 4) และตอนเจ้าของย่นเวลา (5.1)
-เขียน test ครอบทั้งร้านปกติ, ข้ามคืน, 24 ชม. + เคสจองคาบเกี่ยวเวลาปิด (22:30–23:30 ที่ร้านปิด 23:00 → 400)
+วิธีตรวจ: แปลงช่วงจองเป็น "นาทีนับจากเวลาเปิดของรอบนั้น" แล้วเทียบกับ `duration`
+`fitsOpeningHours(r, start, end)` = `offset(start) >= 0 && offset(end) <= duration` — ใช้ทั้งตอนจอง (กฎ 5) และตอนย่นเวลา (5.1)
 
-**`date` = วันทำการ (รอบที่เริ่มเปิดในวันนั้น)** — ใช้ความหมายเดียวกันทุกที่:
-`GET /restaurants/:id/availability?date=`, `GET /restaurants/:id/bookings?date=` (ของ owner) และฟอร์มจอง
+**`date` = วันทำการ = รอบเปิดที่เริ่มในวันปฏิทินนั้น** ใช้ความหมายเดียวกันทั้งระบบ
+(`GET /availability?date=`, `GET /restaurants?date=`, `GET /restaurants/:id/bookings?date=` ของ owner, และฟอร์มจอง)
 ```
 opens_at  = date + open_minute (เวลาไทย)
 closes_at = opens_at + duration
 รอบของ date = [opens_at, closes_at)
 ```
-- ร้านเปิด 18:00–02:00 ขอ `date=2026-10-10` → slot 18:00 ของวันที่ 10 ถึง 02:00 ของวันที่ 11 ต่อเนื่องในรอบเดียว
-- เลือกวันที่ 10 แล้วใส่เวลา 00:30 → หมายถึง 00:30 ของวันที่ 11
-- ⚠️ ขอ `date=2026-10-11` ต้อง **ไม่มี** slot 00:00–02:00 ของเช้าวันที่ 11 — ช่วงนั้นเป็นของรอบวันที่ 10 ไปแล้ว (เคสที่พลาดง่ายสุด ต้องมีเทสต์)
-- owner ดูการจอง `?date=` → เอา booking ที่ `start_at` อยู่ใน `[opens_at, closes_at)` ของรอบนั้น
-  (คนจองตี 1 คืนวันเสาร์ต้องอยู่ในบอร์ดของวันเสาร์ ไม่ใช่วันอาทิตย์)
+- ร้านเปิด 18:00–02:00 ขอ `date=2026-10-10` → ได้ช่วง 18:00 ของวันที่ 10 ถึง 02:00 ของวันที่ 11 **ต่อเนื่องในรอบเดียว**
+- ผู้ใช้เลือกวันทำการ 10 แล้วใส่เวลา 00:30 → server แปลงเป็น `2026-10-11T00:30+07:00`
+  กฎแปลง: **ถ้าเวลาที่เลือก < `open_minute` แปลว่าอยู่ในส่วนหลังเที่ยงคืน → บวก 1 วัน**
+- `date=2026-10-11` ต้อง **ไม่มี** ช่วงตี 0–2 ของเช้าวันที่ 11 เพราะนั่นเป็นของรอบวันที่ 10 ไปแล้ว
+  (บั๊กที่เกิดง่ายที่สุด — ต้องมีเทสต์)
+- owner `?date=` เอา booking ที่ `start_at` อยู่ใน `[opens_at, closes_at)` — แขกตี 1 คืนวันเสาร์อยู่ในบอร์ดวันเสาร์
+- ร้านปกติ วันทำการ = วันปฏิทิน ไม่ต้องทำอะไรเพิ่ม
+- รอบของ "วันนี้" ต้องตัดช่วงที่เลยไปแล้วและช่วงที่เหลือน้อยกว่า lead time 30 นาทีออก
+
+**ตัวแปลงวันทำการ ↔ เวลาจริง ต้องเป็นฟังก์ชันเดียวใน `businessday.go`** ที่ availability, list, POST /bookings,
+PUT /bookings และหน้า owner เรียกใช้ร่วมกัน — ห้ามเขียนซ้ำในแต่ละที่
 
 ### 5.5 แก้ไขและยกเลิก
 | กฎ | ผล |
 |---|---|
 | แก้/ยกเลิกได้เฉพาะ booking ของตัวเอง | 403 |
 | แก้ไขใช้กติกาเดียวกับจองใหม่ทุกข้อ + `excludeID = booking.ID` | |
-| booking ที่ `cancelled` แล้ว แก้/ยกเลิกอีกไม่ได้ | 409 |
-| booking ที่เลยเวลาไปแล้ว แก้/ยกเลิกไม่ได้ | 409 |
-| ยกเลิกได้เมื่อ `now <= start_at - cancel_before_minutes` | ช้ากว่านั้น → **403** พร้อมบอกเวลาที่ยกเลิกได้ถึง |
+| booking ที่ `cancelled` แล้ว แก้/ยกเลิกอีกไม่ได้ | 409 `BOOKING_CANCELLED` |
+| booking ที่เลยเวลาไปแล้ว แก้/ยกเลิกไม่ได้ | 409 `BOOKING_ALREADY_STARTED` |
+| ยกเลิกได้เมื่อ `now <= start_at - cancel_before_minutes` | ช้ากว่านั้น → **403** `CANCEL_WINDOW_PASSED` พร้อม `details.cancel_until` |
 | การแก้ไขแบบเลื่อนเวลา ใช้ cancel window ของเวลา**เดิม** | กันเลี่ยงกฎด้วยการเลื่อนเวลาแทนยกเลิก |
 
 ตัวอย่างจากโจทย์: ร้าน 10 ที่ A จอง 7 B จอง 3 (เต็มพอดี) → A แก้เป็น 8 คน = ต้องใช้ 11 ที่ → **ปฏิเสธ**; A แก้เป็น 5 คน → **ผ่าน**
@@ -431,8 +468,8 @@ closes_at = opens_at + duration
 | กฎ | ผล |
 |---|---|
 | คะแนนเป็นจำนวนเต็ม 1–5 + ข้อความ | ไม่ใช่ → 400 |
-| **รีวิวร้านตัวเองไม่ได้** (`owner_id == userID`) | **403** |
-| 1 คน 1 รีวิวต่อร้าน — **แยก create/update ชัดเจน** | `POST` ซ้ำ → **409**; `PUT` ตอนยังไม่เคยรีวิว → **404** |
+| **รีวิวร้านตัวเองไม่ได้** (`owner_id == userID`) | **403** `OWN_RESTAURANT` |
+| 1 คน 1 รีวิวต่อร้าน — **แยก create/update ชัดเจน** | `POST` ซ้ำ → **409** `REVIEW_EXISTS`; `PUT` ตอนยังไม่เคยรีวิว → **404** |
 | แก้/ลบได้เฉพาะรีวิวตัวเอง | 403 |
 | ต้องเคยจองก่อนไหม | **ไม่ต้อง** — โจทย์ไม่ได้บังคับ |
 | `rating_sum`/`rating_count` | อัปเดต **ในทรานแซกชันเดียวกับ**การเพิ่ม/แก้/ลบรีวิวเสมอ |
@@ -446,27 +483,31 @@ rating_count = rating_count + 1                                               ra
 ```
 
 ### 5.7 การเรียงลำดับร้าน
-- `sort=rating` → **Highest rated ด้วย Bayesian average**
-  `score = (C·m + rating_sum) / (C + rating_count)` โดย `C = 5`,
-  `m` = ค่าเฉลี่ยของทุกรีวิวในระบบ = `SUM(rating_sum) / SUM(rating_count)` ของร้านที่ไม่ถูกลบ (ไม่มีรีวิวเลย → `COALESCE`)
-  **ร้านที่ยังไม่มีรีวิว (`rating_count = 0`) อยู่ท้ายสุดเสมอ** — ไม่งั้นจะได้คะแนน = m พอดีและแซงร้านที่มีรีวิวจริงแต่ต่ำกว่าค่าเฉลี่ย
-  `score` ไม่ใช่คอลัมน์ในตาราง — ต้องคำนวณใน query (raw SQL ผ่าน GORM `Raw`):
-  ```sql
-  WITH g AS (
-    SELECT COALESCE(SUM(rating_sum)::float / NULLIF(SUM(rating_count), 0), 0) AS m
-    FROM restaurants WHERE deleted_at IS NULL
-  )
-  SELECT r.*, (5 * g.m + r.rating_sum) / (5 + r.rating_count) AS score
-  FROM restaurants r CROSS JOIN g
-  WHERE r.deleted_at IS NULL
-  ORDER BY (r.rating_count = 0), score DESC, r.rating_count DESC, r.id
-  LIMIT :limit OFFSET :offset
-  ```
-  `::float` สำคัญ — ไม่งั้น `SUM(int) / SUM(int)` เป็นหารจำนวนเต็ม ค่าเฉลี่ย 4.37 จะกลายเป็น 4
-  (ทางเลือกที่พิจารณาแล้ว: เกณฑ์ขั้นต่ำ ≥ 5 รีวิว — ง่ายกว่าแต่มีเส้นตัดแข็ง; เขียนเปรียบเทียบไว้ใน README)
-- `sort=reviews` → **Most reviewed**: เรียงตาม `rating_count`
-- default → ร้านใหม่สุด
-- ต้องมี tie-breaker คงที่ (`id`) ไม่งั้น pagination จะได้ข้อมูลซ้ำ/หาย
+
+`sort=rating` → **Highest rated ด้วย Bayesian average**
+`score = (C·m + rating_sum) / (C + rating_count)` โดย `C = 5`,
+`m` = ค่าเฉลี่ยของทุกรีวิวในระบบ (ร้านที่ไม่ถูกลบ)
+
+`score` **ไม่ใช่คอลัมน์ในตาราง** ต้องคำนวณใน query จริง:
+```sql
+WITH g AS (
+  SELECT COALESCE(SUM(rating_sum)::float / NULLIF(SUM(rating_count), 0), 0) AS m
+  FROM restaurants WHERE deleted_at IS NULL
+)
+SELECT r.*,
+       (5 * g.m + r.rating_sum) / (5 + r.rating_count) AS score
+FROM restaurants r CROSS JOIN g
+WHERE r.deleted_at IS NULL
+ORDER BY (r.rating_count = 0), score DESC, r.rating_count DESC, r.id
+LIMIT :limit OFFSET :offset;
+```
+- `::float` สำคัญ — ไม่งั้น `SUM(int) / SUM(int)` เป็นหารจำนวนเต็ม ค่าเฉลี่ย 4.37 จะกลายเป็น 4
+- **ร้านที่ยังไม่มีรีวิวอยู่ท้ายสุดเสมอ** (`rating_count = 0` มาก่อนใน ORDER BY) — ไม่งั้นจะได้คะแนน = m พอดีและแซงร้านที่มีรีวิวจริงแต่ต่ำกว่าค่าเฉลี่ย
+- `sort=reviews` → เรียงตาม `rating_count DESC, id`
+- default → ร้านใหม่สุด (`created_at DESC, id`)
+- ต้องมี tie-breaker คงที่ (`id`) ทุก sort ไม่งั้น pagination จะได้ข้อมูลซ้ำ/หาย
+- (ทางเลือกที่พิจารณาแล้ว: เกณฑ์ขั้นต่ำ ≥ 5 รีวิว — ง่ายกว่าแต่มีเส้นตัดแข็ง; เขียนเปรียบเทียบไว้ใน README)
+- UI แสดง "รีวิวน้อย (n)" แทนดาวเด่นเมื่อรีวิว < 5 ให้สอดคล้องกับเหตุผลเดียวกัน (ดู 8.4)
 
 ---
 
@@ -476,18 +517,18 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 
 | Method | Path | Auth | หมายเหตุ |
 |---|---|---|---|
-| GET | `/me` | ✓ | โปรไฟล์ + ร้านที่เป็นเจ้าของ (web ใช้ตัดสินว่าจะโชว์เมนู owner ไหม) |
-| GET | `/restaurants` | – | `?q=&cuisine=&sort=rating\|reviews\|newest&page=&limit=` + ตัวเลือก `&date=&time=&party=` → แต่ละร้านมี `slots` 5 ช่วงรอบ `time` (ดูด้านล่าง) |
-| GET | `/restaurants/:id/next-available` | – | `?date=&time=&party=` → วันทำการถัดไป (ไม่เกิน 14 วัน) ที่มีช่วงว่างพอ ใช้ทำ empty state |
-| GET | `/restaurants/:id` | – | + คะแนนเฉลี่ย + จำนวนรีวิว + รูปทั้งหมด |
-| GET | `/restaurants/:id/availability` | – | `?date=YYYY-MM-DD` (วันทำการ) → ที่นั่งคงเหลือทุกช่วง 30 นาที |
+| GET | `/me` | ✓ | โปรไฟล์ + ร้านที่เป็นเจ้าของ (web ใช้ตัดสินว่าจะโชว์ตัวสลับโหมด owner + ซ่อนปุ่มรีวิวร้านตัวเอง) |
+| GET | `/restaurants` | – | `?q=&cuisine=&sort=rating\|reviews\|newest&page=&limit=` + ตัวเลือก `&date=&time=&party_size=` → แต่ละร้านมี `slots` (ดูด้านล่าง) |
+| GET | `/restaurants/:id` | – | + คะแนนเฉลี่ย + จำนวนรีวิว + รูปทั้งหมด + `address` + `cancel_before_minutes` |
+| GET | `/restaurants/:id/availability` | – | `?date=YYYY-MM-DD` (**วันทำการ**) `&party_size=` → ทุกช่วง 30 นาทีของรอบ |
+| GET | `/restaurants/:id/next-available` | – | `?date=&time=&party_size=` → วันทำการถัดไป (ไม่เกิน 14 วัน) ที่มีช่วงว่างพอ + ช่วงเหล่านั้น; ไม่เจอ → `null` |
 | POST | `/restaurants` | ✓ | |
 | PUT / DELETE | `/restaurants/:id` | ✓ owner | |
 | POST / DELETE | `/restaurants/:id/images` | ✓ owner | รับ URL |
-| GET | `/restaurants/:id/bookings` | ✓ owner | `?date=YYYY-MM-DD` (**วันทำการ** เหมือน availability) — Owner ดูการจองของร้าน |
+| GET | `/restaurants/:id/bookings` | ✓ owner | `?date=` (**วันทำการ เหมือนกัน**) — แขกตอนตี 1 ของคืนวันเสาร์ต้องอยู่ในวันเสาร์ |
 | POST | `/bookings` | ✓ | 409 `NOT_ENOUGH_SEATS` หรือ `DUPLICATE_BOOKING` |
 | GET | `/me/bookings` | ✓ | `?status=upcoming\|past\|cancelled` |
-| GET | `/bookings/:id` | ✓ เจ้าของ booking หรือ owner ร้าน | |
+| GET | `/bookings/:id` | ✓ เจ้าของ booking หรือ owner ร้าน | ใช้เป็นหน้ายืนยันการจอง |
 | PUT | `/bookings/:id` | ✓ เจ้าของ booking | แก้จำนวนคน/วัน/เวลา |
 | DELETE | `/bookings/:id` | ✓ เจ้าของ booking | ยกเลิก → `status=cancelled` (ไม่ลบจริง เก็บประวัติ) |
 | GET | `/restaurants/:id/reviews` | – | `?page=&limit=` |
@@ -495,25 +536,26 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 | PUT | `/restaurants/:id/reviews` | ✓ | แก้ของตัวเอง; ยังไม่มี → 404 |
 | DELETE | `/restaurants/:id/reviews` | ✓ | ลบของตัวเอง |
 
-**Response ของ availability** — เวลาเป็น timestamp เต็ม (RFC 3339, UTC) ทุกตัว ห้ามส่ง `"00:30"` ลอย ๆ
-เพราะร้านข้ามคืน "00:30" อาจเป็นวันถัดไป — ให้ web แปลงเป็นเวลาไทยเอง
+**Availability response — ต้องส่ง timestamp เต็ม ไม่ใช่ `"00:30"` ลอย ๆ**
+เพราะรอบข้ามเที่ยงคืนทำให้เวลาเดียวกันอยู่คนละวัน ฝั่ง web ต้องไม่ต้องเดา:
 ```json
 {
   "business_date": "2026-10-10",
-  "opens_at":  "2026-10-10T11:00:00Z",
-  "closes_at": "2026-10-10T19:00:00Z",
-  "seats": 20,
+  "opens_at":  "2026-10-10T18:00:00+07:00",
+  "closes_at": "2026-10-11T02:00:00+07:00",
+  "seats": 10,
   "slots": [
-    { "start_at": "2026-10-10T11:00:00Z", "end_at": "2026-10-10T11:30:00Z", "booked": 7, "available": 13 },
-    { "start_at": "2026-10-10T17:30:00Z", "end_at": "2026-10-10T18:00:00Z", "booked": 20, "available": 0 }
+    { "start_at": "2026-10-10T18:00:00+07:00", "end_at": "2026-10-10T18:30:00+07:00", "available": 10 },
+    { "start_at": "2026-10-11T00:30:00+07:00", "end_at": "2026-10-11T01:00:00+07:00", "available": 4 }
   ]
 }
 ```
-(ตัวอย่างคือร้าน 18:00–02:00 เวลาไทย = 11:00Z–19:00Z; `booked` ของแต่ละ slot = คนที่อยู่ในร้าน ณ ต้น slot)
+`available` = `seats - peak` ของช่วงนั้น (จาก `maxConcurrent`) และช่วงที่เลย lead time ไปแล้วจะไม่อยู่ในลิสต์
 
-**`slots` บนการ์ดร้าน (`GET /restaurants?date=&time=&party=`)** — รูปแบบ slot เดียวกับ availability แต่เอาแค่ 5 ช่วงรอบ `time`
-และคำนวณจาก **query เดียว** ที่ดึง booking ของทุกร้านในหน้านั้นในรอบวันนั้น (`restaurant_id IN (...)`) แล้วแบ่งใน Go
-— ห้ามยิง availability ทีละร้าน (N+1); slot ที่ร้านปิดส่ง `"closed": true`
+**`slots` บนการ์ดร้าน (`GET /restaurants?date=&time=&party_size=`)**
+- 5 ช่วงรอบ `time` รูปแบบเดียวกับ availability (+ `"closed": true` ถ้าช่วงนั้นร้านปิด)
+- คำนวณจาก **query booking เดียวต่อหน้า** (`restaurant_id IN (...)` ของร้านในหน้านั้น ในรอบวันทำการนั้น) แล้วแบ่งตามร้านใน Go
+- **ห้ามให้หน้าเว็บยิง availability ทีละร้าน** (N+1 — หน้าหนึ่ง 6–12 request)
 
 **Status code ที่ต้องใช้ให้ถูก**
 `200/201/204` สำเร็จ · `400` รูปแบบ/เงื่อนไขเวลาผิด · `401` ไม่มี/token ไม่ถูก/หมดอายุ ·
@@ -522,13 +564,21 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 
 **Error response รูปแบบเดียวทั้งระบบ** (`internal/httputil`)
 ```json
-{ "error": { "code": "NOT_ENOUGH_SEATS", "message": "ช่วง 12:30–13:00 เหลือ 3 ที่นั่ง", "details": { "available": 3 } } }
+{ "error": { "code": "NOT_ENOUGH_SEATS", "message": "ช่วง 12:30–13:00 เหลือ 3 ที่นั่ง", "details": { "available": 3, "at": "2026-10-10T12:30:00+07:00" } } }
 ```
 ฝั่ง web แปล `code` เป็นข้อความไทย — ไม่พึ่ง `message` จาก API ในการตัดสินใจ
 
-error code ของ 409 (ต้องแยกกัน เพราะหน้าเว็บทำต่างกัน):
-`NOT_ENOUGH_SEATS` · `DUPLICATE_BOOKING` · `BOOKING_CANCELLED` · `BOOKING_ALREADY_STARTED` ·
-`SEATS_BELOW_BOOKED` · `HOURS_CONFLICT` · `REVIEW_EXISTS`
+| code | status | details |
+|---|---|---|
+| `TOO_LATE_TO_BOOK` | 400 | `earliest_start_at` |
+| `NOT_ENOUGH_SEATS` | 409 | `available`, `at` |
+| `DUPLICATE_BOOKING` | 409 | `booking_id` |
+| `BOOKING_CANCELLED` / `BOOKING_ALREADY_STARTED` | 409 | – |
+| `CANCEL_WINDOW_PASSED` | 403 | `cancel_until` |
+| `SEATS_BELOW_EXISTING_BOOKINGS` | 409 | `peak`, `at` |
+| `HOURS_CONFLICT_EXISTING_BOOKINGS` | 409 | `booking_ids` |
+| `OWN_RESTAURANT` | 403 | – |
+| `REVIEW_EXISTS` | 409 | – |
 
 **Middleware order:** Recovery → RequestID/Logger → CORS (`http://jongyoung.localhost` เท่านั้น) → RateLimit(เบา ๆ) → JWT (verify + JIT provisioning) → เช็คความเป็นเจ้าของใน service
 
@@ -538,127 +588,196 @@ error code ของ 409 (ต้องแยกกัน เพราะหน�
 
 | Path | เนื้อหา | Rendering |
 |---|---|---|
-| `/` | ค้นหา (ร้าน/เมนู + **วันที่ / เวลา / จำนวนคน** อยู่บนสุด) → การ์ดร้านมี **ปุ่มเวลาว่าง 5 ปุ่ม** + เรียงลำดับ | server + client island (ตัวกรอง) |
-| `/restaurants/[id]` | รายละเอียด + รูป + ปุ่มเวลา + แผงจอง + รีวิว | server + client island (แผงจอง, รีวิว) |
-| `/bookings/[id]` | **ยืนยันการจอง**: เลขที่จอง, ร้าน + ที่อยู่ + ลิงก์แผนที่, วันเวลา, จำนวนคน, "ยกเลิกได้ถึง …", เพิ่มลงปฏิทิน | client |
-| `/me/bookings` | การจองของฉัน (tab กำลังจะถึง/ผ่านมาแล้ว/ยกเลิกแล้ว) แก้-ยกเลิกในหน้านี้ | client (TanStack + token) |
-| `/owner/restaurants` | ร้านของฉัน (ตาราง + ฟอร์มแก้ไข/ลบ) | client |
-| `/owner/restaurants/[id]/bookings` | บอร์ดรายวัน: seat bar ต่อช่วง 30 นาที + ตารางการจอง | client |
+| `/` | แถบค้นหา (วันที่ / เวลา / จำนวนคน) + รายการร้าน พร้อม **ปุ่มเวลาบนการ์ด** | server (ไม่ต้องใช้ token) + client island (ตัวกรอง) |
+| `/restaurants/[id]` | รายละเอียด + รูป + ปุ่มเวลา + แผงจอง + กติกายกเลิก + รีวิว | server + client island |
+| `/bookings/[id]` | **หน้ายืนยันการจอง** — เลขที่จอง, ร้าน + ที่อยู่ + แผนที่, เวลา, "ยกเลิกได้ถึง …", เพิ่มลงปฏิทิน | client |
+| `/me/bookings` | การจองของฉัน (tab กำลังจะถึง/ผ่านมาแล้ว/ยกเลิกแล้ว) แก้-ยกเลิกในหน้านี้ | client |
+| `/owner/restaurants` | ร้านของฉัน (ตาราง + สร้าง/แก้/ลบ) | client |
+| `/owner/restaurants/[id]/bookings` | ตารางการจองรายวันทำการ + แถบที่นั่งต่อช่วง | client |
 | `/api/auth/[...nextauth]`, `/api/auth/logout` | next-auth + logout | – |
 
-**Flow การจอง = 2 แท็ป:** กดปุ่มเวลาบนการ์ดร้าน → หน้าร้านเปิดพร้อมเวลาที่เลือกไว้ในแผงจอง → กด "ยืนยันการจอง" → `/bookings/[id]`
+**Flow การจอง = 2 แท็ป:** กดปุ่มเวลาบนการ์ดร้าน → หน้าร้านเปิดพร้อมเวลาที่เลือกไว้ในแผงจอง → "ยืนยันการจอง" → `/bookings/[id]`
 
 - ฟอร์มใช้ react-hook-form + zod
-- **การจอง: ห้ามใช้ optimistic update** — ต้องรอผลจริง; ได้ 409 ให้ดู `error.code` (ตาราง 5.2):
-  `NOT_ENOUGH_SEATS` → refetch availability บอกที่นั่งที่เหลือจริง และเสนอช่วงที่ยังว่างพอ /
-  `DUPLICATE_BOOKING` → "คุณจองช่วงนี้ไว้แล้ว" (สีฟ้า/กลาง ไม่ใช่แดง) แล้วพาไป `/me/bookings` (ห้ามบอกว่าร้านเต็ม)
-  (รีวิวใช้ optimistic ได้)
-- ปุ่มกดจองต้อง disable ระหว่างยิง กันกดรัว
-- **กติกายกเลิกต้องเห็นก่อนกดจอง** — แผงจองแสดง "ยกเลิกหรือแก้ไขได้ถึง HH:MM น." เหนือปุ่มยืนยันเสมอ
-- **หน้ายืนยันการจอง**: เพิ่มลงปฏิทินได้ 2 ทาง — ลิงก์ Google Calendar (template URL) และไฟล์ `.ics` ที่สร้างฝั่ง web
+- **การจอง: ห้ามใช้ optimistic update** — ต้องรอผลจริง; `NOT_ENOUGH_SEATS` → refetch availability + เสนอช่วงที่ยังว่าง;
+  `DUPLICATE_BOOKING` → "คุณมีการจองที่ทับช่วงนี้อยู่แล้ว" + ปุ่มไป `/bookings/:id` ของรายการเดิม (ตาราง 5.2) (รีวิวใช้ optimistic ได้)
+- ปุ่มกดจองต้อง disable ตั้งแต่ก่อนยิง และเก็บสถานะ submitting ที่ตัว form (กัน Enter ซ้ำ)
+- หน้ายืนยัน: เพิ่มลงปฏิทินได้ 2 ทาง — ลิงก์ Google Calendar (template URL) และไฟล์ `.ics` ที่สร้างฝั่ง web (`lib/ics.ts`)
   แผนที่ = ลิงก์ Google Maps ค้นหาจาก `address` (ไม่ต้องใช้ API key)
-- **ร้านเต็ม/ไม่มีเวลาว่าง** ห้ามเป็นจอเปล่า: เสนอ "วันถัดไปที่ว่าง" (`/next-available`) + "ร้านประเภทเดียวกันที่ว่างเวลานี้"
-  (ไม่มีข้อมูลพิกัด จึงไม่ทำ "ร้านใกล้เคียง")
-- **ร้านเปิดข้ามคืน:** เวลาหลังเที่ยงคืนต้องมีป้าย "(เช้าวันที่ 11)" **ทุกที่ที่แสดง** — ปุ่มเวลา, สรุปในแผงจอง, หน้ายืนยัน, การจองของฉัน, บอร์ด owner
-- **สองบทบาทบัญชีเดียว:** navbar มีตัวสลับ `ลูกค้า | เจ้าของร้าน` ชัดเจน (แสดงเมื่อ `/me` มีร้านที่เป็นเจ้าของ)
-  โหมดเจ้าของร้านใช้ navbar ทึบสีเข้ม + ป้าย "โหมดเจ้าของร้าน" ให้รู้ทันทีว่าอยู่โหมดไหน
-- **เปิดหน้าร้านตัวเอง:** ไม่แสดงปุ่ม "เขียนรีวิว" แต่ขึ้นข้อความว่า "นี่คือร้านของคุณ — เจ้าของร้านรีวิวร้านตัวเองไม่ได้" + ลิงก์ไปจัดการร้าน
-  (ไม่ใช่ให้กดแล้วเด้ง 403 — API ยังต้องกัน 403 เหมือนเดิม)
 - ซ่อนปุ่มแก้/ลบเมื่อไม่ใช่เจ้าของ — เป็นเรื่อง UX เท่านั้น API ต้องกันซ้ำเสมอ
 - ปุ่มที่กดไม่ได้เพราะกติกา (เช่น เลยเวลายกเลิก) ให้ disabled พร้อมข้อความบอกเหตุผล ไม่ใช่ซ่อน
 - แสดงเวลาเป็นเวลาไทยทุกที่ (`Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok' })`)
-- **ทุกหน้าต้องมี** loading skeleton / empty state / error state (+ 401 เซสชันหมดอายุ → login แล้วกลับมาหน้าเดิม)
+- empty state / loading skeleton / error state ทุกหน้า (+ 401 เซสชันหมดอายุ → login แล้วกลับมาหน้าเดิม)
 
 ---
 
 ## 8. Design system
 
-**ต้นแบบคาแรกเตอร์:** [guy127/introduce_myself](https://github.com/guy127/introduce_myself) — เอาแค่โทนสี/แบรนด์ ไม่เอา design language ของเว็บพอร์ตโฟลิโอ
 **Mockup ทุกหน้า (Claude Design):** https://claude.ai/artifact/Cb7eGqYexzQd73X6AiqvKR
 (ฝั่งลูกค้า 4 หน้า, หน้ารวมสถานะ empty/error/409, ฝั่งเจ้าของร้าน 2 หน้า, มือถือ 2 หน้า)
+**ต้นแบบคาแรกเตอร์:** [guy127/introduce_myself](https://github.com/guy127/introduce_myself) — เอาแค่โทนสี/แบรนด์
 
-**หลักคิด:** นี่คือระบบที่คนกดจองและผูกพันตามกติกา — อ่านเร็ว เชื่อถือได้ มาก่อนความประทับใจ
-- **Day (สว่าง) เป็นค่าเริ่มต้น**, Night เป็นตัวเลือกจากปุ่มบน navbar
-- **กระจกขุ่น (backdrop-filter) ใช้แค่ 3 ที่:** navbar, กล่องค้นหา hero, แผงจอง — ที่เหลือ (การ์ดร้าน, รายการ, ตาราง) เป็น **พื้นทึบ + เส้นขอบ**
-  เหตุผล: blur บนการ์ดหลายสิบใบทำให้มือถือ Android ระดับกลางกระตุก และพื้นหลังที่เปลี่ยนตามตำแหน่งทำให้รับประกัน contrast AA ไม่ได้
-- radial glow เบา ๆ เฉพาะบนสุดของหน้า ไม่มีเส้นกริด/orb ลอย
+> **หลักคิด:** นี่คือระบบที่คนกดแล้วเกิดข้อผูกพัน (มีกติกายกเลิก มีที่นั่งจำกัด) ไม่ใช่เว็บพอร์ตโฟลิโอ
+> ความสวยต้องไม่แลกกับความเร็วในการตัดสินใจ งานหลักของหน้าแรกคือ **"ร้านไหนว่างตอนที่ฉันอยากไป"**
+> ไม่ใช่การอวดภาพใหญ่ ๆ
 
-### 8.1 Font
+### 8.0 สิ่งที่เปลี่ยนจากแนวคิดเดิม (สำคัญ — อย่าลอกแบบเดิม)
+
+| เดิม | ใหม่ | เหตุผล |
+|---|---|---|
+| Night เป็นค่าเริ่มต้น | **Day เป็นค่าเริ่มต้น** Night เป็นตัวเลือก | หน้าจองคืองาน data entry (วัน เวลา จำนวนคน) โหมดสว่างอ่านง่ายกว่าและดูน่าเชื่อถือกว่า |
+| กระจกขุ่น (blur) ทั้งระบบ | blur เฉพาะ **navbar + hero + booking panel** การ์ดร้านใช้พื้นทึบ + เส้นขอบ | `backdrop-filter` บนการ์ดหลายสิบใบทำให้มือถือกลาง ๆ กระตุก และ blur ทับ glow ทำให้ contrast คาดเดาไม่ได้ (เคลม AA ไม่ได้) |
+| Seat bar เป็น UI ของลูกค้า | **Time chip** สำหรับลูกค้า / **Seat bar ย้ายไปหน้า owner** | ลูกค้าถามว่า "ทุ่มนึงจองได้ไหม" ไม่ได้ถามว่า "ร้านเต็มกี่เปอร์เซ็นต์" |
+| เข้าหน้าร้านก่อนถึงจะเลือกเวลาได้ | เลือกเวลาได้ตั้งแต่หน้าแรก | 2 แท็ปจบ แทน 5 — มาตรฐานของ OpenTable/Resy/Hungry Hub |
+| Kanit + Prompt ทั้งหน้า | **Prompt ทั้งระบบ** — Kanit 600 น้ำหนักเดียว เฉพาะโลโก้และหัวข้อ hero | โหลดเบากว่า และไทยสองทรงในเนื้อหาดูไม่นิ่ง |
+| hero 56–84px | **36–44px** แล้วดันแถบค้นหาขึ้นมาแทน | พื้นที่ครึ่งจอบนควรเป็นเครื่องมือ ไม่ใช่ป้ายชื่อ |
+
+### 8.1 คาแรกเตอร์และ Font
+
+**คาแรกเตอร์:** อบอุ่นแบบร้านอาหารตอนเย็น แต่คมและอ่านง่ายแบบเครื่องมือจอง —
+พื้นสว่างอุ่น การ์ดขอบชัด แสงเรืองแดง/อำพันเฉพาะ hero กับปุ่มหลัก
+
 ```
-ทั้งระบบ: "Prompt" 400 / 500 / 600
-"Kanit" 600 ใช้แค่หัวข้อ hero และโลโก้ (โหลดน้ำหนักเดียว)
-Google Fonts css2 + display=swap (subset ไทยแยกตาม unicode-range ให้อยู่แล้ว)
+ทั้งระบบ: "Prompt" 400 / 500 / 600   (Google Fonts css2 + display=swap — แยก subset ไทยตาม unicode-range ให้เอง)
+โลโก้และหัวข้อ hero: "Kanit" 600       (เฉพาะสองที่นี้เท่านั้น)
 ตัวเลข/เวลา/จำนวนที่นั่ง: font-variant-numeric: tabular-nums
 ```
-ขนาด (ลูกค้า): hero 36–44px / หัวข้อ section 20–22px / ชื่อร้านบนการ์ด 19px / เนื้อหา 16px / กำกับ 14px / เล็กสุด 13px
-ขนาด (เจ้าของร้าน): ทั้งหน้า 14px, หัวข้อ 22px
-**ห้ามต่ำกว่า 13px สำหรับภาษาไทย** · `line-height: 1.7` สำหรับเนื้อหา · หัวข้อไทย line-height ≥ 1.2
+ขนาด: hero 36–44px / หัวข้อ section 20–28px / ชื่อร้านบนการ์ด 19–20px / เนื้อหา 16px / กำกับ 14px / เล็กสุด 13px
+**ห้ามต่ำกว่า 13px สำหรับภาษาไทย** · `line-height: 1.7` เนื้อหา · หัวข้อไทย **≥ 1.2** (สระ/วรรณยุกต์ต้องไม่ชนบรรทัดบน)
+· letter-spacing ไม่ติดลบเกิน -0.01em
 
-### 8.2 สี — token สองโหมด (Day เป็นค่าเริ่มต้น)
+### 8.2 สี — token สองโหมด (Day = default)
 
-| Token | Day | Night | ใช้กับ |
+| Token | Day (default) | Night | ใช้กับ |
 |---|---|---|---|
-| `--page` | `#fbf6f1` | `#11070a` | พื้นหลัง |
-| `--surface` | `#ffffff` | `#1b0e12` | การ์ด/ตาราง (ทึบ) |
-| `--line` / `--line-strong` | `#eadcd4` / `#d9c5bb` | `#3a262c` / `#4d333a` | เส้นขอบ, ขอบ input |
+| `--bg` | `#fbf6f1` | `#11070a` | พื้นหลัง (glow อ่อน ๆ เฉพาะบนสุดของหน้า) |
+| `--surface` | `#ffffff` | `#1b0e12` | พื้นการ์ด/ตาราง (ทึบ) |
 | `--chip` | `#f4ece7` | `#26151a` | พื้นปุ่มรอง, ปุ่มเวลาที่เต็ม |
 | `--text` | `#261419` | `#fff7ed` | ตัวอักษรหลัก |
-| `--muted` / `--soft` | `#6f4c4d` / `#7d625f` | `#d7b8b4` / `#a88b8d` | กำกับ / meta |
-| `--accent` | `#c5162e` | `#ff5a6e` | แบรนด์ (โลโก้) |
-| `--cta` | `#c5162e → #b3361a` | `#e11d48 → #c2410c` | ปุ่มหลัก gradient 135° — **หนึ่งปุ่มต่อหน้าจอ** |
-| `--link` | `#007c91` | `#43e8ff` | ลิงก์ |
-| `--sel` / `--sel-weak` | `#007c91` / `#e3f3f5` | `#43e8ff` / `rgba(67,232,255,.12)` | เวลาที่เลือก (ทึบ) / ช่วงที่ครอบ (เส้นประ) |
-| `--ok` (ข้อความ / พื้น / ขอบ) | `#006e40` / `#e6f5ec` / `#a7d9bd` | `#27e88b` / 10% / 35% | ปุ่มเวลาว่าง, ยืนยันแล้ว |
-| `--warn` (ข้อความ / พื้น / ขอบ) | `#8a5a00` / `#fdf1dc` / `#efcf93` | `#ffb703` / 10% / 35% | เหลือน้อย (ว่าง ≤ 30%) |
-| `--full` (ข้อความ / พื้น / ขอบ) | `#b0132a` / `#fcebed` / `#f0b5bd` | `#ff6b7f` / 12% / 40% | error, ยกเลิก, ลบ |
-| `--eyebrow` | `#8a5a00` | `#ffb703` | ป้ายเล็กเหนือหัวข้อ |
-| `--star` | `#b77900` | `#ffb703` | ไอคอนดาว |
+| `--muted` | `#6f4c4d` | `#d7b8b4` | กำกับ |
+| `--soft` | `#7d625f` | `#a88b8d` | meta เล็ก |
+| `--accent` | `#c5162e` | `#ff5a6e` | แบรนด์ (โลโก้, hero, ปุ่มหลักฝั่ง owner) |
+| `--eyebrow` / `--star` | `#8a5a00` / `#b77900` | `#ffb703` | ป้ายเล็กเหนือหัวข้อ / ไอคอนดาว |
+| `--accent-3` | `#007c91` (อ่อน `#e3f3f5`) | `#43e8ff` (อ่อน 12%) | ลิงก์, **ช่วงเวลาที่เลือก** |
+| `--cta` | `#c5162e → #b3361a` | `#e11d48 → #c2410c` | ปุ่มหลัก (gradient 135°) — ตัวขาวต้องผ่าน AA |
+| `--ok` | `#006e40` (พื้น `#e6f5ec`) | `#27e88b` | ยืนยันแล้ว, สำเร็จ |
+| `--warn` | `#8a5a00` (พื้น `#fdf1dc`, ขอบ `#efcf93`) | `#ffb703` | เหลือน้อย |
+| `--full` | `#b0132a` (พื้น `#fcebed`, ขอบ `#f0b5bd`) | `#ff6b7f` | error, ยกเลิก, ลบ |
+| `--border` / `--border-strong` | `#eadcd4` / `#d9c5bb` | `#3a262c` / `#4d333a` | เส้นขอบ / ขอบ input |
+| `--focus` | `#111827` | `#ffffff` | **focus ring (ไม่ใช้สีเดียวกับช่วงที่เลือก)** |
 
 กฎการใช้สี:
 - **หนึ่งหน้าจอมีปุ่ม gradient (`--cta`) ได้ปุ่มเดียว** ที่เหลือเป็นปุ่มขอบบาง/พื้นทึบ
-- เขียว-อำพัน-แดง ใช้สื่อสถานะที่นั่ง/การจอง/error เท่านั้น; เวลาที่เลือกใช้ `--sel` (ฟ้าอมเขียว) ไม่ปนกับสีสถานะ
-- ข้อความต้องผ่าน contrast **AA (4.5:1)** บนพื้นทึบ — เป็นเหตุผลที่การ์ดต้องทึบ
-- **ห้ามสื่อความหมายด้วยสีอย่างเดียว** — ปุ่มเวลามีสัญลักษณ์ ✓ / ! / ✕ + ข้อความ, เต็มมีขีดฆ่า
-- ไอคอนใช้ SVG (lucide) — ไม่ใช้อีโมจิ
+- เขียว-อำพัน-แดง (`--ok/--warn/--full`) ใช้สื่อสถานะที่นั่ง/การจอง/error เท่านั้น
+- ช่วงเวลาที่เลือกใช้ `--accent-3`; **focus ring ใช้ `--focus` (outline 2px + offset 2px)** — สองอย่างนี้ต้องแยกออกจากกัน
+- ตัวอักษรต้องผ่าน contrast **AA (4.5:1)** บนพื้นทึบเสมอ — ห้ามวางตัวอักษรเนื้อหาบนพื้นที่มี blur ทับ glow
+- **ห้ามสื่อความหมายด้วยสีอย่างเดียว** ต้องมีไอคอนหรือข้อความกำกับ
+- ไอคอนใช้ SVG (lucide) — **ไม่ใช้อีโมจิ** (รวมถึงตัวสลับโหมด)
 
-### 8.3 Component ฝั่งลูกค้า
+### 8.3 Layout พื้นฐาน
 ```
 max-width หน้า: 1120px, padding ขอบ 16px (mobile) / 24px (desktop)
-spacing: 4 8 12 16 24 32 48
-radius: 999px (ปุ่มหลัก/nav/pill), 18–24px (การ์ด/แผง), 12px (ปุ่มเวลา, input)
-focus: outline 2px solid currentColor, outline-offset 2px (สีเดียวกับตัวอักษร — ไม่ชนกับสีเวลาที่เลือก)
-ไม่มี hover ลอย (translateY) บนการ์ด
+spacing scale: 4 8 12 16 24 32 48
+radius: 999px (ปุ่มหลัก/nav/badge), 16–24px (การ์ด/แผง), 12px (ปุ่มเวลา, input)
+การ์ดร้าน: background var(--surface); border 1px var(--border); box-shadow 0 1px 2px rgba(38,20,25,.05)
+glass (เฉพาะ navbar/hero/booking panel): backdrop-filter blur(14px) + พื้นกึ่งทึบ ≥ 78%
+ไม่มี hover ลอยบนการ์ด (เปลี่ยนแค่สีขอบ) — และปิด transition ทั้งหมดเมื่อ prefers-reduced-motion
 ```
-- **Navbar**: แคปซูลกระจกลอย — โลโก้ "จ" + "จองยัง", ลิงก์ ค้นหาร้าน / การจองของฉัน, ตัวสลับ `ลูกค้า | เจ้าของร้าน`, ปุ่ม Day/Night, avatar
-- **Hero + ค้นหา**: กล่องกระจก หัวข้อ 40px + แถวตัวกรอง ร้าน/เมนู · วันที่ · เวลาประมาณ · จำนวนคน · ปุ่มค้นหา (CTA ของหน้านี้)
-- **Restaurant card** (ทึบ): รูป 16:8 + badge ประเภท → ชื่อ 19px → คะแนน → เวลาเปิด → **แถวปุ่มเวลา 5 ปุ่ม** รอบเวลาที่ค้น
-  - คะแนน: รีวิว ≥ 5 → `★ 4.6 · 128 รีวิว`; 1–4 รีวิว → ป้าย "รีวิวน้อย (n)" แทนดาว; 0 → "ยังไม่มีรีวิว" (สอดคล้องกับ Bayesian ที่ backend ใช้)
-  - ไม่มีเวลาว่างเลย → กล่องเส้นประ "เต็มทั้งคืนนี้ · ว่างวันถัดไป" หรือ "ร้านปิด 18:00 · ช่วงที่ยังว่าง" + ปุ่มทางเลือก
-- **ปุ่มเวลา (time chip)** — แทน seat bar ฝั่งลูกค้า เพราะลูกค้าถาม "ทุ่มนึงจองได้ไหม" ไม่ได้ถาม "ร้านเต็มแค่ไหน"
-  | สถานะ | หน้าตา |
-  |---|---|
-  | ว่าง | พื้น/ขอบ `--ok` + "✓ ว่าง" |
-  | เหลือน้อย (ว่าง ≤ 30% ของที่นั่ง) | พื้น/ขอบ `--warn` + "! เหลือ n" |
-  | เต็มสำหรับจำนวนคนนี้ / ร้านปิด | พื้น `--chip`, ขีดฆ่า, disabled + "✕ เต็ม" / "ปิด" |
-  | เลือกแล้ว | พื้นทึบ `--sel` ตัวขาว; ช่วงที่ครอบด้วยระยะเวลา = เส้นประ `--sel` |
-  สถานะคำนวณจาก `available` ของ slot เทียบกับ **จำนวนคนที่ผู้ใช้เลือก** ไม่ใช่เทียบกับ 1
-- **แผงจอง** (กระจก, sticky ขวา desktop / แผงล่าง mobile): วันที่, จำนวนคน (stepper), ระยะเวลา, ข้อความตรวจสอบ,
-  บรรทัดสรุป "ส. 10 ต.ค. · 18:00–19:00 · 2 คน" + **กติกายกเลิก** แล้วจึงเป็นปุ่ม "ยืนยันการจอง"
-- **หน้ายืนยัน**: ไอคอนสำเร็จ, เลขที่จองตัวใหญ่, ตาราง ร้าน/วันเวลา/จำนวนคน/ที่อยู่+แผนที่/ยกเลิกได้ถึง, ปุ่ม เพิ่มลงปฏิทิน (CTA) · ดูการจองของฉัน · แก้ไข
-- **Booking card** (ทึบ): กล่องวันที่ + ชื่อร้าน + badge สถานะ (✓/✕) + ปุ่มแก้/ยกเลิก; เลยเวลายกเลิก → disabled + เหตุผล; ยกเลิกต้องมีกล่องยืนยัน
-- แตะได้ต้องใหญ่ ≥ 44×44px บนมือถือ · mobile-first ทดสอบที่ 375px ก่อน
 
-### 8.4 Component ฝั่งเจ้าของร้าน (`/owner/*`) — คนละภาษาการออกแบบ
-เครื่องมือทำงานที่เปิดวันละหลายรอบ — ความเร็วในการสแกนสำคัญกว่าความประทับใจ
+### 8.4 Component ฝั่งลูกค้า
+
+**Search bar (บนสุดของหน้าแรก — งานหลักของหน้านี้)**
+กล่องกระจกเดียว: `ร้าน/เมนู` · `วันทำการ` · `เวลาประมาณ` · `จำนวนคน` + ปุ่มค้นหา (CTA ของหน้า)
+mobile: กดแล้วเปิด bottom sheet ทีละช่อง · ค่าเริ่มต้น = วันนี้ / ช่วงเวลาถัดไปที่จองได้ / 2 คน
+ค่าที่เลือกต้องอยู่ใน URL (`?date=&time=&party_size=`) เพื่อแชร์ลิงก์และ refresh ได้
+
+**Restaurant card + Time chips (ของสำคัญที่สุดของหน้าแรก)**
+```
+[รูป 16:8 + badge ประเภทอาหาร]
+ร้านส้มตำแซ่บ
+★ 4.3 · 58 รีวิว · 18:00–02:00
+[18:00] [18:30] [19:00] [19:30] [20:00]
+ ว่าง    ว่าง   เหลือ 3   เต็ม    ว่าง
+```
+- แสดง 5 chip ของช่วงรอบเวลาที่ค้นหา ครบทุกสถานะ (เต็ม = disabled) กดแล้วไปหน้าร้านพร้อมเวลาที่เลือกไว้แล้ว
+- ไม่มีช่วงว่างเลย → ไม่ซ่อนร้าน แต่เปลี่ยนเป็นกล่อง "เต็มทั้งคืนนี้ · ว่างวันถัดไป" + chip จาก `next-available`
+  หรือ "ร้านปิด 18:00 · ช่วงที่ยังว่าง" ถ้าเวลาที่ค้นเลยเวลาปิด
+- คะแนน: รีวิว ≥ 5 → `★ 4.6 · 128 รีวิว`; รีวิว 1–4 → ป้าย "รีวิวน้อย (n)" แทนดาวเด่น (สอดคล้องกับ Bayesian); 0 → "ยังไม่มีรีวิว"
+
+**Time chip (แทน seat bar ฝั่งลูกค้า)** — สถานะคิดจาก `available` ของ slot เทียบกับ **จำนวนคนที่ผู้ใช้เลือก** (`party`)
+| สถานะ | เงื่อนไข | หน้าตา |
+|---|---|---|
+| ว่าง | `available >= party` และ `available > 30%` ของที่นั่ง | พื้น `--surface` ขอบ `--border-strong` ตัวอักษร `--text` + "✓ ว่าง" |
+| เหลือน้อย | `available >= party` และ `available <= 30%` ของที่นั่ง | พื้น/ขอบ/ตัวอักษร `--warn` + "! เหลือ n" |
+| เต็ม | `available < party` หรือร้านปิดช่วงนั้น | พื้น `--chip` ตัวอักษร `--soft` ขีดฆ่า + "✕ เต็ม" / "ปิด" — `disabled` จริง |
+| เลือกอยู่ | – | พื้นทึบ `--accent-3` ตัวอักษรขาว; ช่วงที่ครอบด้วยระยะเวลา = เส้นประ `--accent-3` |
+ขนาดขั้นต่ำ 44×44px · บนมือถือเรียงเป็นกริด 4 คอลัมน์หรือแถวเลื่อนแนวนอน
+
+**ป้ายรอบข้ามเที่ยงคืน (ห้ามลืม)**
+ทุกที่ที่แสดงเวลาหลังเที่ยงคืนของรอบนั้น ต้องมีป้ายกำกับวัน: `00:30 (เช้าวันที่ 11)`
+ทั้งใน chip, ฟอร์มจอง, หน้ายืนยัน, การจองของฉัน และหน้า owner — ไม่งั้นลูกค้ามาผิดวันแน่นอน
+
+**Booking panel (หน้าร้าน)**
+กระจก sticky ขวาบน desktop / แผงลอยล่างบน mobile
+```
+ส. 10 ต.ค. · 18:00–19:00 · 2 คน
+ยกเลิกหรือแก้ไขได้ถึง 17:30 (ก่อนเวลาจอง 30 นาที)     ← ต้องเห็น "ก่อน" กดจอง
+[ ยืนยันการจอง ]
+```
+กติกายกเลิกต้องอยู่เหนือปุ่มเสมอ ไม่ใช่ไปโผล่หลังจองแล้ว
+
+**หน้ายืนยันการจอง `/bookings/[id]`**
+เลขที่จองตัวใหญ่ · ชื่อร้าน + ที่อยู่ + ลิงก์แผนที่ · วันเวลา (มีป้ายข้ามวันถ้าจำเป็น) · จำนวนคน ·
+"ยกเลิกได้ถึง 17:30" · ปุ่มเพิ่มลงปฏิทิน (CTA) · ดูการจองของฉัน · แก้ไข
+นี่คือหน้าที่ผู้ใช้ตัดสินว่าระบบน่าเชื่อถือ — ต้องออกแบบจริง ไม่ใช่ redirect กลับหน้าแรก
+
+**Error / empty state**
+- 409 `NOT_ENOUGH_SEATS` → กล่องแดง "ที่นั่งไม่พอแล้ว — ยังไม่ได้จองให้" + chip ล่าสุดที่โหลดใหม่ + ช่วงที่ยังว่างพอ (mobile: bottom sheet)
+- 409 `DUPLICATE_BOOKING` → กล่องสีกลาง "คุณมีการจองที่ทับช่วงนี้อยู่แล้ว" + รายละเอียดรายการเดิม + ปุ่มไปดู
+- เต็มทั้งรอบ → เสนอ "วันถัดไปที่ว่าง" และ "ร้านประเภทเดียวกันที่ว่างเวลานี้" (ไม่มีพิกัด จึงไม่ทำ "ร้านใกล้เคียง")
+- ค้นหาไม่เจอ → แนะนำให้ลดจำนวนคนหรือขยายช่วงเวลา ไม่ใช่จอเปล่า
+
+**Booking card (การจองของฉัน)**
+กล่องวันที่ + ชื่อร้าน + badge สถานะที่มีทั้งสีและข้อความ (✓ ยืนยันแล้ว / ✕ ยกเลิกแล้ว) + ปุ่มแก้/ยกเลิก
+เลยเวลายกเลิก → ปุ่ม disabled + ข้อความว่าทำไม · ยกเลิกต้องมีกล่องยืนยันที่ระบุจำนวนที่นั่งที่จะปล่อย
+
+**Review**
+- เปิดหน้าร้านของตัวเอง → **ไม่แสดงปุ่ม "เขียนรีวิว"** แต่ขึ้นข้อความ "นี่คือร้านของคุณ — เจ้าของร้านรีวิวร้านตัวเองไม่ได้" + ลิงก์ไปจัดการร้าน
+  (ไม่ใช่ให้กดแล้วเด้ง 403 — API ยังต้องกัน 403 เหมือนเดิม)
+- ยังไม่ล็อกอิน → ปุ่ม "เข้าสู่ระบบเพื่อรีวิว"
+- ดาวสีอำพัน + ตัวเลขทศนิยม 1 ตำแหน่ง + จำนวนรีวิวเสมอ
+
+**สลับบทบาท (หนึ่งบัญชี สองบทบาท)**
+navbar มีตัวสลับแบบแบ่งสองช่อง `ลูกค้า | เจ้าของร้าน` ที่เห็นชัดว่าตอนนี้อยู่โหมดไหน (แสดงเมื่อ `/me` มีร้านที่เป็นเจ้าของ)
+เข้าโหมดเจ้าของร้านแล้ว navbar เปลี่ยนเป็นแถบทึบสีเข้ม + ป้าย "โหมดเจ้าของร้าน"
+
+### 8.5 ฝั่ง Owner — คนละภาษาการออกแบบ
+
+`/owner/*` เป็น **เครื่องมือทำงาน** ไม่ใช่หน้าขาย เจ้าของร้านเปิดวันละหลายรอบ ความเร็วในการสแกนสำคัญกว่าความประทับใจ
+
 - navbar ทึบสีเข้ม (`#261419` / Night `#000`) + ป้าย "โหมดเจ้าของร้าน" + ตัวสลับโหมด
-- ตัวอักษร 14px ทั้งหน้า, พื้นทึบ, ตารางความหนาแน่นสูง (แถว ~36–40px), radius 6px
-- **ไม่มี** gradient, กระจก, glow, hover ลอย; ปุ่มหลักสีทึบ `--accent`
-- **Seat bar อยู่ที่นี่**: บอร์ดรายวันแสดงแถบ "คนในร้าน/ที่นั่ง" ทุกช่วง 30 นาทีของรอบ (เขียว < 70% · อำพัน ≥ 70% · แดง เต็ม) + peak ของรอบ
-- error ในฟอร์มแสดง code จาก API (เช่น `SEATS_BELOW_BOOKED`) พร้อมเวลาที่ชน
+- ไม่มี gradient ไม่มี glass ไม่มี hover ลอย — พื้นทึบ เส้นแบ่งชัด radius 6px ปุ่มหลักสีทึบ `--accent`
+- ตัวอักษร 14px ความหนาแน่นสูง แถวตาราง 36–40px
+- **Seat bar อยู่ที่นี่**: แถวต่อช่วง 30 นาทีตลอดรอบวันทำการ แถบยาว = สัดส่วนที่ถูกจอง
+  เขียว < 70% → อำพัน ≥ 70% → แดง 100% พร้อมตัวเลข `7/10` กำกับเสมอ
+- ตารางการจองรายวันทำการ: เวลา · ชื่อลูกค้า · จำนวนคน · เลขที่จอง · สถานะ — เรียงตามเวลา
+  มีแถบสรุปบนสุด (การจอง · ลูกค้ารวม · peak ของรอบ · ยกเลิก)
+- ปุ่มเปลี่ยนวันทำการ ◀ ▶ + date picker
+- error ในฟอร์มแสดง code จาก API (เช่น `SEATS_BELOW_EXISTING_BOOKINGS`) พร้อมเวลาที่ชน
 
-### 8.5 สิ่งที่ต้องส่ง
-ออกแบบใน Claude Design ก่อนแล้วค่อยทำจริงบน Next.js (โจทย์บังคับ) — ทำแล้วที่ลิงก์ด้านบน
-ต้องมีทั้ง happy path **และ** empty / error / 409 / confirmation state (กรรมการดูข้อนี้)
+### 8.6 Accessibility & performance
+- `:focus-visible` outline 2px `--focus` + offset 2px ทุก interactive element
+- แตะได้ ≥ 44×44px บนมือถือ · mobile-first ทดสอบที่ 375px ก่อน
+- chip ที่เต็มต้องเป็น `disabled` จริง ไม่ใช่แค่สีจาง (screen reader ต้องรู้)
+- `prefers-reduced-motion` → ปิด transform/transition ทั้งหมด
+- รูปทุกใบมี `alt` + `next/image` + `sizes` ที่ถูกต้อง
+- ฟอนต์: Prompt 3 น้ำหนัก + Kanit 1 น้ำหนักเท่านั้น (ผ่าน `next/font/google`)
+
+### 8.7 สิ่งที่ต้องส่ง
+Mockup ใน Claude Design ต้องมี **ไม่ใช่แค่ happy path** — ทำแล้วที่ลิงก์ด้านบน:
+หน้าแรก (มี time chip), หน้าร้าน + booking panel, **หน้ายืนยันการจอง**, การจองของฉัน,
+**หน้ารวมสถานะ** (ร้านเต็มทั้งรอบ, 409 ทั้งสองแบบ, ร้านของตัวเอง, ป้ายข้ามวัน, loading, error/401, ว่าง),
+หน้า owner (ตาราง + seat bar), มือถือ 2 หน้า
 เก็บลิงก์/ภาพไว้ที่ `docs/` และต้องกด Share ลิงก์ก่อนส่งให้ผู้ตรวจ
 
 ---
@@ -669,37 +788,43 @@ focus: outline 2px solid currentColor, outline-offset 2px (สีเดียว
 1. ร้าน 10 ที่ มีคนจอง 7 ขอเพิ่ม 5 ในช่วงทับกัน → **ปฏิเสธ**
 2. A 7 (12:00–12:30), B 7 (12:30–13:00), C ขอ 3 (12:00–13:00) → **ผ่าน** ⭐ เคสที่ naive SUM พลาด
 3. A 7 + B 3 เต็มพอดี → A แก้เป็น 8 = ปฏิเสธ / A แก้เป็น 5 = ผ่าน (ทดสอบ `excludeID`)
-4. จองเวลาที่ผ่านมาแล้ว → ปฏิเสธ; จองรอบที่เริ่มในอีก 29 นาที → ปฏิเสธ / อีก 30 นาทีพอดี → ผ่าน (lead time boundary)
-5. จองนอกเวลาเปิด + ร้านเปิดข้ามเที่ยงคืน 18:00–02:00 (ทั้งเคสผ่านและไม่ผ่าน)
-6. จองคาบเกี่ยวเวลาปิดร้าน → ปฏิเสธ
-7. ยกเลิกช้ากว่า `cancel_before_minutes` → ปฏิเสธ; ตรงเวลาพอดี → ผ่าน (boundary)
-8. `party_size > seats` → ปฏิเสธ
-9. booking ที่ยกเลิกแล้วไม่ถูกนับเป็นที่นั่งที่ถูกใช้
-10. ร้าน 24 ชม. (`open = close`) → จองได้ทุกเวลา รวมช่วงคร่อมเที่ยงคืน
-11. วันทำการ: ร้าน 18:00–02:00 ขอ `date=11` → ไม่มี slot 00:00–02:00 ของเช้าวันที่ 11 (เป็นของรอบวันที่ 10); ขอ `date=10` → มีครบถึง 02:00 ของวันที่ 11
-12. `maxConcurrent`: ไม่มี booking → 0; A/B/C ของเคส 2 → peak 10 ที่ 12:00
+4. จองเวลาที่ผ่านมาแล้ว → ปฏิเสธ
+5. **lead time**: จองรอบที่เริ่มอีก 20 นาที → ปฏิเสธ; อีก 30 นาทีพอดี → ผ่าน (boundary)
+6. จองนอกเวลาเปิด + ร้านเปิดข้ามเที่ยงคืน 18:00–02:00 (ทั้งเคสผ่านและไม่ผ่าน)
+7. **ร้าน 24 ชม. (`open=close=0`)** จองได้ทุกช่วง รวมช่วงคร่อมเที่ยงคืน — กัน `duration = 0`
+8. จองคาบเกี่ยวเวลาปิดร้าน → ปฏิเสธ
+9. ยกเลิกช้ากว่า `cancel_before_minutes` → ปฏิเสธ; ตรงเวลาพอดี → ผ่าน (boundary)
+10. `party_size > seats` → ปฏิเสธ
+11. booking ที่ยกเลิกแล้วไม่ถูกนับเป็นที่นั่งที่ถูกใช้
+12. `maxConcurrent`: ไม่มี booking → `0`; เคส A/B/C → peak 10 ที่ 12:00 (คืนเวลาที่ถูกต้อง)
 
-service test (booking / restaurant):
-- กฎ 7: ผู้ใช้เดิมจองร้านเดิมซ้อนเวลา → `DUPLICATE_BOOKING`; คนละร้าน/ไม่ทับกัน → ผ่าน; ตอนแก้ไขไม่นับตัวเอง (`excludeID`)
-- ลดที่นั่งต่ำกว่า `maxConcurrent` ของ booking ในอนาคต → `SEATS_BELOW_BOOKED`; เท่ากับ peak พอดี → ผ่าน
-- ย่นเวลาเปิด–ปิดจน booking ในอนาคตตกนอกเวลา → `HOURS_CONFLICT`; booking ในอดีตไม่นับ
-- owner `?date=`: booking ตี 1 คืนวันเสาร์อยู่ในบอร์ดวันเสาร์ ไม่ใช่วันอาทิตย์
-- `EnsureExists`: ครั้งแรกสร้าง; ครั้งถัดไป email/ชื่อเปลี่ยน → อัปเดต
+`internal/booking/businessday_test.go`
+13. ร้าน 18:00–02:00 `date=10` → ได้ช่วง 18:00 (10 ต.ค.) ถึง 02:00 (11 ต.ค.)
+14. ร้าน 18:00–02:00 `date=11` → **ไม่มี** ช่วงตี 0–2 ของเช้าวันที่ 11 (เป็นของรอบวันที่ 10)
+15. เลือกวันทำการ 10 + เวลา 00:30 → แปลงเป็น `2026-10-11T00:30+07:00`
+16. ร้านปกติ วันทำการ = วันปฏิทิน
 
-- service test: mock repository ด้วย mockery (`mocks_test.go`)
-- repository test: testcontainers (Postgres จริง) รัน migrations/ ทุกไฟล์
-- handler test: `httptest` ยิงใส่ Gin router — เช็ค 401 (ไม่มี token), 403 (ไม่ใช่เจ้าของ / รีวิวร้านตัวเอง), 409 (ที่นั่งไม่พอ, รีวิวซ้ำ)
-- integration test การจองพร้อมกัน: ยิง 2 goroutine จองพร้อมกันบนที่นั่งที่เหลือพอสำหรับคนเดียว → ต้องสำเร็จ 1 ล้มเหลว 1
-- integration test กดซ้ำ: ผู้ใช้คนเดียวยิงคำขอเดียวกัน 2 goroutine → สำเร็จ 1, อีกอันได้ `DUPLICATE_BOOKING` (ไม่ใช่ `NOT_ENOUGH_SEATS`)
-- Bayesian sort: ★5.0 จาก 1 รีวิวต้องไม่อยู่เหนือ ★4.8 จาก 46 รีวิว; ร้านไม่มีรีวิวอยู่ท้ายสุด
-- `slots` บนการ์ด: ใช้ query booking เดียวต่อหน้า; slot นอกเวลาเปิดได้ `closed`
-- `next-available`: ร้านเต็มทั้งคืนวันที่ 10 → คืนวันที่ 11; เต็มครบ 14 วัน → คืน `null`
+service test (mock repository ด้วย mockery `mocks_test.go`)
+17. **กฎข้อ 8**: ผู้ใช้เดิมจองร้านเดิมซ้อนเวลา → `DUPLICATE_BOOKING` พร้อม `booking_id` (ไม่ใช่ `NOT_ENOUGH_SEATS`); คนละร้าน/ไม่ทับ → ผ่าน; ตอนแก้ไขไม่นับตัวเอง
+18. **ลดที่นั่ง** ต่ำกว่า peak ของ booking ในอนาคต → `SEATS_BELOW_EXISTING_BOOKINGS`; เท่ากับ peak พอดี → ผ่าน
+19. **ย่นเวลาเปิด** จน booking ในอนาคตตกนอกเวลา → `HOURS_CONFLICT_EXISTING_BOOKINGS`; booking ในอดีตไม่นับ
+20. owner `?date=`: booking ตี 1 คืนวันเสาร์อยู่ในบอร์ดวันเสาร์ ไม่ใช่วันอาทิตย์
+21. `EnsureExists`: ครั้งแรกสร้าง; ครั้งถัดไป email/ชื่อเปลี่ยน → อัปเดต
+22. `next-available`: เต็มทั้งรอบวันที่ 10 → คืนวันที่ 11; เต็มครบ 14 วัน → `null`
 
-web (Vitest):
-- สถานะปุ่มเวลา: `available >= party` และ ≤ 30% ของที่นั่ง → เหลือน้อย; `available < party` → เต็ม
-- ป้ายคะแนน: รีวิว 0 / 1–4 / ≥ 5 → "ยังไม่มีรีวิว" / "รีวิวน้อย" / ดาว
-- ป้าย "(เช้าวันที่ n)" ขึ้นเมื่อ slot อยู่หลังเที่ยงคืนของวันทำการ
-- 409 `DUPLICATE_BOOKING` ไม่แสดงข้อความ "เต็ม"
+repository / integration test (testcontainers — Postgres จริง รัน migrations/ ทุกไฟล์)
+23. Bayesian sort: ★5.0 จาก 1 รีวิวต้องไม่อยู่เหนือ ★4.8 จาก 46 รีวิว; ร้านไม่มีรีวิวอยู่ท้ายสุด
+24. `slots` บนการ์ด: ใช้ query booking เดียวต่อหน้า; ช่วงนอกเวลาเปิดได้ `closed`
+25. การจองพร้อมกัน: ยิง 2 goroutine (คนละผู้ใช้) บนที่นั่งที่เหลือพอสำหรับคนเดียว → สำเร็จ 1, `NOT_ENOUGH_SEATS` 1
+26. กดซ้ำ: ผู้ใช้เดียวกันยิงคำขอเดียวกัน 2 goroutine → สำเร็จ 1, `DUPLICATE_BOOKING` 1
+
+handler test: `httptest` ยิงใส่ Gin router — เช็ค 401 (ไม่มี token), 403 (ไม่ใช่เจ้าของ / รีวิวร้านตัวเอง), 409 (ที่นั่งไม่พอ, จองซ้อน, รีวิวซ้ำ)
+
+web (Vitest + Testing Library)
+27. สถานะ time chip: ว่าง / เหลือน้อย / เต็ม ตามกติกา 8.4 (เทียบกับ `party` ไม่ใช่ 1)
+28. ป้ายคะแนน: รีวิว 0 / 1–4 / ≥ 5 → "ยังไม่มีรีวิว" / "รีวิวน้อย" / ดาว
+29. ป้าย "(เช้าวันที่ n)" ขึ้นเมื่อ slot อยู่หลังเที่ยงคืนของวันทำการ
+30. 409 `DUPLICATE_BOOKING` ไม่แสดงคำว่า "เต็ม" และมีลิงก์ไปรายการเดิม
 
 ---
 
@@ -708,7 +833,7 @@ web (Vitest):
 1. **Git repo** — Next.js + Go พร้อม README ที่มี:
    - วิธีรันทีละคำสั่ง (`cp .env.example .env` → `docker compose up` → migrate → seed → เปิด http://jongyoung.localhost)
    - บัญชีทดสอบของ Keycloak (owner 2 คน, ลูกค้า 1 คน)
-   - seed data ที่เปิดมาแล้ว **เห็นร้านหลายร้าน + การจอง + รีวิวทันที**
+   - seed data ที่เปิดมาแล้ว **เห็นร้านหลายร้าน + การจอง + รีวิวทันที** (ข้อ 4.1)
    - เหตุผลที่เลือก DB / auth / library แต่ละตัว + เปรียบเทียบ Bayesian กับเกณฑ์ ≥ 5 รีวิว
 2. **วิดีโอ ≤ 5 นาที** — เดโมครบทุกฟีเจอร์ + อธิบายโค้ดจุดตรวจกติกาที่นั่งและจุดล็อกกันชนกัน
 3. **UI Design** — ลิงก์ Claude Design (ข้อ 8)
@@ -721,19 +846,19 @@ web (Vitest):
 |---|---|
 | สองคนกดพร้อมกัน ร้านเหลือ 6 ที่ | `SELECT ... FOR UPDATE` บนแถวร้าน + นับ + เขียน ในทรานแซกชันเดียว → รับคนเดียว อีกคน 409 |
 | ทำไมไม่ใช้ SUM ตรวจที่นั่ง | เคส A 7 / B 7 / C 3 — ช่วงทับกันไม่ได้แปลว่าอยู่พร้อมกัน ต้อง sweep line ตรวจทุกจุดที่มีคนเข้าร้าน |
-| ร้านเปิด 18:00–02:00 เก็บยังไง | นาทีจากเที่ยงคืน; `close <= open` = ข้ามวัน; ตรวจด้วย offset จากเวลาเปิด; `date` = วันทำการ |
-| ★5.0 จาก 1 รีวิว vs ★4.8 จาก 300 | Bayesian average ดึงร้านที่รีวิวน้อยเข้าหาค่าเฉลี่ยรวม (C = 5) ร้านไม่มีรีวิวอยู่ท้าย |
+| ร้านเปิด 18:00–02:00 เก็บยังไง | นาทีจากเที่ยงคืน; `close <= open` = ข้ามวัน; `duration = 0` = เปิด 24 ชม.; `date` = วันทำการ |
+| ★5.0 จาก 1 รีวิว vs ★4.8 จาก 300 | Bayesian average ดึงร้านที่รีวิวน้อยเข้าหาค่าเฉลี่ยรวม (C = 5) ร้านไม่มีรีวิวอยู่ท้าย และ UI แสดง "รีวิวน้อย" |
 | ค่าเฉลี่ยคำนวณเมื่อไหร่ | เก็บ `rating_sum`/`rating_count` อัปเดตแบบ atomic ในทรานแซกชันเดียวกับรีวิว → หน้า list ไม่ต้อง AVG/JOIN, ไม่มี N+1 |
-| กดจองซ้ำ/เน็ตกระตุก | กฎ "คนเดียวกันจองร้านเดียวกันซ้อนเวลาไม่ได้" ตรวจหลัง `FOR UPDATE` → คำขอที่สองรอล็อกแล้วเห็นการจองแรก → 409 `DUPLICATE_BOOKING` (หน้าเว็บพาไปการจองของฉัน ไม่บอกว่าร้านเต็ม) |
-| ทำไมลูกค้าไม่เห็นแถบ % ที่นั่ง | ลูกค้าถาม "เวลานี้จองได้ไหม" → ปุ่มเวลา 3 สถานะตอบตรงกว่า; แถบ % เป็นมุมมองของเจ้าของร้าน (peak ของคืน) จึงอยู่ในบอร์ด owner |
-| การ์ดร้านแสดงเวลาว่างโดยไม่ N+1 ยังไง | query booking ของทุกร้านในหน้านั้นครั้งเดียว (`IN`) แล้วคำนวณ slot ใน Go |
-| ร้านเปิด 24 ชม. | `open == close` → `duration` ได้ 0 จาก modulo ต้องตีความเป็น 1440 |
+| กดจองซ้ำ/เน็ตกระตุก | กฎ "คนเดียวกันจองร้านเดียวกันซ้อนเวลาไม่ได้" ตรวจในล็อกเดียวกันก่อนนับที่นั่ง → คำขอที่สองได้ `DUPLICATE_BOOKING` แล้วพาไปดูรายการเดิม; ถ้ามีการตัดเงินมัดจำต้องใช้ `Idempotency-Key` จริง |
+| ทำไมลูกค้าไม่เห็นแถบ % ที่นั่ง | ลูกค้าถาม "เวลานี้จองได้ไหม" → time chip ตอบตรงกว่า; แถบ % เป็นมุมมองของเจ้าของร้าน (peak ของคืน) จึงอยู่ในบอร์ด owner |
+| การ์ดร้านแสดงเวลาว่างโดยไม่ N+1 ยังไง | query booking ของทุกร้านในหน้านั้นครั้งเดียว (`IN`) แล้วคำนวณ slot ใน Go ด้วย `maxConcurrent` ตัวเดิม |
 | Server vs Client Component | หน้า list/detail = server (ไม่ต้องใช้ token, โหลดเร็ว); หน้าที่ต้อง login และฟอร์ม = client (TanStack + axios) |
 | session/token เก็บที่ไหน | next-auth เก็บ session ใน cookie; axios ดึง access token จาก `getSession()` แนบ Bearer — ความเสี่ยง XSS รับมือด้วย token อายุสั้น + ไม่ render HTML จากผู้ใช้; ทางที่ปลอดภัยกว่าคือ BFF proxy |
 | issuer ไม่ตรงระหว่าง browser กับ container | Caddy + โดเมน `*.jongyoung.localhost` ให้ทุกฝ่ายเห็น Keycloak ชื่อเดียวกัน |
-| ทำไมต้องมี users ในฐานข้อมูลเราอีก ทั้งที่มี Keycloak | Keycloak เก็บ identity, DB เราเก็บ domain data + FK; ผูกด้วย `sub` ไม่ใช่ email; สร้างตอนเจอ token ครั้งแรก |
-| timezone | เก็บ UTC ที่ DB, `Asia/Bangkok` แสดงที่ web; ถ้าร้านอยู่หลาย timezone ต้องเก็บ timezone ต่อร้าน |
+| ทำไมต้องมี users ในฐานข้อมูลเราอีก ทั้งที่มี Keycloak | Keycloak เก็บ identity, DB เราเก็บ domain data + FK; ผูกด้วย `sub` ไม่ใช่ email; upsert ตอนเจอ token และอัปเดตเมื่อ claims เปลี่ยน |
+| timezone | เก็บ UTC ที่ DB, `Asia/Bangkok` แสดงที่ web; ถ้าร้านอยู่หลาย timezone ต้องเก็บ timezone ต่อร้าน และคำนวณวันทำการด้วยปฏิทินของ timezone นั้น |
 | ทำไมไม่ใช้ realm role แยก owner/customer | บทบาทผูกกับร้านแต่ละร้าน ไม่ใช่ผูกกับบัญชี — เป็นข้อมูล ไม่ใช่สิทธิ์ระดับ realm |
+| ออกแบบ UI ยังไงให้คนจองสำเร็จ | เลือกเวลาได้ตั้งแต่หน้าแรก (time chip), กติกายกเลิกเห็นก่อนกดจอง, มีหน้ายืนยัน, error บอกทางออกไม่ใช่บอกว่าพัง |
 
 ---
 
@@ -741,18 +866,21 @@ web (Vitest):
 
 - ห้ามใช้ naive `SUM` ตรวจที่นั่ง (ดู 5.3)
 - ห้ามลืม `excludeID` ตอนแก้ไขการจอง
-- ห้ามเช็คที่นั่ง (กฎ 6) และการจองซ้อนตัวเอง (กฎ 7) นอกทรานแซกชัน / ก่อน `FOR UPDATE`
-- ห้ามเขียน logic หาค่าสูงสุดของคนในร้านซ้ำ — ใช้ `maxConcurrent` ตัวเดียว
-- ห้ามส่งเวลาใน API เป็น `"HH:MM"` ลอย ๆ — ใช้ timestamp เต็มเสมอ
+- ห้ามเช็คที่นั่ง **หรือกฎจองซ้อนตัวเอง** นอกทรานแซกชันที่ล็อกแถวร้าน
+- ห้ามเขียน logic นับที่นั่ง, เช็คเวลาเปิด หรือแปลงวันทำการซ้ำในหลายที่ — ใช้ `maxConcurrent()`, `fitsOpeningHours()` และ `businessday.go` ตัวเดียว
+- ห้ามให้หน้าเว็บยิง availability ทีละร้านในหน้า list (N+1)
 - ห้ามอัปเดต `rating_sum/rating_count` ด้วยการอ่านค่ามาบวกใน Go แล้วเขียนกลับ
 - ห้ามรับ `user_id` จาก request body/query — เอาจาก token เท่านั้น
 - ห้ามตรวจกติกาแค่ที่หน้าเว็บ
+- ห้ามส่งเวลาเป็นสตริง `"00:30"` ลอย ๆ ใน API — ต้องเป็น timestamp เต็มพร้อม offset
 - ห้ามเก็บ token ใน localStorage เอง และห้ามใช้ `dangerouslySetInnerHTML` กับข้อมูลผู้ใช้
 - ห้าม log token, client_secret, DSN เต็ม
 - ห้าม commit `.env` — ต้องมี `.env.example` ครบทุก key; secret ใน realm export ต้องเป็นค่า dev เท่านั้น
 - ห้ามเขียน secret ลงใน `compose.yml` ตรง ๆ — อ่านจาก `.env`
 - ห้ามลบข้อมูลจริงเมื่อยกเลิกการจอง (ใช้ `status`) — ต้องเก็บประวัติ
 - ห้ามใส่ seed data ใน `migrations/`
+- ห้ามใช้ `backdrop-filter` กับการ์ดในลิสต์ และห้ามวางตัวอักษรเนื้อหาบนพื้นที่ blur ทับ glow
+- ห้ามใช้อีโมจิเป็นไอคอน
 - ห้ามใส่ library ที่อธิบายไม่ได้ว่าทำอะไร
 
 ---
@@ -777,3 +905,5 @@ deploy อัตโนมัติยังไม่ทำ — ถ้าจะ�
 
 - commit เป็นระยะทุกครั้งที่ทำเสร็จเป็นชิ้นและรันได้ — **ข้อความ commit เป็นภาษาไทย**
 - ทำ test ก่อนสำหรับกติกาธุรกิจ (โดยเฉพาะ 5.2–5.6)
+- ลำดับที่แนะนำ: `businessday.go` + `availability.go` + test (ข้อ 9 ข้อ 1–16) ให้ผ่านก่อน
+  แล้วค่อยต่อ HTTP layer → หน้าเว็บ → owner → รีวิว
