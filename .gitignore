@@ -1,0 +1,21 @@
+# ไฟล์ที่ Windows สร้างตอนคัดลอกไฟล์เข้า WSL
+*:Zone.Identifier
+
+# env (ต้องมี .env.example แทน)
+.env
+.env.local
+
+# Go
+/api/api
+/api/seed
+*.test
+*.out
+coverage.*
+
+# Node / Next.js
+node_modules/
+.next/
+
+# ระบบ/เครื่องมือ
+.DS_Store
+.claude/settings.local.json
