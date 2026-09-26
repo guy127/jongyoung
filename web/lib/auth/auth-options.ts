@@ -40,6 +40,8 @@ export const authOptions: NextAuthOptions = {
       issuer,
     }),
   ],
+  // ใช้หน้า /login ของเราแทนหน้า sign-in สำเร็จรูปของ next-auth (ซึ่งต้องกดอีกครั้งถึงไป Keycloak)
+  pages: { signIn: "/login", error: "/login" },
   callbacks: {
     // jwt ถูกเรียกทุกครั้งที่อ่าน session — ที่นี่คือจุดเดียวที่ต่ออายุ token
     async jwt({ token, account }) {

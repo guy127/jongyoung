@@ -22,9 +22,10 @@ export default function ThemeToggle({ className = "" }: { className?: string }) 
 
   return (
     <button type="button" onClick={toggle} aria-label="สลับโหมดสว่าง/มืด"
-      className={`inline-flex h-10 items-center gap-1.5 rounded-full border px-3 text-sm ${className}`}>
-      <span className="theme-day inline-flex items-center gap-1.5"><Sun size={16} aria-hidden />Day</span>
-      <span className="theme-night items-center gap-1.5"><Moon size={16} aria-hidden />Night</span>
+      className={`inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full border px-3 text-sm ${className}`}>
+      {/* มือถือเหลือแค่ไอคอน */}
+      <span className="theme-day inline-flex items-center gap-1.5"><Sun size={16} aria-hidden /><span className="hidden sm:inline">Day</span></span>
+      <span className="theme-night items-center gap-1.5"><Moon size={16} aria-hidden /><span className="hidden sm:inline">Night</span></span>
     </button>
   );
 }

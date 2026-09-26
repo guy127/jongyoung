@@ -29,8 +29,8 @@ export default function RestaurantCard({ restaurant: r, date, time, party }: Pro
         {cover && <Image src={cover} alt={`รูปร้าน ${r.name}`} fill sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw" className="object-cover" />}
         {r.cuisine && <span className="absolute left-3 top-3 rounded-full bg-black/55 px-2.5 py-0.5 text-[13px] text-white">{r.cuisine}</span>}
       </Link>
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="flex flex-col gap-1">
+      <div className="flex flex-1 flex-col gap-4 p-5">
+        <div className="flex flex-col gap-1.5">
           <Link href={`${detail}?date=${date}&time=${time}&party_size=${party}`} className="card-title text-[19px] font-semibold">{r.name}</Link>
           <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted tabular">
             <Rating rating={r.rating} />
@@ -40,15 +40,17 @@ export default function RestaurantCard({ restaurant: r, date, time, party }: Pro
         </div>
 
         {anyBookable && (
-          <div role="group" aria-label={`เวลาว่างของ ${r.name}`} className="mt-auto grid grid-cols-5 gap-1.5">
+          // แถวเลื่อนแนวนอน: ปุ่มกว้างคงที่ ข้อความไม่ตัดบรรทัด (การ์ดแคบกว่า 5 ปุ่มแทบทุกขนาดจอ)
+          // ขยายเต็มขอบการ์ด (-mx-5 px-5) ให้เลื่อนได้สุดขอบ ปุ่มที่โผล่ครึ่งเดียวบอกว่ายังมีต่อ
+          <div role="group" aria-label={`เวลาว่างของ ${r.name}`} className="-mx-5 mt-auto flex snap-x gap-2 overflow-x-auto px-5 pb-1">
             {chips.map(({ s, state, clock, dayLabel }) => (
               <TimeChip key={s.start_at} time={clock} state={state} note={chipNote(state, s.available)} dayLabel={dayLabel}
-                href={`${detail}?date=${date}&time=${clock}&party_size=${party}`} />
+                href={`${detail}?date=${date}&time=${clock}&party_size=${party}`} className="w-[4.5rem] shrink-0 snap-start" />
             ))}
           </div>
         )}
         {!anyBookable && slots.length > 0 && (
-          <div className="mt-auto flex flex-col gap-2 rounded-xl border border-dashed border-border-strong p-3">
+          <div className="mt-auto flex flex-col gap-3 rounded-xl border border-dashed border-border-strong p-4">
             <span className="text-sm font-medium">{allClosed ? "ร้านปิดช่วงเวลานี้" : "เต็มช่วงเวลานี้"}</span>
             <NextAvailableHint restaurantId={r.id} date={date} time={time} party={party} />
           </div>

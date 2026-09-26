@@ -1,8 +1,10 @@
 import Link from "next/link";
 
+import { ChoiceLink } from "@/components/bases/Choice";
+import { PageLayout, Section } from "@/components/bases/layout";
+import { EmptyState } from "@/components/bases/ui";
 import RestaurantCard from "@/components/restaurant/RestaurantCard";
 import SearchForm from "@/components/restaurant/SearchForm";
-import { EmptyState } from "@/components/bases/ui";
 import { serverGet } from "@/lib/api";
 import { defaultSearch, fmtShortDate, keyToDate } from "@/lib/format";
 import type { ListItem, Page } from "@/lib/types";
@@ -48,29 +50,23 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const sortInfo = sorts.find((s) => s.key === search.sort)!;
 
   return (
-    <div className="flex flex-col gap-7">
+    <PageLayout>
       <SearchForm q={search.q} date={search.date} time={search.time} party={search.party} sort={search.sort} cuisine={search.cuisine} />
 
-      <section aria-labelledby="results-h" className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 id="results-h" className="text-[22px] font-semibold">
-              {data ? `${data.total} ร้าน` : "ร้านอาหาร"} · {fmtShortDate(keyToDate(search.date))} ราว {search.time} · {search.party} คน
-            </h2>
-            <p className="text-sm text-muted">{sortInfo.hint}</p>
-          </div>
-          <nav aria-label="เรียงลำดับ" className="flex gap-1.5">
+      <Section
+        id="results-h"
+        title={`${data ? `${data.total} ร้าน` : "ร้านอาหาร"} · ${fmtShortDate(keyToDate(search.date))} ราว ${search.time} · ${search.party} คน`}
+        description={sortInfo.hint}
+        actions={
+          <nav aria-label="เรียงลำดับ" className="-mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             {sorts.map((s) => (
-              <Link key={s.key} href={withParams({ sort: s.key, page: "1" })} aria-current={s.key === search.sort ? "true" : undefined}
-                className={`chip-btn rounded-full px-3.5 py-2 text-sm ${s.key === search.sort ? "border-text bg-text text-surface" : ""}`}>
-                {s.label}
-              </Link>
+              <ChoiceLink key={s.key} active={s.key === search.sort} href={withParams({ sort: s.key, page: "1" })}>{s.label}</ChoiceLink>
             ))}
           </nav>
-        </div>
-
+        }
+      >
         {failed && (
-          <div role="alert" className="rounded-2xl border border-border bg-surface p-4">
+          <div role="alert" className="flex flex-col gap-1 rounded-2xl border border-border bg-surface p-5">
             <p className="font-semibold">โหลดรายการร้านไม่สำเร็จ</p>
             <Link href={withParams({})} className="link">ลองอีกครั้ง</Link>
           </div>
@@ -81,7 +77,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         )}
 
         {data && data.items.length > 0 && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
             {data.items.map((r) => (
               <RestaurantCard key={r.id} restaurant={r} date={search.date} time={search.time} party={search.party} />
             ))}
@@ -89,7 +85,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         )}
 
         {totalPages > 1 && (
-          <nav aria-label="หน้า" className="flex justify-center gap-2 pt-2">
+          <nav aria-label="หน้า" className="flex justify-center gap-2 pt-4">
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
               <Link key={p} href={withParams({ page: String(p) })} aria-current={p === search.page ? "page" : undefined}
                 className={`chip-btn grid size-11 place-items-center rounded-full ${p === search.page ? "border-sel font-semibold" : ""}`}>
@@ -102,7 +98,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         <p className="flex flex-wrap gap-4 text-[13px] text-muted">
           <span>ปุ่มเวลา:</span><span>✓ ว่าง</span><span className="text-warn">! เหลือน้อย</span><span className="text-soft">✕ เต็มสำหรับจำนวนคนนี้</span>
         </p>
-      </section>
-    </div>
+      </Section>
+    </PageLayout>
   );
 }

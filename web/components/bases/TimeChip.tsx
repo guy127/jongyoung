@@ -34,14 +34,15 @@ type Props = {
   dayLabel?: string; // "(เช้าวันที่ 11)" สำหรับช่วงหลังเที่ยงคืน
   href?: string; // ใช้บนการ์ดร้าน (ลิงก์ไปหน้าร้าน)
   onClick?: () => void; // ใช้ในแผงจอง
+  className?: string;
 };
 
-export default function TimeChip({ time, note, state, selected, inRange, dayLabel, href, onClick }: Props) {
+export default function TimeChip({ time, note, state, selected, inRange, dayLabel, href, onClick, className = "" }: Props) {
   const disabled = state === "full" || state === "closed";
   const look = selected ? styles.selected : inRange ? styles.inRange : styles[state];
   // .time-chip = hover/กด เฉพาะปุ่มที่ยังกดได้และยังไม่ได้เลือก (ปุ่มเต็ม/ปิดต้องนิ่ง ไม่ชวนให้กด)
   const interactive = !disabled && !selected ? "time-chip cursor-pointer" : "";
-  const cls = `flex min-h-14 min-w-14 flex-col items-center justify-center rounded-xl px-2 leading-tight tabular ${look} ${interactive}`;
+  const cls = `flex min-h-14 min-w-14 flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 leading-tight tabular ${look} ${interactive} ${className}`;
   const label = `${time}${dayLabel ? " " + dayLabel : ""} ${note.replace(/^[✓!✕] /, "")}`;
   const content = (
     <>

@@ -34,8 +34,8 @@ export default function ReviewsSection({ restaurant, initial }: { restaurant: Re
   const totalPages = list.data ? Math.ceil(list.data.total / list.data.limit) : 1;
 
   return (
-    <section aria-labelledby="rev-h" className="flex flex-col gap-4">
-      <h2 id="rev-h" className="flex flex-wrap items-center gap-2 text-xl font-semibold">
+    <section aria-labelledby="rev-h" className="flex flex-col gap-5">
+      <h2 id="rev-h" className="flex flex-wrap items-center gap-3 text-[22px] font-semibold">
         รีวิว <span className="text-base font-normal text-muted"><Rating rating={restaurant.rating} /></span>
       </h2>
 
@@ -44,9 +44,9 @@ export default function ReviewsSection({ restaurant, initial }: { restaurant: Re
       )}
       {/* ร้านของตัวเอง: ไม่ให้กดแล้วเด้ง 403 แต่บอกเหตุผลตั้งแต่แรก (API ยังกัน 403 อยู่เสมอ) */}
       {isOwner && (
-        <div className="flex gap-3 rounded-2xl bg-chip p-4">
+        <div className="flex gap-3 rounded-2xl bg-chip p-5">
           <House size={20} className="mt-0.5 shrink-0" aria-hidden />
-          <div>
+          <div className="flex flex-col gap-1">
             <p className="font-semibold">นี่คือร้านของคุณ</p>
             <p className="text-sm text-muted">เจ้าของร้านรีวิวร้านตัวเองไม่ได้ เพื่อให้คะแนนเป็นกลางสำหรับลูกค้า</p>
             <Link href="/owner/restaurants" className="link text-sm">ไปจัดการร้านนี้</Link>
@@ -57,17 +57,23 @@ export default function ReviewsSection({ restaurant, initial }: { restaurant: Re
 
       {list.isError && <Alert tone="full" title="โหลดรีวิวไม่สำเร็จ" />}
       {list.data?.items.length === 0 && <EmptyState title="ยังไม่มีรีวิว">เป็นคนแรกที่รีวิวร้านนี้</EmptyState>}
-      {list.data?.items.map((rv) => (
-        <article key={rv.id} className="flex flex-col gap-1 rounded-2xl border border-border bg-surface p-4">
-          <div className="flex justify-between text-sm">
-            <span className="font-semibold">
-              {rv.author_name} <span className="font-normal text-star" aria-label={`${rv.score} จาก 5 ดาว`}>{"★".repeat(rv.score)}{"☆".repeat(5 - rv.score)}</span>
-            </span>
-            <span className="text-muted">{fmtShortDate(rv.created_at)}</span>
-          </div>
-          {rv.body && <p className="text-[15px]">{rv.body}</p>}
-        </article>
-      ))}
+      {/* รายการรีวิวอยู่ในการ์ดเดียว คั่นด้วยเส้น — อ่านต่อเนื่องสบายตากว่าการ์ดแยกทีละใบ */}
+      {!!list.data?.items.length && (
+        <ul className="divide-y divide-border rounded-2xl border border-border bg-surface px-5 sm:px-6">
+          {list.data.items.map((rv) => (
+            <li key={rv.id} className="flex flex-col gap-1.5 py-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
+                <span className="flex items-baseline gap-2 font-semibold">
+                  {rv.author_name}
+                  <span className="font-normal tracking-wider text-star" aria-label={`${rv.score} จาก 5 ดาว`}>{"★".repeat(rv.score)}{"☆".repeat(5 - rv.score)}</span>
+                </span>
+                <span className="text-soft">{fmtShortDate(rv.created_at)}</span>
+              </div>
+              {rv.body && <p className="text-[15px]">{rv.body}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-3">
           <Button disabled={page <= 1} onClick={() => setPage(page - 1)}>ก่อนหน้า</Button>
@@ -98,9 +104,9 @@ function ReviewForm({ restaurantId, existing }: { restaurantId: string; existing
   });
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 sm:p-6">
       <p className="font-semibold">{existing ? "รีวิวของคุณ" : "เขียนรีวิว"}</p>
-      <div role="radiogroup" aria-label="คะแนน" className="flex gap-1">
+      <div role="radiogroup" aria-label="คะแนน" className="-ml-2 flex gap-1">
         {[1, 2, 3, 4, 5].map((n) => (
           <button key={n} type="button" role="radio" aria-checked={score === n} aria-label={`${n} ดาว`}
             onClick={() => setValue("score", n, { shouldValidate: true })} className="grid size-11 place-items-center rounded-full transition-transform duration-150 motion-safe:hover:scale-115 motion-safe:active:scale-95">
@@ -109,7 +115,7 @@ function ReviewForm({ restaurantId, existing }: { restaurantId: string; existing
         ))}
       </div>
       {formState.errors.score && <p className="text-sm text-full">{formState.errors.score.message}</p>}
-      <label className="flex flex-col gap-1 text-sm font-medium">
+      <label className="flex flex-col gap-2 text-sm font-medium">
         ความเห็น
         <textarea {...register("body")} rows={3} className="rounded-xl border border-border-strong bg-surface p-3 text-base" />
       </label>

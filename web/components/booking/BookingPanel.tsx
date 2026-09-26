@@ -1,10 +1,12 @@
 "use client";
 
-import { Minus, Plus } from "lucide-react";
+import { Clock, Minus, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 import { useMemo, useState } from "react";
 
+import { ChoiceButton } from "@/components/bases/Choice";
+import { Field } from "@/components/bases/layout";
 import TimeChip, { chipNote } from "@/components/bases/TimeChip";
 import { Alert, Button, Skeleton } from "@/components/bases/ui";
 import BookingError from "@/components/booking/BookingError";
@@ -86,38 +88,34 @@ export default function BookingPanel({ restaurant: r, initialDate, initialTime, 
   };
 
   return (
-    <aside aria-labelledby="book-h" className="glass flex flex-col gap-4 rounded-3xl border border-border p-5 lg:sticky lg:top-24">
+    <aside aria-labelledby="book-h" className="glass flex flex-col gap-6 rounded-3xl border border-border p-5 sm:p-6 lg:sticky lg:top-24">
       <h2 id="book-h" className="text-[22px] font-semibold">{editing ? `แก้ไขการจอง ${editing.code}` : "จองโต๊ะ"}</h2>
 
-      <div className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">วันที่</span>
-        <div role="group" aria-label="เลือกวัน" className="flex gap-1.5 overflow-x-auto pb-1">
+      <Field label="วันที่" id="date-l">
+        {/* เลื่อนแนวนอนได้ถึงขอบแผง */}
+        <div role="group" aria-labelledby="date-l" className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 sm:-mx-6 sm:px-6">
           {days.map((d) => (
-            <button key={d} type="button" onClick={() => pickDate(d)} aria-pressed={d === date}
-              className={`chip-btn min-h-12 shrink-0 rounded-xl px-3 text-sm ${d === date ? "border-text bg-text text-surface" : ""}`}>
+            <ChoiceButton key={d} active={d === date} onClick={() => pickDate(d)} className="rounded-xl">
               {fmtShortDate(keyToDate(d))}
-            </button>
+            </ChoiceButton>
           ))}
         </div>
-      </div>
+      </Field>
 
-      <div className="flex flex-col gap-1.5">
-        <span id="party-l" className="text-sm font-medium">จำนวนคน</span>
-        <div role="group" aria-labelledby="party-l" className="flex h-12 items-center justify-between rounded-xl border border-border-strong bg-surface px-1">
-          <button type="button" aria-label="ลดจำนวนคน" disabled={party <= 1} onClick={() => setParty(party - 1)} className="chip-btn grid size-10 place-items-center rounded-lg border-transparent bg-chip"><Minus size={18} /></button>
-          <span aria-live="polite" className="font-semibold tabular">{party} คน</span>
-          <button type="button" aria-label="เพิ่มจำนวนคน" disabled={party >= r.seats} onClick={() => setParty(party + 1)} className="chip-btn grid size-10 place-items-center rounded-lg border-transparent bg-chip"><Plus size={18} /></button>
-        </div>
-        <span className="text-[13px] text-soft">รับได้สูงสุด {r.seats} คนต่อการจอง</span>
-      </div>
+      <Field label="จำนวนคน" id="party-l" hint={`รับได้สูงสุด ${r.seats} คนต่อการจอง`}>
+        <PartyStepper labelledBy="party-l" value={party} max={r.seats} onChange={setParty} />
+      </Field>
 
-      <div className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">เวลาเริ่ม</span>
-        {availability.isLoading && <div className="grid grid-cols-4 gap-1.5">{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-14" />)}</div>}
-        {availability.isError && <Alert tone="full" title="โหลดเวลาว่างไม่สำเร็จ"><button type="button" className="link" onClick={() => availability.refetch()}>ลองอีกครั้ง</button></Alert>}
-        {availability.data && slots.length === 0 && <p className="rounded-xl bg-chip p-3 text-sm">วันนี้ไม่มีช่วงที่ยังจองทันแล้ว ลองเลือกวันอื่น</p>}
+      <Field label="เวลาเริ่ม" id="start-l">
+        {availability.isLoading && <div className="grid grid-cols-4 gap-2">{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-14" />)}</div>}
+        {availability.isError && (
+          <Alert tone="full" title="โหลดเวลาว่างไม่สำเร็จ">
+            <button type="button" className="link" onClick={() => availability.refetch()}>ลองอีกครั้ง</button>
+          </Alert>
+        )}
+        {availability.data && slots.length === 0 && <p className="rounded-xl bg-chip p-4 text-sm">วันนี้ไม่มีช่วงที่ยังจองทันแล้ว ลองเลือกวันอื่น</p>}
         {slots.length > 0 && (
-          <div role="group" aria-label="เวลาเริ่ม" className="grid max-h-72 grid-cols-4 gap-1.5 overflow-y-auto pr-1">
+          <div role="group" aria-labelledby="start-l" className="grid max-h-80 grid-cols-4 gap-2 overflow-y-auto p-0.5">
             {slots.map((s, i) => {
               const state = chipState(s, r.seats, party);
               return (
@@ -129,19 +127,17 @@ export default function BookingPanel({ restaurant: r, initialDate, initialTime, 
             })}
           </div>
         )}
-      </div>
+      </Field>
 
-      <div className="flex flex-col gap-1.5">
-        <span id="dur-l" className="text-sm font-medium">นานเท่าไหร่</span>
-        <div role="group" aria-labelledby="dur-l" className="grid grid-cols-4 gap-1.5">
+      <Field label="นานเท่าไหร่" id="dur-l">
+        <div role="group" aria-labelledby="dur-l" className="grid grid-cols-4 gap-2">
           {durations.map((d) => (
-            <button key={d.slots} type="button" aria-pressed={d.slots === duration} onClick={() => setDuration(d.slots)}
-              className={`chip-btn min-h-11 rounded-xl text-sm ${d.slots === duration ? "border-sel bg-sel text-sel-text" : "border-border-strong"}`}>
+            <ChoiceButton key={d.slots} tone="sel" active={d.slots === duration} onClick={() => setDuration(d.slots)} className="rounded-xl px-2">
               {d.label}
-            </button>
+            </ChoiceButton>
           ))}
         </div>
-      </div>
+      </Field>
 
       {start && startIndex < 0 && availability.data && <Alert tone="warn" title={`${start} จองไม่ได้แล้ว`}>เลือกเวลาอื่นจากด้านบน</Alert>}
       {beyondClose && <Alert tone="warn" title="เลยเวลาปิดร้าน">ลดระยะเวลา หรือเลือกเวลาเริ่มให้เร็วขึ้น</Alert>}
@@ -149,25 +145,50 @@ export default function BookingPanel({ restaurant: r, initialDate, initialTime, 
         <Alert tone="warn" title={`ช่วง ${fmtTime(short.start_at)} เหลือ ${short.available} ที่`}>ไม่พอสำหรับ {party} คน — ลดจำนวนคนหรือเลือกเวลาอื่น</Alert>
       )}
 
-      {first && last && (
-        <div className="flex flex-col gap-1 rounded-2xl border border-border bg-surface p-4">
-          <span className="font-semibold tabular">{fmtShortDate(keyToDate(date))} · {fmtRange(first.start_at, last.end_at, date)} · {party} คน</span>
-          {cancelUntil && (
-            <span className="text-sm leading-relaxed">
-              <strong>ยกเลิกหรือแก้ไขได้ถึง {fmtShortDate(cancelUntil)} {fmtTime(cancelUntil)} น.</strong> (ก่อนเวลาจอง {r.cancel_before_minutes} นาที) หลังจากนั้นยกเลิกในระบบไม่ได้
-            </span>
-          )}
-        </div>
+      {/* กติกายกเลิกต้องเห็นก่อนกดยืนยันเสมอ (ข้อ 8.4) */}
+      {first && last && cancelUntil && (
+        <BookingSummary date={date} start={first.start_at} end={last.end_at} party={party} cancelUntil={cancelUntil} cancelBefore={r.cancel_before_minutes} />
       )}
 
       {error && <BookingError error={error} />}
 
-      <Button variant="cta" onClick={submit} loading={save.isPending} disabled={status === "authenticated" && !ready}
-        className="min-h-13 py-3.5 text-[17px]">
-        {status !== "authenticated" ? "เข้าสู่ระบบเพื่อจอง" : save.isPending ? "กำลังจอง…" : editing ? "บันทึกการแก้ไข" : "ยืนยันการจอง"}
-      </Button>
-      <p className="text-[13px] leading-relaxed text-muted">ระบบตรวจที่นั่งอีกครั้งตอนกดยืนยัน ถ้ามีคนจองช่วงเดียวกันก่อน จะแจ้งที่นั่งที่เหลือจริงทันที</p>
+      <div className="flex flex-col gap-3">
+        <Button variant="cta" onClick={submit} loading={save.isPending} disabled={status === "authenticated" && !ready} className="min-h-13 text-[17px]">
+          {status !== "authenticated" ? "เข้าสู่ระบบเพื่อจอง" : save.isPending ? "กำลังจอง…" : editing ? "บันทึกการแก้ไข" : "ยืนยันการจอง"}
+        </Button>
+        <p className="text-[13px] leading-relaxed text-muted">ระบบตรวจที่นั่งอีกครั้งตอนกดยืนยัน ถ้ามีคนจองช่วงเดียวกันก่อน จะแจ้งที่นั่งที่เหลือจริงทันที</p>
+      </div>
     </aside>
+  );
+}
+
+/** ปุ่ม − จำนวน + (แตะได้ 44px ขึ้นไป) */
+function PartyStepper({ labelledBy, value, max, onChange }: { labelledBy: string; value: number; max: number; onChange: (n: number) => void }) {
+  const step = "chip-btn grid size-11 place-items-center rounded-lg border-transparent bg-chip";
+  return (
+    <div role="group" aria-labelledby={labelledBy} className="flex h-14 items-center justify-between rounded-xl border border-border-strong bg-surface px-1.5">
+      <button type="button" aria-label="ลดจำนวนคน" disabled={value <= 1} onClick={() => onChange(value - 1)} className={step}><Minus size={18} /></button>
+      <span aria-live="polite" className="text-[17px] font-semibold tabular">{value} คน</span>
+      <button type="button" aria-label="เพิ่มจำนวนคน" disabled={value >= max} onClick={() => onChange(value + 1)} className={step}><Plus size={18} /></button>
+    </div>
+  );
+}
+
+/** สรุปสิ่งที่กำลังจะจอง + กติกายกเลิก */
+function BookingSummary({ date, start, end, party, cancelUntil, cancelBefore }: {
+  date: string; start: string; end: string; party: number; cancelUntil: Date; cancelBefore: number;
+}) {
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-4">
+      <p className="font-semibold tabular">{fmtShortDate(keyToDate(date))} · {fmtRange(start, end, date)} · {party} คน</p>
+      <p className="flex gap-2 text-sm leading-relaxed text-muted">
+        <Clock size={16} className="mt-1 shrink-0" aria-hidden />
+        <span>
+          ยกเลิกหรือแก้ไขได้ถึง <strong className="font-semibold text-text">{fmtShortDate(cancelUntil)} {fmtTime(cancelUntil)} น.</strong>{" "}
+          (ก่อนเวลาจอง {cancelBefore} นาที)
+        </span>
+      </p>
+    </div>
   );
 }
 
