@@ -22,7 +22,7 @@ export default function OwnerNavbar() {
   return (
     <header className="bg-[var(--owner-bar)] text-white">
       {/* มือถือ: แบ่งสองแถว — แถวบนโลโก้ + ตัวสลับโหมด + ปุ่ม, แถวล่างเมนู (order-last) ไม่ให้ข้อความหักบรรทัดหรือล้นจอ */}
-      <nav aria-label="เมนูเจ้าของร้าน" className="mx-auto flex max-w-[1216px] flex-wrap items-center gap-x-2 gap-y-1 whitespace-nowrap px-4 py-2 text-sm md:h-14 md:flex-nowrap md:gap-4 md:py-0">
+      <nav aria-label="เมนูเจ้าของร้าน" className="mx-auto flex max-w-[1216px] flex-wrap items-center gap-x-1 gap-y-1 whitespace-nowrap px-4 py-2 text-sm md:h-14 md:flex-nowrap md:gap-4 md:py-0">
         {/* ฝั่ง owner ไม่มี gradient (ข้อ 8.5) — โลโก้เป็นเส้นขาวล้วนบนแถบทึบ */}
         <Link href="/owner/restaurants" className="flex items-center gap-2 text-base font-semibold">
           <BrandMark size={24} />

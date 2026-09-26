@@ -49,7 +49,7 @@ export default async function RestaurantPage({ params, searchParams }: { params:
 
       <ClosureBanner restaurantId={restaurant.id} />
 
-      <div className="grid gap-10 lg:grid-cols-[1fr_400px] lg:items-start lg:gap-12">
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:gap-12">
         <div className="order-2 flex flex-col gap-12 lg:order-1">
           <section aria-labelledby="about-h" className="flex flex-col gap-3">
             <h2 id="about-h" className="text-[22px] font-semibold">เกี่ยวกับร้าน</h2>

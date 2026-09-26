@@ -101,7 +101,7 @@ function Board() {
             ))}
           </section>
 
-          <div className="grid gap-4 lg:grid-cols-[420px_1fr] lg:items-start">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[420px_minmax(0,1fr)] lg:items-start">
             {/* seat bar อยู่ฝั่ง owner: เจ้าของร้านอยากเห็นว่าคืนนี้แน่นช่วงไหน */}
             <section aria-labelledby="occ-h" className="border border-border bg-surface">
               <h2 id="occ-h" className="flex justify-between border-b border-border px-3.5 py-2.5 font-semibold">

@@ -39,6 +39,15 @@ test.describe("ค้นหาร้าน (ไม่ต้อง login)", () =>
     await expect(page.getByRole("button", { name: /^23:30/, pressed: true })).toBeVisible();
   });
 
+  test("หน้าแรกและหน้าร้านไม่ล้นจอแนวนอน (แถวปุ่มวัน/เวลาเลื่อนอยู่ในกล่องของมันเอง)", async ({ page }) => {
+    await page.goto(`/?date=${tomorrow()}&time=19:00&party_size=2`);
+    const width = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(await width()).toBe(0);
+    await page.getByRole("group", { name: "เวลาว่างของ ซูชิ ทาคุมิ" }).getByRole("link").first().click();
+    await expect(page.getByRole("heading", { level: 1, name: "ซูชิ ทาคุมิ" })).toBeVisible();
+    expect(await width()).toBe(0);
+  });
+
   test("หน้าที่ต้อง login พาไปหน้า login ของ Keycloak (ธีมจองยัง ภาษาไทย) โดยไม่มีหน้าคั่นกลาง", async ({ page }) => {
     await page.goto("/me/bookings");
     await page.waitForURL(/keycloak\.jongyoung\.localhost/);

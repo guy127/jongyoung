@@ -23,8 +23,8 @@ export default function OwnerRestaurantsPage() {
   const restaurants = details.map((q) => q.data).filter((r): r is Restaurant => !!r);
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const current = restaurants.find((r) => r.id === editing);
-  const th = "px-3 py-2 text-left font-medium text-muted";
-  const td = "px-3 py-2.5";
+  const th = "whitespace-nowrap px-3 py-2 text-left font-medium text-muted";
+  const td = "whitespace-nowrap px-3 py-2.5";
 
   return (
     <div className="flex flex-col gap-5">
@@ -40,7 +40,7 @@ export default function OwnerRestaurantsPage() {
       )}
 
       {restaurants.length > 0 && (
-        <div className="overflow-x-auto border border-border bg-surface">
+        <div className="relative overflow-x-auto border border-border bg-surface">
           <table className="w-full border-collapse tabular">
             <thead className="bg-chip/50">
               <tr><th className={th}>ร้าน</th><th className={th}>ประเภท</th><th className={th}>ที่นั่ง</th><th className={th}>เวลาเปิด–ปิด</th><th className={th}>ยกเลิกก่อน</th><th className={th}>คะแนน</th><th className={th}><span className="sr-only">จัดการ</span></th></tr>
@@ -67,7 +67,7 @@ export default function OwnerRestaurantsPage() {
       )}
 
       {editing !== null && (
-        <div className="grid gap-5 lg:grid-cols-[1fr_340px] lg:items-start">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
           <RestaurantForm key={editing} restaurant={current} onDone={() => setEditing(null)} />
           <aside className="flex flex-col gap-3">
             <section className="border border-border bg-surface p-3.5">
