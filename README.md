@@ -100,6 +100,104 @@ dev.sh                 คำสั่งที่ใช้บ่อย (up / re
 
 กติกาธุรกิจทุกข้อบังคับที่ Go เสมอ หน้าเว็บตรวจซ้ำเพื่อ UX เท่านั้น — รายละเอียดทั้งหมดอยู่ใน [CLAUDE.md](CLAUDE.md)
 
+### Use case diagram
+
+หนึ่งบัญชี สองบทบาท: เจ้าของร้านคือลูกค้าที่มีร้าน (`restaurants.owner_id`) ไม่ใช่ role ใน Keycloak
+ส่วนการตรวจที่นั่ง (`maxConcurrent`) และเวลาเปิด-ปิด (`businessday.go`) เป็น use case ย่อยตัวเดียวที่ทุกทางเรียกใช้ร่วมกัน
+
+```mermaid
+flowchart LR
+    %% ===== Actors =====
+    Guest["ผู้เยี่ยมชม<br/>(ยังไม่ล็อกอิน)"]
+    Customer["ลูกค้า<br/>(ล็อกอินแล้ว)"]
+    Owner["เจ้าของร้าน<br/>(ผู้ใช้ที่มีร้าน)"]
+    KC["Keycloak<br/>(ระบบภายนอก)"]
+
+    %% หนึ่งบัญชี สองบทบาท: Owner เป็น Customer ที่มีร้าน, Customer ทำทุกอย่างที่ Guest ทำได้
+    Customer -. "generalization" .-> Guest
+    Owner -. "generalization" .-> Customer
+
+    subgraph SYS["ระบบ jongyoung"]
+        direction TB
+
+        %% --- ทุกคน ---
+        UC_Search(["ค้นหาร้าน<br/>วัน / เวลา / จำนวนคน"])
+        UC_Chips(["ดูเวลาว่างบนการ์ด (time chip)"])
+        UC_Detail(["ดูรายละเอียดร้าน + รูป + ที่อยู่"])
+        UC_Avail(["ดูช่วงว่างของวันทำการ"])
+        UC_Next(["ดูวันถัดไปที่ว่าง"])
+        UC_Reviews(["อ่านรีวิว"])
+        UC_Login(["เข้าสู่ระบบ / สมัครสมาชิก"])
+
+        %% --- ลูกค้า ---
+        UC_Book(["จองโต๊ะ"])
+        UC_Confirm(["ดูหน้ายืนยันการจอง"])
+        UC_Cal(["เพิ่มลงปฏิทิน<br/>Google Calendar / .ics"])
+        UC_MyBk(["ดูการจองของฉัน"])
+        UC_EditBk(["แก้ไขการจอง"])
+        UC_CancelBk(["ยกเลิกการจอง"])
+        UC_Review(["เขียน / แก้ / ลบรีวิว"])
+        UC_Logout(["ออกจากระบบ"])
+        UC_CreateR(["สร้างร้าน"])
+
+        %% --- เจ้าของร้าน ---
+        UC_EditR(["แก้ไขร้าน<br/>ที่นั่ง / เวลาเปิด-ปิด / วันปิด"])
+        UC_DelR(["ลบร้าน"])
+        UC_Img(["จัดการรูปร้าน"])
+        UC_Board(["ดูบอร์ดการจองรายวันทำการ<br/>+ seat bar"])
+
+        %% --- use case ย่อย (include) ---
+        UC_Seats(["ตรวจที่นั่งทุกช่วงเวลา<br/>(maxConcurrent)"])
+        UC_Dup(["ตรวจการจองซ้อนของตัวเอง"])
+        UC_Hours(["ตรวจเวลาเปิด-ปิด + วันปิด<br/>(businessday)"])
+        UC_Window(["ตรวจเวลาที่ยังยกเลิกได้"])
+        UC_CascadeCancel(["ยกเลิก booking ในอนาคตของร้าน"])
+    end
+
+    %% ===== Actor ↔ Use case =====
+    Guest --- UC_Search
+    Guest --- UC_Chips
+    Guest --- UC_Detail
+    Guest --- UC_Avail
+    Guest --- UC_Next
+    Guest --- UC_Reviews
+    Guest --- UC_Login
+
+    Customer --- UC_Book
+    Customer --- UC_Confirm
+    Customer --- UC_MyBk
+    Customer --- UC_EditBk
+    Customer --- UC_CancelBk
+    Customer --- UC_Review
+    Customer --- UC_Logout
+    Customer --- UC_CreateR
+
+    Owner --- UC_EditR
+    Owner --- UC_DelR
+    Owner --- UC_Img
+    Owner --- UC_Board
+
+    UC_Login --- KC
+    UC_Logout --- KC
+
+    %% ===== include / extend =====
+    UC_Book -. "«include»" .-> UC_Dup
+    UC_Book -. "«include»" .-> UC_Seats
+    UC_Book -. "«include»" .-> UC_Hours
+    UC_EditBk -. "«include»" .-> UC_Dup
+    UC_EditBk -. "«include»" .-> UC_Seats
+    UC_EditBk -. "«include»" .-> UC_Hours
+    UC_EditBk -. "«include»" .-> UC_Window
+    UC_CancelBk -. "«include»" .-> UC_Window
+    UC_EditR -. "«include»" .-> UC_Seats
+    UC_EditR -. "«include»" .-> UC_Hours
+    UC_DelR -. "«include»" .-> UC_CascadeCancel
+    UC_Chips -. "«include»" .-> UC_Seats
+    UC_Avail -. "«include»" .-> UC_Seats
+    UC_Cal -. "«extend»" .-> UC_Confirm
+    UC_Next -. "«extend»" .-> UC_Chips
+```
+
 ---
 
 ## 3. จุดสำคัญของโจทย์
