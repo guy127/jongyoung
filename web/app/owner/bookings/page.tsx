@@ -54,7 +54,9 @@ function Board() {
         </div>
         {board.data && (
           <span className="text-muted">
-            รอบ{fmtLongDate(keyToDate(date))} · {fmtTime(board.data.opens_at)}–{fmtTime(board.data.closes_at)} {nextDayLabel(board.data.closes_at, date)} · {seats} ที่นั่ง
+            รอบ{fmtLongDate(keyToDate(date))} · {board.data.closed
+              ? <strong className="font-semibold text-text">วันปิดประจำสัปดาห์ — ไม่รับจอง</strong>
+              : <>{fmtTime(board.data.opens_at)}–{fmtTime(board.data.closes_at)} {nextDayLabel(board.data.closes_at, date)}</>} · {seats} ที่นั่ง
           </span>
         )}
       </div>

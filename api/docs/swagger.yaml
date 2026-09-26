@@ -8,6 +8,9 @@ definitions:
         type: array
       business_date:
         type: string
+      closed:
+        description: วันปิดประจำสัปดาห์
+        type: boolean
       closes_at:
         type: string
       opens_at:
@@ -101,6 +104,9 @@ definitions:
       business_date:
         example: "2026-10-10"
         type: string
+      closed:
+        description: วันปิดประจำสัปดาห์ → slots ว่าง
+        type: boolean
       closes_at:
         type: string
       opens_at:
@@ -137,6 +143,11 @@ definitions:
       close_time:
         example: "02:00"
         type: string
+      closed_weekdays:
+        description: วันปิดประจำสัปดาห์ของวันทำการ (0 = อาทิตย์ … 6 = เสาร์)
+        items:
+          type: integer
+        type: array
       created_at:
         type: string
       cuisine:
@@ -213,6 +224,13 @@ definitions:
       close_time:
         example: "22:00"
         type: string
+      closed_weekdays:
+        description: 0 = อาทิตย์ … 6 = เสาร์
+        example:
+        - 1
+        items:
+          type: integer
+        type: array
       cuisine:
         example: อาหารไทย
         maxLength: 60
@@ -253,6 +271,11 @@ definitions:
       close_time:
         example: "02:00"
         type: string
+      closed_weekdays:
+        description: วันปิดประจำสัปดาห์ของวันทำการ (0 = อาทิตย์ … 6 = เสาร์)
+        items:
+          type: integer
+        type: array
       created_at:
         type: string
       cuisine:

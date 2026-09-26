@@ -31,4 +31,14 @@ test.describe("โหมดเจ้าของร้าน", () => {
     await expect(page.getByText("นี่คือร้านของคุณ")).toBeVisible();
     await expect(page.getByText("เขียนรีวิว")).toHaveCount(0);
   });
+
+  test("ตั้งวันปิดประจำสัปดาห์ทับวันที่มีคนจอง → ถูกปฏิเสธพร้อมรหัส HOURS_CONFLICT_EXISTING_BOOKINGS", async ({ page }) => {
+    // seed: ครัวบ้านสวนมีการจองพรุ่งนี้ → ปิดวันในสัปดาห์ของพรุ่งนี้ไม่ได้
+    const weekday = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"][new Date(`${tomorrow()}T12:00:00+07:00`).getUTCDay()];
+    await page.goto("/owner/restaurants");
+    await page.getByRole("row", { name: /ครัวบ้านสวน/ }).getByRole("button", { name: "แก้ไข" }).click();
+    await page.getByRole("group", { name: "วันปิดประจำสัปดาห์" }).getByLabel(weekday, { exact: true }).check();
+    await page.getByRole("button", { name: "บันทึก" }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "HOURS_CONFLICT_EXISTING_BOOKINGS" })).toBeVisible();
+  });
 });

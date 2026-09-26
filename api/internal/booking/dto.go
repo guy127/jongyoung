@@ -116,6 +116,7 @@ type BoardSlot struct {
 
 type BoardResponse struct {
 	BusinessDate string            `json:"business_date"`
+	Closed       bool              `json:"closed"` // วันปิดประจำสัปดาห์
 	OpensAt      time.Time         `json:"opens_at"`
 	ClosesAt     time.Time         `json:"closes_at"`
 	Seats        int               `json:"seats"`

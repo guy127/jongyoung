@@ -271,7 +271,7 @@ func (h *handler) Availability(c *gin.Context) {
 	}
 	opensAt, closesAt := rest.Hours().Window(date)
 	c.JSON(http.StatusOK, AvailabilityResponse{
-		BusinessDate: date.Format("2006-01-02"), OpensAt: opensAt, ClosesAt: closesAt,
+		BusinessDate: date.Format("2006-01-02"), Closed: rest.Hours().ClosedOn(date), OpensAt: opensAt, ClosesAt: closesAt,
 		Seats: rest.Seats, Slots: newSlots(slots),
 	})
 }

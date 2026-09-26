@@ -26,6 +26,7 @@ var (
 	ErrInvalidParty  = &RuleError{"INVALID_PARTY_SIZE", "จำนวนคนต้องอย่างน้อย 1 คน"}
 	ErrPartyTooLarge = &RuleError{"PARTY_TOO_LARGE", "จำนวนคนมากกว่าที่นั่งทั้งร้าน"}
 	ErrOutsideHours  = &RuleError{"OUTSIDE_OPENING_HOURS", "ช่วงที่เลือกอยู่นอกเวลาเปิด–ปิดของร้าน"}
+	ErrClosedWeekday = &RuleError{"CLOSED_WEEKDAY", "วันที่เลือกเป็นวันปิดประจำสัปดาห์ของร้าน"}
 )
 
 // error ของ service (ต้องใช้ฐานข้อมูล)

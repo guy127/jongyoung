@@ -44,6 +44,10 @@ func ValidateRequest(req Request, h Hours, seats int, now time.Time) error {
 	if req.PartySize > seats {
 		return ErrPartyTooLarge
 	}
+	// แยก code วันปิดออกจากนอกเวลาเปิด — หน้าเว็บบอกได้ว่า "ร้านปิดทุกวันจันทร์" แทนแค่ "นอกเวลา"
+	if date, ok := h.BusinessDate(req.StartAt); ok && h.ClosedOn(date) {
+		return ErrClosedWeekday
+	}
 	if !h.Fits(req.StartAt, req.EndAt) {
 		return ErrOutsideHours
 	}

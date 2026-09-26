@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { apiError } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
+import { WEEKDAY_ORDER, WEEKDAYS } from "@/lib/format";
 import type { ApiError, Restaurant } from "@/lib/types";
 import { useImages, useSaveRestaurant } from "@/services/restaurants";
 
@@ -22,6 +23,8 @@ const schema = z.object({
   seats: z.number({ message: "ใส่จำนวนที่นั่ง" }).int().min(1, "อย่างน้อย 1 ที่").max(1000),
   open_time: z.string(),
   close_time: z.string(),
+  // checkbox หลายตัวชื่อเดียวกัน react-hook-form คืนเป็น string[] ("0"–"6") → แปลงเป็นตัวเลขตอนส่ง
+  closed_weekdays: z.array(z.string()).max(6, "ร้านต้องเปิดอย่างน้อย 1 วันต่อสัปดาห์"),
   cancel_before_minutes: z.number({ message: "ใส่จำนวนนาที" }).int().min(30, "ขั้นต่ำ 30 นาที").max(1440),
   image_urls: z.string(),
 });
@@ -35,16 +38,16 @@ export default function RestaurantForm({ restaurant, onDone }: { restaurant?: Re
   const { register, handleSubmit, formState: { errors } } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: restaurant
-      ? { ...restaurant, image_urls: "" }
-      : { name: "", cuisine: "", address: "", description: "", seats: 10, open_time: "11:00", close_time: "22:00", cancel_before_minutes: 30, image_urls: "" },
+      ? { ...restaurant, closed_weekdays: restaurant.closed_weekdays.map(String), image_urls: "" }
+      : { name: "", cuisine: "", address: "", description: "", seats: 10, open_time: "11:00", close_time: "22:00", closed_weekdays: [], cancel_before_minutes: 30, image_urls: "" },
   });
 
-  const onSubmit = handleSubmit(async ({ image_urls, ...values }) => {
+  const onSubmit = handleSubmit(async ({ image_urls, closed_weekdays, ...values }) => {
     const urls = image_urls.split("\n").map((s) => s.trim()).filter(Boolean);
     if (!restaurant && urls.length === 0) return setServerError({ code: "IMAGE_REQUIRED", message: "" });
     setServerError(null);
     try {
-      await save.mutateAsync({ id: restaurant?.id, input: { ...values, image_urls: restaurant ? undefined : urls } });
+      await save.mutateAsync({ id: restaurant?.id, input: { ...values, closed_weekdays: closed_weekdays.map(Number), image_urls: restaurant ? undefined : urls } });
       onDone();
     } catch (err) {
       setServerError(apiError(err) ?? { code: "NETWORK", message: "" });
@@ -72,6 +75,19 @@ export default function RestaurantForm({ restaurant, onDone }: { restaurant?: Re
         {field("เปิด *", <select {...register("open_time")} className={input}>{clocks.map((c) => <option key={c}>{c}</option>)}</select>)}
         {field("ปิด *", <select {...register("close_time")} className={input}>{clocks.map((c) => <option key={c}>{c}</option>)}</select>)}
         <p className="text-muted sm:col-span-2">ปิดน้อยกว่าเปิด = ข้ามเที่ยงคืน (เช่น 18:00–02:00) · เปิดเท่ากับปิด = 24 ชม.</p>
+        <fieldset className="flex flex-col gap-2 sm:col-span-2">
+          <legend className="pb-1 font-medium">วันปิดประจำสัปดาห์</legend>
+          <div className="flex flex-wrap gap-2">
+            {WEEKDAY_ORDER.map((d) => (
+              <label key={d} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border-strong px-2.5">
+                <input type="checkbox" value={String(d)} {...register("closed_weekdays")} />
+                {WEEKDAYS[d]}
+              </label>
+            ))}
+          </div>
+          <p className="text-muted">นับตามรอบที่เริ่มเปิดในวันนั้น — ร้าน 18:00–02:00 ปิดวันจันทร์ ตีหนึ่งของเช้าวันจันทร์ยังเป็นรอบวันอาทิตย์</p>
+          {errors.closed_weekdays && <span className="text-full">{errors.closed_weekdays.message}</span>}
+        </fieldset>
         {!restaurant && field("URL รูป * (บรรทัดละ 1 รูป, รูปแรกเป็นรูปปก)", <textarea {...register("image_urls")} rows={3} className={`${input} h-auto py-2`} placeholder="https://..." />, undefined, true)}
       </div>
       {restaurant && <ImageManager restaurant={restaurant} />}

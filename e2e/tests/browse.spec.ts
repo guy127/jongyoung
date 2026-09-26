@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { tomorrow } from "./helpers";
+import { nextMonday, tomorrow } from "./helpers";
 
 // ผู้ใช้ที่ยังไม่ login: ค้นหา → ดูเวลาว่างบนการ์ด → กดเวลาไปหน้าร้าน (รันทั้ง desktop และมือถือ 375px)
 test.describe("ค้นหาร้าน (ไม่ต้อง login)", () => {
@@ -43,5 +43,16 @@ test.describe("ค้นหาร้าน (ไม่ต้อง login)", () =>
     await page.goto("/me/bookings");
     await page.waitForURL(/keycloak\.jongyoung\.localhost/);
     await expect(page.getByRole("heading", { name: "เข้าสู่ระบบเพื่อจองโต๊ะ" })).toBeVisible();
+  });
+
+  test("วันปิดประจำสัปดาห์: การ์ดและแผงจองบอกว่าร้านปิด ไม่ใช่ร้านเต็ม", async ({ page }) => {
+    // seed: บ้านชาบู บุฟเฟ่ต์ ปิดทุกวันจันทร์
+    await page.goto(`/?date=${nextMonday()}&time=19:00&party_size=2`);
+    const card = page.locator("article", { hasText: "บ้านชาบู" });
+    await expect(card.getByText("ร้านปิดวันนี้ (ปิดทุกวันจันทร์)")).toBeVisible();
+    await expect(card.getByText("เต็มช่วงเวลานี้")).toHaveCount(0);
+
+    await card.getByRole("link", { name: "บ้านชาบู บุฟเฟ่ต์", exact: true }).click();
+    await expect(page.getByText("วันนี้ร้านปิด (ปิดทุกวันจันทร์) ลองเลือกวันอื่น")).toBeVisible();
   });
 });

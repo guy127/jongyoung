@@ -13,6 +13,7 @@ const messages: Record<string, string> = {
   INVALID_PARTY_SIZE: "จำนวนคนต้องอย่างน้อย 1 คน",
   PARTY_TOO_LARGE: "จำนวนคนมากกว่าที่นั่งทั้งร้าน",
   OUTSIDE_OPENING_HOURS: "ช่วงที่เลือกอยู่นอกเวลาเปิด–ปิดของร้าน",
+  CLOSED_WEEKDAY: "วันที่เลือกเป็นวันปิดประจำสัปดาห์ของร้าน — เลือกวันอื่น",
   NOT_ENOUGH_SEATS: "ที่นั่งไม่พอแล้ว — ยังไม่ได้จองให้",
   DUPLICATE_BOOKING: "คุณมีการจองที่ทับช่วงนี้อยู่แล้ว",
   BOOKING_CANCELLED: "การจองนี้ถูกยกเลิกไปแล้ว",

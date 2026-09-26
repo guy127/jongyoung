@@ -961,6 +961,10 @@ const docTemplate = `{
                 "business_date": {
                     "type": "string"
                 },
+                "closed": {
+                    "description": "วันปิดประจำสัปดาห์",
+                    "type": "boolean"
+                },
                 "closes_at": {
                     "type": "string"
                 },
@@ -1096,6 +1100,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2026-10-10"
                 },
+                "closed": {
+                    "description": "วันปิดประจำสัปดาห์ → slots ว่าง",
+                    "type": "boolean"
+                },
                 "closes_at": {
                     "type": "string"
                 },
@@ -1150,6 +1158,13 @@ const docTemplate = `{
                 "close_time": {
                     "type": "string",
                     "example": "02:00"
+                },
+                "closed_weekdays": {
+                    "description": "วันปิดประจำสัปดาห์ของวันทำการ (0 = อาทิตย์ … 6 = เสาร์)",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "created_at": {
                     "type": "string"
@@ -1271,6 +1286,16 @@ const docTemplate = `{
                     "type": "string",
                     "example": "22:00"
                 },
+                "closed_weekdays": {
+                    "description": "0 = อาทิตย์ … 6 = เสาร์",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1
+                    ]
+                },
                 "cuisine": {
                     "type": "string",
                     "maxLength": 60,
@@ -1315,6 +1340,13 @@ const docTemplate = `{
                 "close_time": {
                     "type": "string",
                     "example": "02:00"
+                },
+                "closed_weekdays": {
+                    "description": "วันปิดประจำสัปดาห์ของวันทำการ (0 = อาทิตย์ … 6 = เสาร์)",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "created_at": {
                     "type": "string"

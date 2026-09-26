@@ -19,11 +19,15 @@ type RestaurantRequest struct {
 	Seats               int      `json:"seats" binding:"required,gt=0,lte=1000" example:"10"`
 	OpenTime            string   `json:"open_time" binding:"required" example:"11:00"`
 	CloseTime           string   `json:"close_time" binding:"required" example:"22:00"`
+	ClosedWeekdays      []int    `json:"closed_weekdays" binding:"omitempty,dive,min=0,max=6" example:"1"` // 0 = อาทิตย์ … 6 = เสาร์
 	CancelBeforeMinutes int      `json:"cancel_before_minutes" binding:"required,gte=30,lte=1440" example:"30"`
 	ImageURLs           []string `json:"image_urls" binding:"omitempty,max=10,dive,url"`
 }
 
-var errInvalidClock = errors.New(`เวลาเปิด–ปิดต้องเป็นรูปแบบ "HH:MM" และลงที่ :00 หรือ :30`)
+var (
+	errInvalidClock  = errors.New(`เวลาเปิด–ปิดต้องเป็นรูปแบบ "HH:MM" และลงที่ :00 หรือ :30`)
+	errClosedAllWeek = errors.New("ร้านต้องเปิดอย่างน้อย 1 วันต่อสัปดาห์")
+)
 
 // ToInput แปลงเวลา "HH:MM" เป็นนาทีจากเที่ยงคืน — ต้องลง :00/:30 เพราะช่วงจองเป็นช่วงละ 30 นาที
 func (req RestaurantRequest) ToInput() (Input, error) {
@@ -35,9 +39,17 @@ func (req RestaurantRequest) ToInput() (Input, error) {
 	if err != nil {
 		return Input{}, err
 	}
+	closed := 0
+	for _, d := range req.ClosedWeekdays {
+		closed |= booking.WeekdayMask(time.Weekday(d))
+	}
+	if closed == booking.WeekdayMask(time.Sunday, time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday) {
+		return Input{}, errClosedAllWeek
+	}
 	return Input{
 		Name: req.Name, Description: req.Description, Cuisine: req.Cuisine, Address: req.Address,
-		Seats: req.Seats, OpenMinute: open, CloseMinute: shut, CancelBeforeMinutes: req.CancelBeforeMinutes,
+		Seats: req.Seats, OpenMinute: open, CloseMinute: shut, ClosedWeekdays: closed,
+		CancelBeforeMinutes: req.CancelBeforeMinutes,
 	}, nil
 }
 
@@ -81,6 +93,7 @@ type RestaurantResponse struct {
 	CloseTime           string          `json:"close_time" example:"02:00"`
 	Overnight           bool            `json:"overnight"` // ปิดหลังเที่ยงคืน → หน้าเว็บต้องแสดงป้าย "(เช้าวันที่ n)"
 	Open24h             bool            `json:"open_24h"`
+	ClosedWeekdays      []int           `json:"closed_weekdays"` // วันปิดประจำสัปดาห์ของวันทำการ (0 = อาทิตย์ … 6 = เสาร์)
 	CancelBeforeMinutes int             `json:"cancel_before_minutes"`
 	Rating              RatingResponse  `json:"rating"`
 	Images              []ImageResponse `json:"images"`
@@ -109,6 +122,7 @@ type ListResponse struct {
 
 type AvailabilityResponse struct {
 	BusinessDate string         `json:"business_date" example:"2026-10-10"`
+	Closed       bool           `json:"closed"` // วันปิดประจำสัปดาห์ → slots ว่าง
 	OpensAt      time.Time      `json:"opens_at"`
 	ClosesAt     time.Time      `json:"closes_at"`
 	Seats        int            `json:"seats"`
@@ -121,6 +135,10 @@ type NextAvailableResponse struct {
 }
 
 func NewRestaurantResponse(r Restaurant) RestaurantResponse {
+	closed := []int{} // ส่ง [] ไม่ใช่ null เมื่อเปิดทุกวัน
+	for _, d := range r.Hours().ClosedDays() {
+		closed = append(closed, int(d))
+	}
 	images := make([]ImageResponse, len(r.Images))
 	for i, img := range r.Images {
 		images[i] = ImageResponse{ID: img.ID, URL: img.URL, SortOrder: img.SortOrder}
@@ -129,7 +147,7 @@ func NewRestaurantResponse(r Restaurant) RestaurantResponse {
 		ID: r.ID, OwnerID: r.OwnerID, Name: r.Name, Description: r.Description, Cuisine: r.Cuisine,
 		Address: r.Address, Seats: r.Seats,
 		OpenTime: formatClock(r.OpenMinute), CloseTime: formatClock(r.CloseMinute),
-		Overnight: r.CloseMinute < r.OpenMinute, Open24h: r.OpenMinute == r.CloseMinute,
+		Overnight: r.CloseMinute < r.OpenMinute, Open24h: r.OpenMinute == r.CloseMinute, ClosedWeekdays: closed,
 		CancelBeforeMinutes: r.CancelBeforeMinutes,
 		Rating:              RatingResponse{Average: r.AverageRating(), Count: r.RatingCount},
 		Images:              images,

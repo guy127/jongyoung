@@ -11,7 +11,7 @@ import TimeChip, { chipNote } from "@/components/bases/TimeChip";
 import { Alert, Button, Skeleton } from "@/components/bases/ui";
 import BookingError from "@/components/booking/BookingError";
 import { apiError } from "@/lib/api";
-import { chipState, fmtRange, fmtShortDate, fmtTime, keyToDate, nextDayLabel, shiftDate, todayKey } from "@/lib/format";
+import { chipState, closedDaysLabel, fmtRange, fmtShortDate, fmtTime, keyToDate, nextDayLabel, shiftDate, todayKey } from "@/lib/format";
 import type { ApiError, Booking, Restaurant, Slot } from "@/lib/types";
 import { useSaveBooking } from "@/services/bookings";
 import { useAvailability } from "@/services/restaurants";
@@ -113,7 +113,11 @@ export default function BookingPanel({ restaurant: r, initialDate, initialTime, 
             <button type="button" className="link" onClick={() => availability.refetch()}>ลองอีกครั้ง</button>
           </Alert>
         )}
-        {availability.data && slots.length === 0 && <p className="rounded-xl bg-chip p-4 text-sm">วันนี้ไม่มีช่วงที่ยังจองทันแล้ว ลองเลือกวันอื่น</p>}
+        {availability.data && slots.length === 0 && (
+          <p className="rounded-xl bg-chip p-4 text-sm">
+            {availability.data.closed ? `วันนี้ร้านปิด (${closedDaysLabel(r.closed_weekdays)}) ลองเลือกวันอื่น` : "วันนี้ไม่มีช่วงที่ยังจองทันแล้ว ลองเลือกวันอื่น"}
+          </p>
+        )}
         {slots.length > 0 && (
           <div role="group" aria-labelledby="start-l" className="grid max-h-80 grid-cols-4 gap-2 overflow-y-auto p-0.5">
             {slots.map((s, i) => {

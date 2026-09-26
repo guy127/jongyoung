@@ -41,7 +41,11 @@ type Slot struct {
 
 // Slots คืนทุกช่วง 30 นาทีของรอบวันทำการ date
 // bookings = booking 'active' ที่ทับกับรอบนั้น; ช่วงที่เริ่มก่อน now+LeadTime จองไม่ได้แล้วจึงไม่อยู่ในลิสต์
+// วันปิดประจำสัปดาห์ไม่มีรอบ → คืนลิสต์ว่าง
 func Slots(h Hours, seats int, bookings []Booking, date, now time.Time) []Slot {
+	if h.ClosedOn(date) {
+		return nil
+	}
 	opensAt, closesAt := h.Window(date)
 	earliest := now.Add(LeadTime)
 	var slots []Slot

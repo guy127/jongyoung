@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import Rating from "@/components/bases/Rating";
 import TimeChip, { chipNote } from "@/components/bases/TimeChip";
-import { chipState, fmtTime, nextDayLabel } from "@/lib/format";
+import { chipState, closedDaysLabel, fmtTime, isClosedDay, nextDayLabel } from "@/lib/format";
 import type { ListItem } from "@/lib/types";
 
 import NextAvailableHint from "./NextAvailableHint";
@@ -37,6 +37,7 @@ export default function RestaurantCard({ restaurant: r, date, time, party }: Pro
             <span>· {r.open_24h ? "เปิด 24 ชม." : `${r.open_time}–${r.close_time}`}</span>
           </div>
           {r.overnight && <span className="text-[13px] text-muted">เปิดถึง {r.close_time} ของเช้าวันถัดไป</span>}
+          {r.closed_weekdays.length > 0 && <span className="text-[13px] text-muted">{closedDaysLabel(r.closed_weekdays)}</span>}
         </div>
 
         {anyBookable && (
@@ -51,7 +52,7 @@ export default function RestaurantCard({ restaurant: r, date, time, party }: Pro
         )}
         {!anyBookable && slots.length > 0 && (
           <div className="mt-auto flex flex-col gap-3 rounded-xl border border-dashed border-border-strong p-4">
-            <span className="text-sm font-medium">{allClosed ? "ร้านปิดช่วงเวลานี้" : "เต็มช่วงเวลานี้"}</span>
+            <span className="text-sm font-medium">{isClosedDay(r.closed_weekdays, date) ? `ร้านปิดวันนี้ (${closedDaysLabel(r.closed_weekdays)})` : allClosed ? "ร้านปิดช่วงเวลานี้" : "เต็มช่วงเวลานี้"}</span>
             <NextAvailableHint restaurantId={r.id} date={date} time={time} party={party} />
           </div>
         )}

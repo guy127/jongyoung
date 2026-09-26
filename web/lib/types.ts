@@ -18,6 +18,7 @@ export type Restaurant = {
   close_time: string;
   overnight: boolean;
   open_24h: boolean;
+  closed_weekdays: number[]; // วันปิดประจำสัปดาห์ของวันทำการ (0 = อาทิตย์ … 6 = เสาร์)
   cancel_before_minutes: number;
   rating: Rating;
   images: RestaurantImage[];
@@ -28,7 +29,7 @@ export type ListItem = Restaurant & { slots?: Slot[] };
 
 export type Page<T> = { items: T[]; page: number; limit: number; total: number };
 
-export type Availability = { business_date: string; opens_at: string; closes_at: string; seats: number; slots: Slot[] };
+export type Availability = { business_date: string; closed: boolean; opens_at: string; closes_at: string; seats: number; slots: Slot[] };
 
 export type NextAvailable = { business_date: string; slots: Slot[] } | null;
 
@@ -50,6 +51,7 @@ export type Booking = {
 
 export type Board = {
   business_date: string;
+  closed: boolean; // วันปิดประจำสัปดาห์
   opens_at: string;
   closes_at: string;
   seats: number;

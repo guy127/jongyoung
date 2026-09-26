@@ -20,11 +20,12 @@ type RestaurantInfo struct {
 	Seats               int
 	OpenMinute          int
 	CloseMinute         int
+	ClosedWeekdays      int
 	CancelBeforeMinutes int
 }
 
 func (r RestaurantInfo) Hours() Hours {
-	return Hours{OpenMinute: r.OpenMinute, CloseMinute: r.CloseMinute}
+	return Hours{OpenMinute: r.OpenMinute, CloseMinute: r.CloseMinute, ClosedWeekdays: r.ClosedWeekdays}
 }
 
 // View = booking + ข้อมูลร้าน + ชื่อลูกค้า สำหรับแสดงผล
@@ -53,7 +54,7 @@ func (r *repository) Transaction(ctx context.Context, fn func(tx Repository) err
 	})
 }
 
-const restaurantColumns = "id, owner_id, name, address, seats, open_minute, close_minute, cancel_before_minutes"
+const restaurantColumns = "id, owner_id, name, address, seats, open_minute, close_minute, closed_weekdays, cancel_before_minutes"
 
 // LockRestaurant = SELECT ... FOR UPDATE บนแถวร้าน — คำขอจองร้านเดียวกันพร้อมกันจะต่อคิวที่บรรทัดนี้
 func (r *repository) LockRestaurant(ctx context.Context, id uuid.UUID) (RestaurantInfo, error) {

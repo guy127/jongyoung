@@ -139,6 +139,7 @@ func (s *service) ListMine(ctx context.Context, userID uuid.UUID, status string)
 // Board คือบอร์ดรายวันทำการของเจ้าของร้าน: การจองทุกสถานะ + ที่ว่างต่อช่วง (seat bar)
 type Board struct {
 	Restaurant RestaurantInfo
+	Closed     bool // วันปิดประจำสัปดาห์ — ไม่มีช่วงเวลา แต่ยังโชว์ booking เดิม (ถ้ามีก่อนตั้งวันปิด) ได้
 	OpensAt    time.Time
 	ClosesAt   time.Time
 	Bookings   []View
@@ -166,7 +167,7 @@ func (s *service) Board(ctx context.Context, userID, restaurantID uuid.UUID, dat
 	}
 	// now = เวลาศูนย์ → ไม่ตัดช่วงที่ผ่านไปแล้วออก (เจ้าของต้องเห็นทั้งรอบ)
 	slots := Slots(r.Hours(), r.Seats, active, date, time.Time{})
-	return Board{Restaurant: r, OpensAt: opensAt, ClosesAt: closesAt, Bookings: views, Slots: slots}, nil
+	return Board{Restaurant: r, Closed: r.Hours().ClosedOn(date), OpensAt: opensAt, ClosesAt: closesAt, Bookings: views, Slots: slots}, nil
 }
 
 // checkSlot ตรวจกฎทั้งหมดของช่วงที่ขอ (ต้องเรียกหลัง LockRestaurant เท่านั้น)

@@ -105,3 +105,42 @@ func TestFits(t *testing.T) {
 		})
 	}
 }
+
+// วันปิดประจำสัปดาห์ผูกกับ "วันทำการ" (วันที่รอบเริ่ม) ไม่ใช่วันปฏิทินของเวลาที่จอง
+// 2026-10-12 เป็นวันจันทร์
+func TestClosedWeekdays(t *testing.T) {
+	closedMon := func(h Hours) Hours { h.ClosedWeekdays = WeekdayMask(time.Monday); return h }
+
+	t.Run("WeekdayMask ↔ ClosedDays", func(t *testing.T) {
+		assert.Equal(t, 0b1000010, WeekdayMask(time.Monday, time.Saturday))
+		assert.Equal(t, []time.Weekday{time.Monday, time.Saturday}, Hours{ClosedWeekdays: 0b1000010}.ClosedDays())
+		assert.Empty(t, normal.ClosedDays())
+	})
+	t.Run("ClosedOn ดูวันในสัปดาห์ของวันทำการ", func(t *testing.T) {
+		h := closedMon(normal)
+		assert.True(t, h.ClosedOn(bkk(2026, 10, 12, 0, 0)))
+		assert.False(t, h.ClosedOn(bkk(2026, 10, 11, 0, 0)))
+	})
+
+	cases := []struct {
+		name       string
+		h          Hours
+		start, end time.Time
+		want       bool
+	}{
+		{"ร้านปกติ วันจันทร์ → ปิด", closedMon(normal), bkk(2026, 10, 12, 12, 0), bkk(2026, 10, 12, 13, 0), false},
+		{"ร้านปกติ วันอังคาร → เปิด", closedMon(normal), bkk(2026, 10, 13, 12, 0), bkk(2026, 10, 13, 13, 0), true},
+		{"ข้ามคืน ตีหนึ่งเช้าวันจันทร์ = รอบวันอาทิตย์ → เปิด", closedMon(overnight), bkk(2026, 10, 12, 1, 0), bkk(2026, 10, 12, 2, 0), true},
+		{"ข้ามคืน รอบคืนวันจันทร์ → ปิด", closedMon(overnight), bkk(2026, 10, 12, 19, 0), bkk(2026, 10, 12, 20, 0), false},
+		{"ข้ามคืน ตีหนึ่งเช้าวันอังคาร = รอบวันจันทร์ → ปิด", closedMon(overnight), bkk(2026, 10, 13, 1, 0), bkk(2026, 10, 13, 2, 0), false},
+		{"24 ชม. วันจันทร์ → ปิด", closedMon(allDay), bkk(2026, 10, 12, 12, 0), bkk(2026, 10, 12, 13, 0), false},
+		{"24 ชม. คร่อมเข้าวันจันทร์ → ปิด (ครึ่งหลังตกวันปิด)", closedMon(allDay), bkk(2026, 10, 11, 23, 30), bkk(2026, 10, 12, 0, 30), false},
+		{"24 ชม. จบเที่ยงคืนพอดีก่อนวันจันทร์ → เปิด", closedMon(allDay), bkk(2026, 10, 11, 23, 0), bkk(2026, 10, 12, 0, 0), true},
+		{"24 ชม. คร่อมออกจากวันจันทร์ → ปิด", closedMon(allDay), bkk(2026, 10, 12, 23, 30), bkk(2026, 10, 13, 0, 30), false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.want, c.h.Fits(c.start, c.end))
+		})
+	}
+}

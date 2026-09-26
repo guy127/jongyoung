@@ -9,6 +9,9 @@ import (
 
 func TestValidateRequest(t *testing.T) {
 	now := bkk(2026, 10, 10, 17, 30)
+	closedSat := Hours{OpenMinute: normal.OpenMinute, CloseMinute: normal.CloseMinute, ClosedWeekdays: WeekdayMask(time.Saturday)}
+	// ร้านข้ามคืนปิดวันอาทิตย์: ตีหนึ่งของวันอาทิตย์ (11) ยังเป็นรอบวันเสาร์ → จองได้
+	overnightClosedSun := Hours{OpenMinute: overnight.OpenMinute, CloseMinute: overnight.CloseMinute, ClosedWeekdays: WeekdayMask(time.Sunday)}
 	req := func(party int, start, end time.Time) Request {
 		return Request{StartAt: start, EndAt: end, PartySize: party}
 	}
@@ -34,6 +37,8 @@ func TestValidateRequest(t *testing.T) {
 		{"6) ข้ามคืน เลยตีสอง → ปฏิเสธ", overnight, req(2, bkk(2026, 10, 11, 1, 30), bkk(2026, 10, 11, 2, 30)), now, ErrOutsideHours},
 		{"7) 24 ชม. คร่อมเที่ยงคืน → ผ่าน", allDay, req(2, bkk(2026, 10, 10, 23, 30), bkk(2026, 10, 11, 0, 30)), now, nil},
 		{"8) คาบเกี่ยวเวลาปิด → ปฏิเสธ", normal, req(2, bkk(2026, 10, 10, 21, 30), bkk(2026, 10, 10, 22, 30)), now, ErrOutsideHours},
+		{"วันปิดประจำสัปดาห์ → CLOSED_WEEKDAY", closedSat, req(2, bkk(2026, 10, 10, 19, 0), bkk(2026, 10, 10, 20, 0)), now, ErrClosedWeekday},
+		{"ข้ามคืนปิดวันอาทิตย์ ตีหนึ่งเช้าวันอาทิตย์ = รอบวันเสาร์ → ผ่าน", overnightClosedSun, req(2, bkk(2026, 10, 11, 1, 0), bkk(2026, 10, 11, 2, 0)), bkk(2026, 10, 10, 9, 0), nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -261,5 +261,6 @@ func apply(rest *Restaurant, in Input) {
 	rest.Seats = in.Seats
 	rest.OpenMinute = in.OpenMinute
 	rest.CloseMinute = in.CloseMinute
+	rest.ClosedWeekdays = in.ClosedWeekdays
 	rest.CancelBeforeMinutes = in.CancelBeforeMinutes
 }

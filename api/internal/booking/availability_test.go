@@ -107,3 +107,16 @@ func TestCheckSeats(t *testing.T) {
 		})
 	}
 }
+
+func TestSlotsClosedWeekday(t *testing.T) {
+	h := overnight
+	h.ClosedWeekdays = WeekdayMask(time.Monday)
+	longAgo := bkk(2026, 1, 1, 0, 0)
+	assert.Empty(t, Slots(h, 10, nil, bkk(2026, 10, 12, 0, 0), longAgo), "วันจันทร์ไม่มีรอบ")
+	assert.Len(t, Slots(h, 10, nil, bkk(2026, 10, 11, 0, 0), longAgo), 16, "รอบวันอาทิตย์ยังครบถึงตีสองเช้าวันจันทร์")
+
+	cards := SlotsAround(h, 10, nil, bkk(2026, 10, 12, 0, 0), 19*60, longAgo)
+	for _, s := range cards {
+		assert.True(t, s.Closed, "ปุ่มเวลาวันปิดต้องเป็น closed ทั้งหมด")
+	}
+}

@@ -46,6 +46,25 @@ export function fmtRange(start: DateInput, end: DateInput, businessDate: string)
   return `${fmtTime(start)}–${fmtTime(end)}${label ? " " + label : ""}`;
 }
 
+/** ชื่อวันตามเลข time.Weekday ของ Go (0 = อาทิตย์ … 6 = เสาร์) — ค่าเดียวกับ closed_weekdays จาก API */
+export const WEEKDAYS = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
+/** ลำดับแสดงผลเริ่มวันจันทร์ (ตามปฏิทินที่คนไทยคุ้น) */
+export const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+/** วันในสัปดาห์ของวันทำการ "YYYY-MM-DD" (keyToDate = เที่ยงวันเวลาไทย จึงเป็นวันเดียวกันใน UTC) */
+export const weekdayOf = (businessDate: string) => keyToDate(businessDate).getUTCDay();
+
+/** วันทำการนี้เป็นวันปิดประจำสัปดาห์ไหม — backend ตัดสินจริง ใช้ที่หน้าเว็บเพื่อบอกเหตุผลเท่านั้น */
+export const isClosedDay = (closedWeekdays: number[], businessDate: string) => closedWeekdays.includes(weekdayOf(businessDate));
+
+/** [1] → "ปิดทุกวันจันทร์", [1, 2] → "ปิดทุกวันจันทร์และอังคาร", [0, 1, 2] → "ปิดทุกวันจันทร์, อังคาร และอาทิตย์", [] → "" */
+export function closedDaysLabel(closedWeekdays: number[]): string {
+  const names = WEEKDAY_ORDER.filter((d) => closedWeekdays.includes(d)).map((d) => WEEKDAYS[d]);
+  if (names.length === 0) return "";
+  if (names.length === 1) return `ปิดทุกวัน${names[0]}`;
+  return `ปิดทุกวัน${names.slice(0, -1).join(", ")}${names.length > 2 ? " " : ""}และ${names.at(-1)}`;
+}
+
 export type ChipState = "ok" | "low" | "full" | "closed";
 
 /**

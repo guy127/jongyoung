@@ -13,6 +13,16 @@ export function tomorrow() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date(Date.now() + 86_400_000));
 }
 
+/** วันจันทร์ถัดไป (หลังวันนี้) ตามเวลาไทย — seed ให้ "บ้านชาบู บุฟเฟ่ต์" ปิดทุกวันจันทร์ */
+export function nextMonday() {
+  const today = new Date(`${tomorrow()}T12:00:00+07:00`).getTime() - 86_400_000;
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(today + i * 86_400_000);
+    if (d.getUTCDay() === 1) return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(d);
+  }
+  throw new Error("unreachable");
+}
+
 /** หา id ร้านจากชื่อ (seed --reset สร้าง id ใหม่ทุกครั้ง จึงอ้างด้วยชื่อ) */
 export async function restaurantId(request: APIRequestContext, name: string) {
   const res = await request.get(`${API}/restaurants?limit=50`);

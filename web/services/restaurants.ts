@@ -11,6 +11,7 @@ export type RestaurantInput = {
   seats: number;
   open_time: string;
   close_time: string;
+  closed_weekdays: number[];
   cancel_before_minutes: number;
   image_urls?: string[];
 };

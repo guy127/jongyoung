@@ -7,7 +7,7 @@ import BookingPanel from "@/components/booking/BookingPanel";
 import EditBookingLoader from "@/components/booking/EditBookingLoader";
 import ReviewsSection from "@/components/review/ReviewsSection";
 import { serverGet } from "@/lib/api";
-import { defaultSearch } from "@/lib/format";
+import { closedDaysLabel, defaultSearch } from "@/lib/format";
 import type { Page, Restaurant, Review } from "@/lib/types";
 
 type Search = { date?: string; time?: string; party_size?: string; edit?: string };
@@ -40,6 +40,7 @@ export default async function RestaurantPage({ params, searchParams }: { params:
           <h1 className="font-display text-[30px] text-balance sm:text-[40px]">{restaurant.name}</h1>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-white/90 tabular">
             <Rating rating={restaurant.rating} /><span aria-hidden>·</span>{restaurant.cuisine}<span aria-hidden>·</span>{hours}
+            {restaurant.closed_weekdays.length > 0 && <><span aria-hidden>·</span>{closedDaysLabel(restaurant.closed_weekdays)}</>}
             <span aria-hidden>·</span>{restaurant.seats} ที่นั่ง
           </p>
         </div>

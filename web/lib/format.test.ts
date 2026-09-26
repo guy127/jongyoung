@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chipState, dateKey, defaultSearch, fmtTime, nextDayLabel, ratingLabel, shiftDate } from "./format";
+import { chipState, closedDaysLabel, dateKey, isClosedDay, defaultSearch, fmtTime, nextDayLabel, ratingLabel, shiftDate } from "./format";
 
 describe("chipState (ข้อ 9 เคส 27) — เทียบกับจำนวนคนที่เลือก ไม่ใช่ 1", () => {
   const seats = 10;
@@ -68,5 +68,19 @@ describe("เวลาและวันที่แบบไทย", () => {
   it("shiftDate เลื่อนวันแบบข้ามเดือน", () => {
     expect(shiftDate("2026-10-31", 1)).toBe("2026-11-01");
     expect(shiftDate("2026-10-01", -1)).toBe("2026-09-30");
+  });
+});
+
+describe("วันปิดประจำสัปดาห์", () => {
+  it("ป้ายเรียงจันทร์ก่อน และต่อคำแบบไทย", () => {
+    expect(closedDaysLabel([])).toBe("");
+    expect(closedDaysLabel([1])).toBe("ปิดทุกวันจันทร์");
+    expect(closedDaysLabel([2, 1])).toBe("ปิดทุกวันจันทร์และอังคาร");
+    expect(closedDaysLabel([0, 1, 2])).toBe("ปิดทุกวันจันทร์, อังคาร และอาทิตย์");
+  });
+  it("ดูจากวันทำการ (2026-10-12 = จันทร์, 0 = อาทิตย์ ตรงกับ Go)", () => {
+    expect(isClosedDay([1], "2026-10-12")).toBe(true);
+    expect(isClosedDay([1], "2026-10-13")).toBe(false);
+    expect(isClosedDay([0], "2026-10-11")).toBe(true);
   });
 });

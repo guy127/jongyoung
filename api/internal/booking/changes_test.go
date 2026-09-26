@@ -3,6 +3,7 @@ package booking
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -84,5 +85,22 @@ func TestSlotsAround(t *testing.T) {
 		s := SlotsAround(overnight, 10, []Booking{b}, date, 19*60, longAgo)
 		assert.Equal(t, 2, s[2].Available)
 		assert.Equal(t, 10, s[4].Available)
+	})
+}
+
+func TestCheckHoursChangeClosedWeekday(t *testing.T) {
+	sat := bk(2, bkk(2026, 10, 10, 19, 0), bkk(2026, 10, 10, 20, 0)) // วันเสาร์
+	sat.ID = uuid.New()
+	sun := bk(2, bkk(2026, 10, 11, 19, 0), bkk(2026, 10, 11, 20, 0))
+	sun.ID = uuid.New()
+
+	t.Run("ตั้งปิดวันเสาร์ ขณะที่มีจองวันเสาร์ → HoursConflictError เฉพาะรายการนั้น", func(t *testing.T) {
+		err := CheckHoursChange([]Booking{sat, sun}, Hours{OpenMinute: 11 * 60, CloseMinute: 22 * 60, ClosedWeekdays: WeekdayMask(time.Saturday)})
+		var e *HoursConflictError
+		require.True(t, errors.As(err, &e))
+		assert.Equal(t, []uuid.UUID{sat.ID}, e.BookingIDs)
+	})
+	t.Run("ปิดวันที่ไม่มีจอง → ผ่าน", func(t *testing.T) {
+		assert.NoError(t, CheckHoursChange([]Booking{sat, sun}, Hours{OpenMinute: 11 * 60, CloseMinute: 22 * 60, ClosedWeekdays: WeekdayMask(time.Monday)}))
 	})
 }

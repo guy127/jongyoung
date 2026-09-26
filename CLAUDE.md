@@ -215,6 +215,8 @@ restaurants
   seats                 int  not null check (seats > 0)
   open_minute           int  not null check (open_minute between 0 and 1439)
   close_minute          int  not null check (close_minute between 0 and 1439)
+  closed_weekdays       smallint not null default 0 check (closed_weekdays between 0 and 126)
+                                                -- วันปิดประจำสัปดาห์: บิตที่ n = ปิดทุก time.Weekday(n) (0 = อาทิตย์); 127 = ปิดทั้งสัปดาห์ ไม่อนุญาต
   cancel_before_minutes int  not null default 30 check (cancel_before_minutes >= 30)
   rating_sum            int  not null default 0
   rating_count          int  not null default 0
@@ -306,7 +308,7 @@ reviews
 | 2 | `end_at > start_at` | 400 |
 | 3 | `start_at` ยังไม่ผ่านไปแล้ว | 400 |
 | 4 | **จองล่วงหน้าอย่างน้อย 30 นาที** (`start_at >= now + 30m`) — กันจองรอบที่กำลังจะเริ่มใน 2 นาที | 400 `TOO_LATE_TO_BOOK` |
-| 5 | ช่วงจองอยู่ในเวลาเปิด–ปิดของร้าน (รองรับเปิดข้ามเที่ยงคืน + 24 ชม.) | 400 |
+| 5 | ช่วงจองอยู่ในเวลาเปิด–ปิดของร้าน (รองรับเปิดข้ามเที่ยงคืน + 24 ชม.) และวันทำการนั้นไม่ใช่วันปิดประจำสัปดาห์ | 400 (`CLOSED_WEEKDAY` ถ้าตกวันปิด) |
 | 6 | `party_size <= restaurant.seats` (ขอเกินความจุร้านไปเลย) | 400 |
 | 7 | **ที่นั่งไม่เกินในทุกวินาที** — ดู 5.3 | **409** `NOT_ENOUGH_SEATS` |
 | 8 | ผู้ใช้คนเดียวกันจองร้านเดียวกันซ้อนเวลากันเองไม่ได้ | **409** `DUPLICATE_BOOKING` |
@@ -449,6 +451,9 @@ closes_at = opens_at + duration
   (บั๊กที่เกิดง่ายที่สุด — ต้องมีเทสต์)
 - owner `?date=` เอา booking ที่ `start_at` อยู่ใน `[opens_at, closes_at)` — แขกตี 1 คืนวันเสาร์อยู่ในบอร์ดวันเสาร์
 - ร้านปกติ วันทำการ = วันปฏิทิน ไม่ต้องทำอะไรเพิ่ม
+- **วันปิดประจำสัปดาห์ผูกกับวันทำการ** (`Hours.ClosedOn(date)`): ร้าน 18:00–02:00 ปิดวันจันทร์ → ตี 1 เช้าวันจันทร์ยังจองได้ (รอบวันอาทิตย์)
+  แต่ตี 1 เช้าวันอังคารจองไม่ได้ (รอบวันจันทร์); ร้าน 24 ชม. จองคร่อมเที่ยงคืนเข้าวันปิดไม่ได้
+  ตั้งวันปิดทับวันที่มี booking ในอนาคต → 409 `HOURS_CONFLICT_EXISTING_BOOKINGS` (ผ่าน `Fits` ตัวเดียวกับย่นเวลา)
 - รอบของ "วันนี้" ต้องตัดช่วงที่เลยไปแล้วและช่วงที่เหลือน้อยกว่า lead time 30 นาทีออก
 
 **ตัวแปลงวันทำการ ↔ เวลาจริง ต้องเป็นฟังก์ชันเดียวใน `businessday.go`** ที่ availability, list, POST /bookings,
@@ -575,6 +580,7 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 | code | status | details |
 |---|---|---|
 | `TOO_LATE_TO_BOOK` | 400 | `earliest_start_at` |
+| `CLOSED_WEEKDAY` | 400 | – |
 | `NOT_ENOUGH_SEATS` | 409 | `available`, `at` |
 | `DUPLICATE_BOOKING` | 409 | `booking_id` |
 | `BOOKING_CANCELLED` / `BOOKING_ALREADY_STARTED` | 409 | – |
@@ -660,7 +666,7 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 | `--text` | `#261419` | `#fff7ed` | ตัวอักษรหลัก |
 | `--muted` | `#6f4c4d` | `#d7b8b4` | กำกับ |
 | `--soft` | `#7d625f` | `#a88b8d` | meta เล็ก |
-| `--accent` | `#c5162e` | `#ff5a6e` | แบรนด์ (โลโก้, hero, ปุ่มหลักฝั่ง owner) |
+| `--accent` | `#c5162e` | `#ff5a6e` | แบรนด์ (โลโก้, hero) |
 | `--eyebrow` / `--star` | `#8a5a00` / `#b77900` | `#ffb703` | ป้ายเล็กเหนือหัวข้อ / ไอคอนดาว |
 | `--accent-3` | `#007c91` (อ่อน `#e3f3f5`) | `#43e8ff` (อ่อน 12%) | ลิงก์, **ช่วงเวลาที่เลือก** |
 | `--cta` | `#c5162e → #b3361a` | `#e11d48 → #c2410c` | ปุ่มหลัก (gradient 135°) — ตัวขาวต้องผ่าน AA |
@@ -760,7 +766,7 @@ navbar มีตัวสลับแบบแบ่งสองช่อง `�
 `/owner/*` เป็น **เครื่องมือทำงาน** ไม่ใช่หน้าขาย เจ้าของร้านเปิดวันละหลายรอบ ความเร็วในการสแกนสำคัญกว่าความประทับใจ
 
 - navbar ทึบสีเข้ม (`#261419` / Night `#000`) + ป้าย "โหมดเจ้าของร้าน" + ตัวสลับโหมด
-- ไม่มี gradient ไม่มี glass ไม่มี hover ลอย — พื้นทึบ เส้นแบ่งชัด radius 6px ปุ่มหลักสีทึบ `--accent`
+- ไม่มี gradient ไม่มี glass ไม่มี hover ลอย — พื้นทึบ เส้นแบ่งชัด radius 6px ปุ่มหลักสีหมึกทึบ `--text` (ไม่ใช้แดง — แดงสงวนไว้ให้ลบ/ยกเลิก คนจะเข้าใจผิดว่า "บันทึก" เป็นปุ่มอันตราย)
 - ตัวอักษร 14px ความหนาแน่นสูง แถวตาราง 36–40px
 - **Seat bar อยู่ที่นี่**: แถวต่อช่วง 30 นาทีตลอดรอบวันทำการ แถบยาว = สัดส่วนที่ถูกจอง
   เขียว < 70% → อำพัน ≥ 70% → แดง 100% พร้อมตัวเลข `7/10` กำกับเสมอ

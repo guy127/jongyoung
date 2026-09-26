@@ -203,7 +203,7 @@ func (h *handler) Board(c *gin.Context) {
 	}
 	now := h.now()
 	resp := BoardResponse{
-		BusinessDate: date.Format("2006-01-02"), OpensAt: board.OpensAt, ClosesAt: board.ClosesAt,
+		BusinessDate: date.Format("2006-01-02"), Closed: board.Closed, OpensAt: board.OpensAt, ClosesAt: board.ClosesAt,
 		Seats: board.Restaurant.Seats, Slots: make([]BoardSlot, len(board.Slots)), Bookings: make([]BookingResponse, len(board.Bookings)),
 	}
 	for i, s := range board.Slots {
