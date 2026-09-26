@@ -65,7 +65,30 @@ export function closedDaysLabel(closedWeekdays: number[]): string {
   return `ปิดทุกวัน${names.slice(0, -1).join(", ")}${names.length > 2 ? " " : ""}และ${names.at(-1)}`;
 }
 
-export type ChipState = "ok" | "low" | "full" | "closed";
+/** "11:00–22:00", "11:00–22:00 · พัก 15:00–17:00", "เปิด 24 ชม." — ป้ายเวลาเปิดของร้านทุกที่ใช้ตัวนี้ */
+export function hoursLabel(r: { open_time: string; close_time: string; open_24h: boolean; break_start: string; break_end: string }): string {
+  const base = r.open_24h ? "เปิด 24 ชม." : `${r.open_time}–${r.close_time}`;
+  return r.break_start ? `${base} · พัก ${r.break_start}–${r.break_end}` : base;
+}
+
+/**
+ * slot ถัดไปต่อจาก slot ก่อนหน้าสนิทไหม — ไม่ต่อ = มีช่วงพักร้านคั่น
+ * (API ตัดช่วงพักออกจากลิสต์; ช่วงที่เลย lead time หายจากต้นลิสต์เท่านั้น จึงไม่ทำให้เกิดช่องว่างกลางลิสต์)
+ */
+export const isGap = (prev: { end_at: string } | undefined, next: { start_at: string }) =>
+  !!prev && new Date(prev.end_at).getTime() !== new Date(next.start_at).getTime();
+
+/** slot ที่ต่อกันสนิทนับจาก index start ไม่เกิน n ช่วง — หยุดเมื่อเจอช่วงพักหรือหมดลิสต์ */
+export function contiguousFrom<T extends { start_at: string; end_at: string }>(slots: T[], start: number, n: number): T[] {
+  const out: T[] = [];
+  for (let i = start; i < slots.length && out.length < n; i++) {
+    if (out.length > 0 && isGap(slots[i - 1], slots[i])) break;
+    out.push(slots[i]);
+  }
+  return out;
+}
+
+export type ChipState ="ok" | "low" | "full" | "closed";
 
 /**
  * สถานะปุ่มเวลา (ข้อ 8.4): เทียบที่ว่างกับจำนวนคนที่ผู้ใช้เลือก

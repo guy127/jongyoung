@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chipState, closedDaysLabel, dateKey, isClosedDay, defaultSearch, fmtTime, isGoogleMapsUrl, mapHref, nextDayLabel, ratingLabel, shiftDate } from "./format";
+import { chipState, closedDaysLabel, contiguousFrom, hoursLabel, isGap, dateKey, isClosedDay, defaultSearch, fmtTime, isGoogleMapsUrl, mapHref, nextDayLabel, ratingLabel, shiftDate } from "./format";
 
 describe("chipState (ข้อ 9 เคส 27) — เทียบกับจำนวนคนที่เลือก ไม่ใช่ 1", () => {
   const seats = 10;
@@ -100,5 +100,39 @@ describe("ลิงก์แผนที่", () => {
     expect(isGoogleMapsUrl("http://maps.app.goo.gl/AbC")).toBe(false);
     expect(isGoogleMapsUrl("https://www.google.com/search?q=x")).toBe(false);
     expect(isGoogleMapsUrl("https://maps.app.goo.gl.evil.example/x")).toBe(false);
+  });
+});
+
+describe("hoursLabel", () => {
+  const base = { open_time: "11:00", close_time: "22:00", open_24h: false, break_start: "", break_end: "" };
+  it("ไม่มีช่วงพัก", () => {
+    expect(hoursLabel(base)).toBe("11:00–22:00");
+  });
+  it("มีช่วงพัก", () => {
+    expect(hoursLabel({ ...base, break_start: "15:00", break_end: "17:00" })).toBe("11:00–22:00 · พัก 15:00–17:00");
+  });
+  it("24 ชม.", () => {
+    expect(hoursLabel({ ...base, open_time: "00:00", close_time: "00:00", open_24h: true })).toBe("เปิด 24 ชม.");
+  });
+});
+
+describe("ช่วงพักในลิสต์ slot", () => {
+  const slot = (start: string, end: string) => ({ start_at: `2026-10-10T${start}:00+07:00`, end_at: `2026-10-10T${end}:00+07:00` });
+  // 13:00 13:30 | พัก | 17:00 17:30
+  const slots = [slot("13:00", "13:30"), slot("13:30", "14:00"), slot("17:00", "17:30"), slot("17:30", "18:00")];
+
+  it("isGap: ต่อกันสนิท = ไม่ใช่ช่วงพัก, ไม่ต่อ = ช่วงพัก, ตัวแรก = ไม่ใช่", () => {
+    expect(isGap(slots[0], slots[1])).toBe(false);
+    expect(isGap(slots[1], slots[2])).toBe(true);
+    expect(isGap(undefined, slots[0])).toBe(false);
+  });
+  it("contiguousFrom: เลือก 13:00 นาน 1 ชม. → 2 ช่วงครบ", () => {
+    expect(contiguousFrom(slots, 0, 2)).toEqual([slots[0], slots[1]]);
+  });
+  it("contiguousFrom: เลือก 13:30 นาน 2 ชม. → หยุดที่ช่วงพัก ได้ช่วงเดียว (ห้ามกระโดดไป 17:00)", () => {
+    expect(contiguousFrom(slots, 1, 4)).toEqual([slots[1]]);
+  });
+  it("contiguousFrom: เลยท้ายลิสต์ → ได้เท่าที่มี", () => {
+    expect(contiguousFrom(slots, 3, 2)).toEqual([slots[3]]);
   });
 });

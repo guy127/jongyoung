@@ -17,6 +17,8 @@ export type Restaurant = {
   seats: number;
   open_time: string;
   close_time: string;
+  break_start: string; // "" = ไม่มีช่วงพัก
+  break_end: string;
   overnight: boolean;
   open_24h: boolean;
   closed_weekdays: number[]; // วันปิดประจำสัปดาห์ของวันทำการ (0 = อาทิตย์ … 6 = เสาร์)
