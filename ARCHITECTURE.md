@@ -35,15 +35,19 @@ jongyoung/
 │   ├── app/
 │   │   ├── (customer)/        # หน้าแรก, restaurants/[id], bookings/[id], me/bookings
 │   │   ├── owner/             # restaurants (จัดการร้าน), bookings (บอร์ดรายวันทำการ)
+│   │   ├── login/             # ส่งต่อไป Keycloak ทันที (แทนหน้า sign-in สำเร็จรูปของ next-auth)
 │   │   ├── api/auth/          # [...nextauth], logout
 │   │   ├── layout.tsx, providers.tsx, globals.css (design tokens)
-│   ├── components/            # bases/ (ปุ่ม, TimeChip, Alert…), restaurant/, booking/, review/, owner/
+│   ├── components/            # bases/ (layout: PageLayout/Section/Card/Field, Choice, ปุ่ม, TimeChip, Alert…),
+│   │                          #   restaurant/, booking/, review/, owner/
 │   ├── containers/            # Navbar (ลูกค้า), OwnerNavbar
 │   ├── services/              # hook TanStack Query ต่อ resource (restaurants, bookings, reviews, me)
 │   ├── lib/                   # api.ts (axios), auth/, format.ts (เวลาไทย + ป้ายข้ามวัน), ics.ts, errors.ts, types.ts
 │   ├── proxy.ts               # กันหน้า /me, /owner, /bookings ถ้ายังไม่ login
 │   └── Dockerfile
 ├── docs/                      # แผนงาน, design
+├── e2e/                       # Playwright E2E (tests/*.spec.ts) — รันใน container ด้วย ./dev.sh e2e
+├── dev.sh                     # คำสั่งที่ใช้บ่อย: up / reset / lint / test / e2e / check
 ├── .gitlab-ci.yml
 ├── CLAUDE.md                  # spec + กติกาธุรกิจทั้งหมด
 ├── README.md
@@ -227,6 +231,7 @@ Migration อยู่ที่ `api/migrations/` (goose, มี Down ทุก�
 **Testing Frameworks:**
 - Go: testify, mockery (mock repository ลง `mocks_test.go`), httptest (handler), testcontainers-go (Postgres จริง — รวมเทสต์จองพร้อมกัน/กดซ้ำ)
 - Web: Vitest + Testing Library (jsdom)
+- E2E: Playwright (`e2e/`) ทดสอบผ่าน browser จริง desktop + มือถือ 375px — `./dev.sh e2e` ล้าง seed ก่อนทุกครั้ง
 
 **Code Quality Tools:** `go vet`, `gofmt`, ESLint (eslint-config-next + React Compiler rules), TypeScript strict
 

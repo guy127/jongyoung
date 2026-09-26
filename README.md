@@ -34,11 +34,14 @@ compose จะทำให้ครบตามลำดับ: `postgres` → `
 > 127.0.0.1 jongyoung.localhost api.jongyoung.localhost keycloak.jongyoung.localhost
 > ```
 
-คำสั่งที่ใช้บ่อย
+คำสั่งที่ใช้บ่อยรวมไว้ใน [`dev.sh`](dev.sh) (bash ธรรมดา อ่านได้ในไฟล์เดียวว่าแต่ละคำสั่งทำอะไร)
 ```bash
-docker compose run --rm seed --reset   # ล้างข้อมูลแล้วใส่ข้อมูลตัวอย่างใหม่ (เวลาในข้อมูลจะอิงจากวันนี้)
+./dev.sh up       # สร้างและรันทั้งระบบ
+./dev.sh reset    # ล้างข้อมูลแล้วใส่ข้อมูลตัวอย่างใหม่ (เวลาในข้อมูลอิงจากวันนี้)
+./dev.sh check    # lint + unit/integration test + E2E — ตรวจทุกอย่างในคำสั่งเดียว
+./dev.sh help     # ดูคำสั่งทั้งหมด
+
 docker compose run --rm migrate status # ดูว่ารัน migration ไหนไปแล้ว (down = ย้อนทีละขั้น)
-docker compose logs -f api web         # ดู log
 docker compose down -v                 # ปิดและลบข้อมูลทั้งหมด
 ```
 
@@ -90,6 +93,8 @@ web/                   Next.js
   app/(customer)/      หน้าแรก, หน้าร้าน, หน้ายืนยันการจอง, การจองของฉัน
   app/owner/           ร้านของฉัน, บอร์ดการจองรายวันทำการ
   services/            hook TanStack Query ต่อ resource     lib/  axios, auth, format เวลาไทย, .ics
+e2e/                   Playwright — ทดสอบระบบจริงทั้งก้อนผ่าน browser (desktop + มือถือ 375px)
+dev.sh                 คำสั่งที่ใช้บ่อย (up / reset / lint / test / e2e / check)
 .gitlab-ci.yml         lint → test → build → image (main)
 ```
 
@@ -172,18 +177,30 @@ score = (C·m + rating_sum) / (C + rating_count)     C = 5, m = ค่าเฉ�
 ## 6. Test
 
 ```bash
-cd api && go test ./...          # ต้องมี Docker (integration test ใช้ testcontainers) — ข้ามได้ด้วย -short
-cd web && npm test               # Vitest
+./dev.sh test     # Go (unit + integration กับ Postgres จริงใน testcontainers) + web (Vitest)
+./dev.sh e2e      # E2E กับระบบที่รันอยู่ (ล้าง seed ก่อนทุกครั้ง ผลจึงคงที่) — ./dev.sh e2e --project=mobile
+./dev.sh check    # lint + test + e2e
 ```
+
+ทดสอบ 3 ชั้น แต่ละชั้นตอบคำถามต่างกัน:
+
+| ชั้น | อยู่ที่ | ตอบคำถาม |
+|---|---|---|
+| unit | `api/internal/**/_test.go`, `web/**/*.test.ts(x)` | กติกาแต่ละข้อถูกไหม (เร็ว ไม่ต้องมี DB) |
+| integration | `*_integration_test.go` (testcontainers) | SQL, lock, การจองพร้อมกันถูกไหม บน Postgres จริง |
+| E2E | `e2e/tests/*.spec.ts` (Playwright) | ผู้ใช้ทำงานได้จริงไหม ตั้งแต่ login ที่ Keycloak จนจองเสร็จ |
 
 - `api/internal/booking` — กติกาที่นั่ง (รวมเคส A/B/C), lead time, ข้ามเที่ยงคืน, 24 ชม., วันทำการ, cancel window, แก้ไขโดยไม่นับตัวเอง, จองพร้อมกัน / กดซ้ำ (Postgres จริง)
 - `api/internal/restaurant` — ลดที่นั่ง/ย่นเวลาชนการจองที่มีอยู่, Bayesian sort, ปุ่มเวลาบนการ์ด (query เดียวต่อหน้า), วันถัดไปที่ว่าง
 - `api/internal/review` — รีวิวร้านตัวเอง 403, รีวิวซ้ำ 409, คะแนนรวมถูกต้องเมื่อรีวิวพร้อมกัน
 - `api/internal/middleware`, `user` — 401, สร้าง/อัปเดตผู้ใช้จาก token
 - `web` — สถานะปุ่มเวลา, ป้ายคะแนน, ป้าย "(เช้าวันที่ n)", 409 `DUPLICATE_BOOKING` ไม่บอกว่าร้านเต็ม, ไฟล์ .ics
+- `e2e` (18 เทสต์) — ค้นหา + ปุ่มเวลา, Bayesian sort, ร้านเต็มทั้งรอบ, ป้ายข้ามเที่ยงคืน, login ผ่าน Keycloak,
+  จอง → หน้ายืนยัน → การจองของฉัน → ยกเลิก, จองซ้อนตัวเอง (409), ปุ่มเวลาที่เต็มกดไม่ได้,
+  บอร์ดเจ้าของร้าน, ลดที่นั่งต่ำกว่าที่จอง (409), ร้านของตัวเองรีวิวไม่ได้ — หน้าค้นหารันซ้ำที่มือถือ 375px
 
 CI (`.gitlab-ci.yml`): lint + test + build ทุก push, build และ push image `api`/`web` ขึ้น GitLab Container Registry เมื่อเข้า `main`
-(job `api:test` ใช้ Docker-in-Docker — runner ต้องเปิด privileged)
+(job `api:test` ใช้ Docker-in-Docker — runner ต้องเปิด privileged) · E2E รันบนเครื่องด้วย `./dev.sh e2e` (ยังไม่อยู่ใน CI)
 
 ---
 

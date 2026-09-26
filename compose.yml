@@ -107,5 +107,25 @@ services:
           - api.jongyoung.localhost
           - keycloak.jongyoung.localhost
 
+  # E2E test (Playwright) — ไม่รันกับ `docker compose up` ปกติ ใช้ `./dev.sh e2e`
+  # ต่อเครือข่ายเดียวกับ caddy จึงเรียก *.jongyoung.localhost ได้เหมือน browser จริง
+  e2e:
+    profiles: ["e2e"]
+    image: mcr.microsoft.com/playwright:v1.63.0-noble # เวอร์ชันต้องตรงกับ @playwright/test ใน e2e/package.json
+    environment:
+      PROXY_HOST: caddy
+      E2E_OUTPUT: /tmp/e2e-results
+    volumes:
+      - ./e2e:/src:ro # อ่านอย่างเดียว — ติดตั้ง/รันในโฟลเดอร์ชั่วคราวใน container ไม่ทิ้งไฟล์ไว้บนเครื่อง
+    # E2E_ARGS ส่งต่อให้ playwright เช่น --project=mobile ($$ = $ ที่ส่งถึง shell ใน container)
+    command:
+      - sh
+      - -c
+      - mkdir /work && cp -r /src/package.json /src/package-lock.json /src/playwright.config.ts /src/tests /work
+        && cd /work && npm ci --no-audit --no-fund --loglevel=error && npx playwright test $${E2E_ARGS:-}
+    depends_on:
+      - caddy
+      - web
+
 volumes:
   pgdata:
