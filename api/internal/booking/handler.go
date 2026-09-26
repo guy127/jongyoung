@@ -79,7 +79,7 @@ func (h *handler) Create(c *gin.Context) {
 //	@Failure	409		{object}	httputil.ErrorResponse
 //	@Router		/bookings/{id} [put]
 func (h *handler) Update(c *gin.Context) {
-	id, ok := pathID(c)
+	id, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
@@ -112,7 +112,7 @@ func (h *handler) Update(c *gin.Context) {
 //	@Failure	409	{object}	httputil.ErrorResponse
 //	@Router		/bookings/{id} [delete]
 func (h *handler) Cancel(c *gin.Context) {
-	id, ok := pathID(c)
+	id, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
@@ -136,7 +136,7 @@ func (h *handler) Cancel(c *gin.Context) {
 //	@Failure	404	{object}	httputil.ErrorResponse
 //	@Router		/bookings/{id} [get]
 func (h *handler) Get(c *gin.Context) {
-	id, ok := pathID(c)
+	id, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
@@ -186,7 +186,7 @@ func (h *handler) ListMine(c *gin.Context) {
 //	@Failure	403		{object}	httputil.ErrorResponse
 //	@Router		/restaurants/{id}/bookings [get]
 func (h *handler) Board(c *gin.Context) {
-	id, ok := pathID(c)
+	id, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
@@ -261,13 +261,4 @@ func (h *handler) fail(c *gin.Context, err error) {
 	default:
 		httputil.Internal(c, err)
 	}
-}
-
-func pathID(c *gin.Context) (uuid.UUID, bool) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httputil.NotFound(c, "ไม่พบข้อมูล")
-		return uuid.Nil, false
-	}
-	return id, true
 }

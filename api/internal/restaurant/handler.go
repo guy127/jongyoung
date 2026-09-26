@@ -3,7 +3,6 @@ package restaurant
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -71,7 +70,7 @@ func (h *handler) List(c *gin.Context) {
 			httputil.BadRequest(c, "time ต้องเป็นรูปแบบ HH:MM และลง :00 หรือ :30")
 			return
 		}
-		q.Date, q.Minute, q.Party = &date, minute, queryInt(c, "party_size", 2)
+		q.Date, q.Minute, q.Party = &date, minute, httputil.QueryInt(c, "party_size", 2)
 	}
 
 	items, total, err := h.service.List(c.Request.Context(), q)
@@ -99,7 +98,7 @@ func (h *handler) List(c *gin.Context) {
 //	@Failure	404	{object}	httputil.ErrorResponse
 //	@Router		/restaurants/{id} [get]
 func (h *handler) Get(c *gin.Context) {
-	id, ok := pathID(c, "id")
+	id, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
@@ -151,7 +150,7 @@ func (h *handler) Create(c *gin.Context) {
 //	@Failure		409		{object}	httputil.ErrorResponse
 //	@Router			/restaurants/{id} [put]
 func (h *handler) Update(c *gin.Context) {
-	id, ok := pathID(c, "id")
+	id, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
@@ -177,7 +176,7 @@ func (h *handler) Update(c *gin.Context) {
 //	@Failure	403	{object}	httputil.ErrorResponse
 //	@Router		/restaurants/{id} [delete]
 func (h *handler) Delete(c *gin.Context) {
-	id, ok := pathID(c, "id")
+	id, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
@@ -201,7 +200,7 @@ func (h *handler) Delete(c *gin.Context) {
 //	@Success	201		{object}	ImageResponse
 //	@Router		/restaurants/{id}/images [post]
 func (h *handler) AddImage(c *gin.Context) {
-	id, ok := pathID(c, "id")
+	id, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
@@ -230,11 +229,11 @@ func (h *handler) AddImage(c *gin.Context) {
 //	@Failure	400	{object}	httputil.ErrorResponse
 //	@Router		/restaurants/{id}/images/{imageId} [delete]
 func (h *handler) DeleteImage(c *gin.Context) {
-	id, ok := pathID(c, "id")
+	id, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
-	imageID, ok := pathID(c, "imageId")
+	imageID, ok := httputil.PathID(c, "imageId")
 	if !ok {
 		return
 	}
@@ -256,7 +255,7 @@ func (h *handler) DeleteImage(c *gin.Context) {
 //	@Success	200		{object}	AvailabilityResponse
 //	@Router		/restaurants/{id}/availability [get]
 func (h *handler) Availability(c *gin.Context) {
-	id, ok := pathID(c, "id")
+	id, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
@@ -289,7 +288,7 @@ func (h *handler) Availability(c *gin.Context) {
 //	@Success	200			{object}	NextAvailableResponse
 //	@Router		/restaurants/{id}/next-available [get]
 func (h *handler) NextAvailable(c *gin.Context) {
-	id, ok := pathID(c, "id")
+	id, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
@@ -303,7 +302,7 @@ func (h *handler) NextAvailable(c *gin.Context) {
 		httputil.BadRequest(c, "time ต้องเป็นรูปแบบ HH:MM และลง :00 หรือ :30")
 		return
 	}
-	next, err := h.service.NextAvailable(c.Request.Context(), id, date, minute, queryInt(c, "party_size", 2))
+	next, err := h.service.NextAvailable(c.Request.Context(), id, date, minute, httputil.QueryInt(c, "party_size", 2))
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -357,21 +356,4 @@ func (h *handler) bindInput(c *gin.Context) (uuid.UUID, Input, RestaurantRequest
 		return uuid.Nil, Input{}, req, false
 	}
 	return userID, in, req, true
-}
-
-func pathID(c *gin.Context, name string) (uuid.UUID, bool) {
-	id, err := uuid.Parse(c.Param(name))
-	if err != nil {
-		httputil.NotFound(c, "ไม่พบข้อมูล")
-		return uuid.Nil, false
-	}
-	return id, true
-}
-
-func queryInt(c *gin.Context, name string, fallback int) int {
-	var v int
-	if _, err := fmt.Sscan(c.Query(name), &v); err != nil || v < 1 {
-		return fallback
-	}
-	return v
 }

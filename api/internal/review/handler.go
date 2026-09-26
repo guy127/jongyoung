@@ -65,7 +65,7 @@ func newResponse(rv Review, author string) ReviewResponse {
 //	@Success	200		{object}	ListResponse
 //	@Router		/restaurants/{id}/reviews [get]
 func (h *handler) List(c *gin.Context) {
-	rid, ok := pathID(c)
+	rid, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
@@ -93,7 +93,7 @@ func (h *handler) List(c *gin.Context) {
 //	@Failure	404	{object}	httputil.ErrorResponse
 //	@Router		/restaurants/{id}/reviews/mine [get]
 func (h *handler) Mine(c *gin.Context) {
-	rid, ok := pathID(c)
+	rid, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
@@ -149,7 +149,7 @@ func (h *handler) Update(c *gin.Context) {
 //	@Failure	404	{object}	httputil.ErrorResponse
 //	@Router		/restaurants/{id}/reviews [delete]
 func (h *handler) Delete(c *gin.Context) {
-	rid, ok := pathID(c)
+	rid, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
@@ -164,7 +164,7 @@ func (h *handler) Delete(c *gin.Context) {
 type writeFunc func(ctx context.Context, userID, restaurantID uuid.UUID, score int, body string) (Review, error)
 
 func (h *handler) write(c *gin.Context, status int, fn writeFunc) {
-	rid, ok := pathID(c)
+	rid, ok := httputil.PathID(c, "id")
 	if !ok {
 		return
 	}
@@ -195,13 +195,4 @@ func fail(c *gin.Context, err error) {
 	default:
 		httputil.Internal(c, err)
 	}
-}
-
-func pathID(c *gin.Context) (uuid.UUID, bool) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		httputil.NotFound(c, "ไม่พบข้อมูล")
-		return uuid.Nil, false
-	}
-	return id, true
 }
