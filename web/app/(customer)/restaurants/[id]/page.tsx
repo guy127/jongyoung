@@ -7,7 +7,7 @@ import BookingPanel from "@/components/booking/BookingPanel";
 import EditBookingLoader from "@/components/booking/EditBookingLoader";
 import ReviewsSection from "@/components/review/ReviewsSection";
 import { serverGet } from "@/lib/api";
-import { closedDaysLabel, defaultSearch, mapHref } from "@/lib/format";
+import { closedDaysLabel, defaultSearch, hoursLabel, mapHref } from "@/lib/format";
 import type { Page, Restaurant, Review } from "@/lib/types";
 
 type Search = { date?: string; time?: string; party_size?: string; edit?: string };
@@ -25,7 +25,7 @@ export default async function RestaurantPage({ params, searchParams }: { params:
   const def = defaultSearch();
   const date = sp.date ?? def.date;
   const party = Math.min(Math.max(Number(sp.party_size) || 2, 1), restaurant.seats);
-  const hours = restaurant.open_24h ? "เปิด 24 ชม." : `${restaurant.open_time}–${restaurant.close_time}${restaurant.overnight ? " (ถึงเช้าวันถัดไป)" : ""}`;
+  const hours = `${hoursLabel(restaurant)}${restaurant.overnight ? " (ถึงเช้าวันถัดไป)" : ""}`;
 
   return (
     <div className="flex flex-col gap-6 sm:gap-8">

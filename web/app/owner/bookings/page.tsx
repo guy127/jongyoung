@@ -2,9 +2,9 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Fragment, Suspense } from "react";
 
-import { fmtLongDate, fmtRange, fmtTime, keyToDate, nextDayLabel, shiftDate, todayKey } from "@/lib/format";
+import { fmtLongDate, fmtRange, fmtTime, isGap, keyToDate, nextDayLabel, shiftDate, todayKey } from "@/lib/format";
 import { useBoard } from "@/services/bookings";
 import { useMe } from "@/services/me";
 
@@ -87,15 +87,22 @@ function Board() {
                 คนในร้านต่อช่วง 30 นาที <span className="font-normal text-muted">จอง/ที่นั่ง</span>
               </h2>
               <ul className="px-3.5 py-2">
-                {board.data.slots.map((s) => {
+                {board.data.slots.map((s, i, all) => {
                   const ratio = seats ? s.booked / seats : 0;
                   const color = ratio >= 1 ? "bg-full" : ratio >= 0.7 ? "bg-warn" : "bg-ok";
                   return (
-                    <li key={s.start_at} className="grid h-6 grid-cols-[92px_1fr_48px] items-center gap-2.5 tabular">
-                      <span className="text-muted">{fmtTime(s.start_at)} <span className="text-[12px]">{nextDayLabel(s.start_at, date) ? "+1" : ""}</span></span>
-                      <span className="flex h-3 bg-chip"><span className={color} style={{ width: `${Math.min(ratio, 1) * 100}%` }} /></span>
-                      <span className={`text-right ${ratio >= 0.7 ? "font-semibold" : "text-muted"}`}>{s.booked}/{seats}</span>
-                    </li>
+                    <Fragment key={s.start_at}>
+                      {isGap(all[i - 1], s) && (
+                        <li className="grid h-6 grid-cols-[92px_1fr] items-center gap-2.5 text-muted tabular">
+                          <span>{fmtTime(all[i - 1].end_at)}–{fmtTime(s.start_at)}</span><span>พักร้าน</span>
+                        </li>
+                      )}
+                      <li className="grid h-6 grid-cols-[92px_1fr_48px] items-center gap-2.5 tabular">
+                        <span className="text-muted">{fmtTime(s.start_at)} <span className="text-[12px]">{nextDayLabel(s.start_at, date) ? "+1" : ""}</span></span>
+                        <span className="flex h-3 bg-chip"><span className={color} style={{ width: `${Math.min(ratio, 1) * 100}%` }} /></span>
+                        <span className={`text-right ${ratio >= 0.7 ? "font-semibold" : "text-muted"}`}>{s.booked}/{seats}</span>
+                      </li>
+                    </Fragment>
                   );
                 })}
               </ul>

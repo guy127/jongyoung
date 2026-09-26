@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import Rating from "@/components/bases/Rating";
 import TimeChip, { chipNote } from "@/components/bases/TimeChip";
-import { chipState, closedDaysLabel, fmtTime, isClosedDay, nextDayLabel } from "@/lib/format";
+import { chipState, closedDaysLabel, fmtTime, hoursLabel, isClosedDay, nextDayLabel } from "@/lib/format";
 import type { ListItem } from "@/lib/types";
 
 import NextAvailableHint from "./NextAvailableHint";
@@ -34,7 +34,7 @@ export default function RestaurantCard({ restaurant: r, date, time, party }: Pro
           <Link href={`${detail}?date=${date}&time=${time}&party_size=${party}`} className="card-title text-[19px] font-semibold">{r.name}</Link>
           <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted tabular">
             <Rating rating={r.rating} />
-            <span>· {r.open_24h ? "เปิด 24 ชม." : `${r.open_time}–${r.close_time}`}</span>
+            <span>· {hoursLabel(r)}</span>
           </div>
           {r.overnight && <span className="text-[13px] text-muted">เปิดถึง {r.close_time} ของเช้าวันถัดไป</span>}
           {r.closed_weekdays.length > 0 && <span className="text-[13px] text-muted">{closedDaysLabel(r.closed_weekdays)}</span>}

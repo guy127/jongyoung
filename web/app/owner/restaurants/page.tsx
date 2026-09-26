@@ -8,7 +8,7 @@ import { useState } from "react";
 import RestaurantForm from "@/components/owner/RestaurantForm";
 import { api, apiError } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
-import { closedDaysLabel, ratingLabel } from "@/lib/format";
+import { closedDaysLabel, hoursLabel, ratingLabel } from "@/lib/format";
 import type { Restaurant } from "@/lib/types";
 import { useMe } from "@/services/me";
 import { useDeleteRestaurant } from "@/services/restaurants";
@@ -51,7 +51,7 @@ export default function OwnerRestaurantsPage() {
                   <td className={`${td} font-semibold`}>{r.name}</td>
                   <td className={td}>{r.cuisine || "—"}</td>
                   <td className={td}>{r.seats}</td>
-                  <td className={td}>{r.open_24h ? "24 ชม." : `${r.open_time}–${r.close_time}`}{r.overnight && <span className="text-muted"> (ข้ามคืน)</span>}
+                  <td className={td}>{hoursLabel(r)}{r.overnight && <span className="text-muted"> (ข้ามคืน)</span>}
                     {r.closed_weekdays.length > 0 && <span className="block text-muted">{closedDaysLabel(r.closed_weekdays)}</span>}</td>
                   <td className={td}>{r.cancel_before_minutes} นาที</td>
                   <td className={td}>{ratingLabel(r.rating).text}</td>

@@ -3,7 +3,7 @@
 import { Clock, Minus, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 import { ChoiceButton } from "@/components/bases/Choice";
 import { Field } from "@/components/bases/layout";
@@ -11,7 +11,7 @@ import TimeChip, { chipNote } from "@/components/bases/TimeChip";
 import { Alert, Button, Skeleton } from "@/components/bases/ui";
 import BookingError from "@/components/booking/BookingError";
 import { apiError } from "@/lib/api";
-import { chipState, closedDaysLabel, fmtRange, fmtShortDate, fmtTime, keyToDate, nextDayLabel, shiftDate, todayKey } from "@/lib/format";
+import { chipState, closedDaysLabel, contiguousFrom, fmtRange, fmtShortDate, fmtTime, isGap, keyToDate, nextDayLabel, shiftDate, todayKey } from "@/lib/format";
 import type { ApiError, Booking, Restaurant, Slot } from "@/lib/types";
 import { useSaveBooking } from "@/services/bookings";
 import { useAvailability } from "@/services/restaurants";
@@ -53,10 +53,13 @@ export default function BookingPanel({ restaurant: r, initialDate, initialTime, 
   }, [availability.data, editing]);
 
   const startIndex = slots.findIndex((s) => fmtTime(s.start_at) === start);
-  const covered = startIndex >= 0 ? slots.slice(startIndex, startIndex + duration) : [];
-  const beyondClose = startIndex >= 0 && startIndex + duration > slots.length;
+  // เอาเฉพาะ slot ที่ต่อกันสนิท — ถ้าคร่อมช่วงพัก ห้ามกระโดดข้ามไปนับหลังพัก (ไม่งั้นส่งเวลาจบผิดไปหลายชั่วโมง)
+  const covered = startIndex >= 0 ? contiguousFrom(slots, startIndex, duration) : [];
+  const cut = startIndex >= 0 && covered.length < duration;
+  const hitsBreak = cut && startIndex + covered.length < slots.length; // ยังมี slot ต่อ แต่ต่อไม่สนิท = ชนช่วงพัก
+  const beyondClose = cut && !hitsBreak;
   const short = covered.find((s) => s.available < party);
-  const ready = covered.length === duration && !short && !beyondClose;
+  const ready = covered.length === duration && !short;
   const first = covered[0];
   const last = covered[covered.length - 1];
   const cancelUntil = first ? new Date(new Date(first.start_at).getTime() - r.cancel_before_minutes * 60_000) : null;
@@ -123,10 +126,17 @@ export default function BookingPanel({ restaurant: r, initialDate, initialTime, 
             {slots.map((s, i) => {
               const state = chipState(s, r.seats, party);
               return (
-                <TimeChip key={s.start_at} time={fmtTime(s.start_at)} state={state} note={chipNote(state, s.available)}
-                  dayLabel={nextDayLabel(s.start_at, date)} selected={i === startIndex}
-                  inRange={startIndex >= 0 && i > startIndex && i < startIndex + duration}
-                  onClick={() => { setStart(fmtTime(s.start_at)); setError(null); }} />
+                <Fragment key={s.start_at}>
+                  {isGap(slots[i - 1], s) && (
+                    <p className="col-span-4 border-t border-dashed border-border-strong pt-2 text-[13px] text-muted tabular">
+                      พักร้าน {fmtTime(slots[i - 1].end_at)}–{fmtTime(s.start_at)}
+                    </p>
+                  )}
+                  <TimeChip time={fmtTime(s.start_at)} state={state} note={chipNote(state, s.available)}
+                    dayLabel={nextDayLabel(s.start_at, date)} selected={i === startIndex}
+                    inRange={startIndex >= 0 && i > startIndex && i < startIndex + covered.length}
+                    onClick={() => { setStart(fmtTime(s.start_at)); setError(null); }} />
+                </Fragment>
               );
             })}
           </div>
@@ -145,7 +155,8 @@ export default function BookingPanel({ restaurant: r, initialDate, initialTime, 
 
       {start && startIndex < 0 && availability.data && <Alert tone="warn" title={`${start} จองไม่ได้แล้ว`}>เลือกเวลาอื่นจากด้านบน</Alert>}
       {beyondClose && <Alert tone="warn" title="เลยเวลาปิดร้าน">ลดระยะเวลา หรือเลือกเวลาเริ่มให้เร็วขึ้น</Alert>}
-      {short && !beyondClose && (
+      {hitsBreak && <Alert tone="warn" title="ชนช่วงพักร้าน">ลดระยะเวลา หรือเลือกเวลาเริ่มหลังช่วงพัก</Alert>}
+      {short && !cut && (
         <Alert tone="warn" title={`ช่วง ${fmtTime(short.start_at)} เหลือ ${short.available} ที่`}>ไม่พอสำหรับ {party} คน — ลดจำนวนคนหรือเลือกเวลาอื่น</Alert>
       )}
 

@@ -12,6 +12,8 @@ export type RestaurantInput = {
   seats: number;
   open_time: string;
   close_time: string;
+  break_start: string; // "" = ไม่มีช่วงพัก
+  break_end: string;
   closed_weekdays: number[];
   cancel_before_minutes: number;
   image_urls?: string[];

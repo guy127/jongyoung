@@ -24,11 +24,13 @@ const schema = z.object({
   seats: z.number({ message: "ใส่จำนวนที่นั่ง" }).int().min(1, "อย่างน้อย 1 ที่").max(1000),
   open_time: z.string(),
   close_time: z.string(),
+  break_start: z.string(), // "" = ไม่มีช่วงพัก
+  break_end: z.string(),
   // checkbox หลายตัวชื่อเดียวกัน react-hook-form คืนเป็น string[] ("0"–"6") → แปลงเป็นตัวเลขตอนส่ง
   closed_weekdays: z.array(z.string()).max(6, "ร้านต้องเปิดอย่างน้อย 1 วันต่อสัปดาห์"),
   cancel_before_minutes: z.number({ message: "ใส่จำนวนนาที" }).int().min(30, "ขั้นต่ำ 30 นาที").max(1440),
   image_urls: z.string(),
-});
+}).refine((v) => (v.break_start === "") === (v.break_end === ""), { path: ["break_end"], message: "กรอกช่วงพักให้ครบทั้งเวลาเริ่มและจบ หรือเว้นว่างทั้งคู่" });
 type Values = z.infer<typeof schema>;
 
 const input = "h-9 rounded-md border border-border-strong bg-surface px-2.5 text-text";
@@ -40,7 +42,7 @@ export default function RestaurantForm({ restaurant, onDone }: { restaurant?: Re
     resolver: zodResolver(schema),
     defaultValues: restaurant
       ? { ...restaurant, closed_weekdays: restaurant.closed_weekdays.map(String), image_urls: "" }
-      : { name: "", cuisine: "", address: "", map_url: "", description: "", seats: 10, open_time: "11:00", close_time: "22:00", closed_weekdays: [], cancel_before_minutes: 30, image_urls: "" },
+      : { name: "", cuisine: "", address: "", map_url: "", description: "", seats: 10, open_time: "11:00", close_time: "22:00", break_start: "", break_end: "", closed_weekdays: [], cancel_before_minutes: 30, image_urls: "" },
   });
 
   const onSubmit = handleSubmit(async ({ image_urls, closed_weekdays, ...values }) => {
@@ -78,7 +80,9 @@ export default function RestaurantForm({ restaurant, onDone }: { restaurant?: Re
         {field("ยกเลิกได้ก่อนเวลาจอง (นาที) *", <input type="number" {...register("cancel_before_minutes", { valueAsNumber: true })} className={input} />, errors.cancel_before_minutes?.message)}
         {field("เปิด *", <select {...register("open_time")} className={input}>{clocks.map((c) => <option key={c}>{c}</option>)}</select>)}
         {field("ปิด *", <select {...register("close_time")} className={input}>{clocks.map((c) => <option key={c}>{c}</option>)}</select>)}
-        <p className="text-muted sm:col-span-2">ปิดน้อยกว่าเปิด = ข้ามเที่ยงคืน (เช่น 18:00–02:00) · เปิดเท่ากับปิด = 24 ชม.</p>
+        {field("พักตั้งแต่ (ไม่บังคับ)", <select {...register("break_start")} className={input}><option value="">ไม่มีช่วงพัก</option>{clocks.map((c) => <option key={c}>{c}</option>)}</select>)}
+        {field("ถึง", <select {...register("break_end")} className={input}><option value="">ไม่มีช่วงพัก</option>{clocks.map((c) => <option key={c}>{c}</option>)}</select>, errors.break_end?.message)}
+        <p className="text-muted sm:col-span-2">ปิดน้อยกว่าเปิด = ข้ามเที่ยงคืน (เช่น 18:00–02:00) · เปิดเท่ากับปิด = 24 ชม. · ช่วงพัก = รับจองไม่ได้ช่วงนั้น เช่น เปิด 11:00–22:00 พัก 14:00–17:00</p>
         <fieldset className="flex flex-col gap-2 sm:col-span-2">
           <legend className="pb-1 font-medium">วันปิดประจำสัปดาห์</legend>
           <div className="flex flex-wrap gap-2">
