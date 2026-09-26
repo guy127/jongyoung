@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarCheck, LogIn, LogOut, Search } from "lucide-react";
+import { CalendarCheck, LogIn, LogOut, Search, Store } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
@@ -11,7 +11,7 @@ import { buttonClass } from "@/components/bases/ui";
 import { useMe } from "@/services/me";
 
 /**
- * navbar ฝั่งลูกค้า — กระจกลอย (1 ใน 3 ที่ที่ใช้ glass) + ตัวสลับโหมดเมื่อผู้ใช้มีร้านของตัวเอง
+ * navbar ฝั่งลูกค้า — กระจกลอย (1 ใน 3 ที่ที่ใช้ glass) + ตัวสลับโหมดเมื่อผู้ใช้มีร้าน / ลิงก์ "เปิดร้านของคุณ" เมื่อยังไม่มี
  * มือถือ: เมนูเหลือแค่ไอคอน (ข้อความอยู่ใน sr-only ให้ screen reader) → อยู่แถวเดียวที่ 375px
  */
 export default function Navbar() {
@@ -45,11 +45,25 @@ export default function Navbar() {
           {status === "authenticated" && link("/me/bookings", "การจองของฉัน", CalendarCheck)}
         </div>
 
-        {isOwner && (
-          <div role="group" aria-label="โหมดการใช้งาน" className="hidden rounded-full border border-border bg-chip p-0.5 md:flex">
-            <span aria-current="true" className="rounded-full bg-surface px-3 py-1.5 text-sm font-semibold">ลูกค้า</span>
-            <Link href="/owner/restaurants" className="nav-link rounded-full px-3 py-1.5 text-sm text-muted">เจ้าของร้าน</Link>
-          </div>
+        {/* ทางเข้าฝั่งเจ้าของร้าน — ทุกคนที่ login สร้างร้านได้ (ข้อ 5.1) จึงต้องมีทางเข้าเสมอ ไม่ใช่เฉพาะคนที่มีร้านแล้ว
+            มือถือ: ช่อง "ลูกค้า" ซ่อน (อยู่หน้าลูกค้าอยู่แล้ว) เหลือไอคอนร้าน + ข้อความสั้น */}
+        {me && (
+          isOwner ? (
+            <div role="group" aria-label="โหมดการใช้งาน" className="flex rounded-full border border-border bg-chip p-0.5">
+              <span aria-current="true" className="hidden rounded-full bg-surface px-3 py-1.5 text-sm font-semibold md:inline">ลูกค้า</span>
+              <Link href="/owner/restaurants" className="nav-link inline-flex min-h-10 items-center gap-1.5 rounded-full px-2.5 text-sm text-muted md:min-h-0 md:px-3 md:py-1.5">
+                <Store size={16} aria-hidden className="md:hidden" />
+                <span className="md:hidden">ร้าน<span className="sr-only">ของฉัน (โหมดเจ้าของร้าน)</span></span>
+                <span className="hidden md:inline">เจ้าของร้าน</span>
+              </Link>
+            </div>
+          ) : (
+            <Link href="/owner/restaurants" className="nav-link inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border px-2.5 text-sm text-muted md:px-3">
+              <Store size={16} aria-hidden />
+              <span className="md:hidden">เปิดร้าน<span className="sr-only">ของคุณ</span></span>
+              <span className="hidden md:inline">เปิดร้านของคุณ</span>
+            </Link>
+          )
         )}
         <ThemeToggle className="nav-link border-border" />
         {status === "authenticated" ? (
