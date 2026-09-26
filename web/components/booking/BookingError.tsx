@@ -13,7 +13,7 @@ export default function BookingError({ error }: { error: ApiError }) {
   if (error.code === "DUPLICATE_BOOKING") {
     return (
       <Alert tone="info" title="คุณมีการจองที่ทับช่วงนี้อยู่แล้ว">
-        <Link href={`/bookings/${String(error.details?.booking_id)}`} className="font-medium underline">ดูรายการจองเดิม</Link>
+        <Link href={`/bookings/${String(error.details?.booking_id)}`} className="link font-medium">ดูรายการจองเดิม</Link>
       </Alert>
     );
   }

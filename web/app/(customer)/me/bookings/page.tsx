@@ -31,7 +31,7 @@ export default function MyBookingsPage() {
         <div role="tablist" aria-label="สถานะการจอง" className="flex gap-1.5">
           {tabs.map((t) => (
             <button key={t.key} type="button" role="tab" aria-selected={t.key === tab} onClick={() => setTab(t.key)}
-              className={`min-h-11 rounded-full border px-4 text-sm ${t.key === tab ? "border-text bg-text text-surface" : "border-border bg-surface"}`}>
+              className={`chip-btn min-h-11 rounded-full px-4 text-sm ${t.key === tab ? "border-text bg-text text-surface" : ""}`}>
               {t.label}
             </button>
           ))}
@@ -105,7 +105,7 @@ function BookingCard({ b, past }: { b: Booking; past: boolean }) {
             <p className="text-sm text-muted">ที่นั่ง {b.party_size} ที่จะเปิดให้คนอื่นจองทันที และกู้คืนไม่ได้</p>
           </div>
           <Button onClick={() => setConfirming(false)}>ไม่ยกเลิก</Button>
-          <Button variant="danger" disabled={cancel.isPending} onClick={() => cancel.mutate(b.id, { onSuccess: () => setConfirming(false) })}>
+          <Button variant="danger" loading={cancel.isPending} onClick={() => cancel.mutate(b.id, { onSuccess: () => setConfirming(false) })}>
             {cancel.isPending ? "กำลังยกเลิก…" : "ยืนยันยกเลิก"}
           </Button>
           {cancel.isError && <div className="w-full"><Alert tone="full" title={errorMessage(apiError(cancel.error))} /></div>}

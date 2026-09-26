@@ -1,3 +1,4 @@
+import { Search } from "lucide-react";
 import { todayKey } from "@/lib/format";
 
 const times = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`);
@@ -38,7 +39,10 @@ export default function SearchForm({ q, date, time, party, sort, cuisine }: Prop
             {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} คน</option>)}
           </select>
         </label>
-        <button type="submit" className="cta h-12 rounded-full px-7 font-semibold">ค้นหา</button>
+        <button type="submit" className="btn btn-cta h-12 px-7">
+          <Search size={18} aria-hidden />
+          ค้นหา
+        </button>
       </form>
     </section>
   );

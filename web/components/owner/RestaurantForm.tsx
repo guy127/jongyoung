@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ImagePlus, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -80,8 +81,9 @@ export default function RestaurantForm({ restaurant, onDone }: { restaurant?: Re
         </p>
       )}
       <div className="flex justify-end gap-2 border-t border-border bg-chip/40 px-4 py-3">
-        <button type="button" onClick={onDone} className="h-9 rounded-md border border-border-strong bg-surface px-3.5">ยกเลิก</button>
-        <button type="submit" disabled={save.isPending} className="h-9 rounded-md bg-accent px-4 font-semibold text-white disabled:opacity-50">
+        <button type="button" onClick={onDone} className="obtn">ยกเลิก</button>
+        <button type="submit" disabled={save.isPending} aria-busy={save.isPending || undefined} className="obtn obtn-primary">
+          {save.isPending && <Loader2 size={16} className="animate-spin motion-reduce:animate-none" aria-hidden />}
           {save.isPending ? "กำลังบันทึก…" : "บันทึก"}
         </button>
       </div>
@@ -102,13 +104,13 @@ function ImageManager({ restaurant }: { restaurant: Restaurant }) {
           <span className="flex-1 truncate text-muted">{img.url}</span>
           <button type="button" disabled={restaurant.images.length <= 1 || remove.isPending} onClick={() => remove.mutate(img.id)}
             title={restaurant.images.length <= 1 ? "ลบรูปสุดท้ายไม่ได้" : undefined}
-            className="h-8 rounded-md border border-border-strong px-2.5 text-full disabled:opacity-40">ลบ</button>
+            className="obtn obtn-sm obtn-danger">ลบ</button>
         </div>
       ))}
       <div className="flex gap-2">
         <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." aria-label="URL รูปใหม่" className={`${input} flex-1`} />
         <button type="button" disabled={!url || add.isPending} onClick={() => add.mutate(url, { onSuccess: () => setUrl("") })}
-          className="h-9 rounded-md border border-border-strong bg-surface px-3">เพิ่มรูป</button>
+          className="obtn"><ImagePlus size={16} aria-hidden />เพิ่มรูป</button>
       </div>
       {err && <p role="alert" className="text-full">✕ {errorMessage(err)}</p>}
     </fieldset>

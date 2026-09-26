@@ -30,7 +30,7 @@ export default async function RestaurantPage({ params, searchParams }: { params:
   return (
     <div className="flex flex-col gap-6">
       <nav aria-label="เส้นทาง" className="flex gap-2 text-sm text-muted">
-        <Link href="/" className="text-sel">ค้นหาร้าน</Link><span aria-hidden>/</span><span aria-current="page">{restaurant.name}</span>
+        <Link href="/" className="link no-underline hover:underline">ค้นหาร้าน</Link><span aria-hidden>/</span><span aria-current="page">{restaurant.name}</span>
       </nav>
 
       <header className="relative h-64 overflow-hidden rounded-3xl bg-chip sm:h-80">
@@ -50,7 +50,7 @@ export default async function RestaurantPage({ params, searchParams }: { params:
             <p className="text-muted">{restaurant.description || "—"}</p>
             <p className="text-sm">
               ที่อยู่: {restaurant.address} ·{" "}
-              <a className="text-sel underline" target="_blank" rel="noreferrer"
+              <a className="link" target="_blank" rel="noreferrer"
                 href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurant.address)}`}>เปิดแผนที่</a>
             </p>
             {restaurant.images.length > 1 && (

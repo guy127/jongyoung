@@ -34,6 +34,8 @@ services:
       KC_HEALTH_ENABLED: "true"
     volumes:
       - ./keycloak/import:/opt/keycloak/data/import:ro
+      # ธีมหน้า login (start-dev ไม่ cache ธีม → แก้ CSS แล้ว refresh เห็นผลทันที)
+      - ./keycloak/themes/jongyoung:/opt/keycloak/themes/jongyoung:ro
 
   migrate:
     build: ./api

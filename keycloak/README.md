@@ -14,6 +14,14 @@
 
 `id` ของผู้ใช้ทดสอบกำหนดตายตัว (`...0001`, `...0002`, `...0003`) เพื่อให้ seed data ผูก `users.keycloak_uid` ได้
 
+## ธีมหน้า login (`themes/jongyoung`)
+
+ต่อยอดจากธีม `keycloak.v2` ด้วย CSS อย่างเดียว (`login/resources/css/jongyoung.css`) — ไม่ได้ก๊อป template `.ftl` มาแก้
+จึงอัปเกรด Keycloak แล้วหน้า login ไม่พัง ใช้สี/ฟอนต์/ปุ่มชุดเดียวกับหน้าเว็บ, โหมดมืดตามเครื่อง, ภาษาไทยเป็นค่าเริ่มต้น
+(`messages/messages_th.properties` ทับเฉพาะข้อความที่อยากเปลี่ยน) และโลโก้มาจาก `displayNameHtml` ของ realm
+
+`start-dev` ไม่ cache ธีม → แก้ CSS แล้ว refresh หน้า login เห็นผลทันที
+
 ## ขอ token ทดสอบด้วย curl
 
 ```bash

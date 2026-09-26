@@ -115,17 +115,170 @@ h1, h2, h3 {
   font-variant-numeric: tabular-nums;
 }
 
-/* ปุ่มหลัก 1 ปุ่มต่อหน้าจอ */
-.cta {
-  background: linear-gradient(135deg, var(--cta-from), var(--cta-to));
-  color: #fff;
-}
-
 /* กระจกขุ่นใช้แค่ navbar / hero / แผงจอง (ข้อ 8.0) */
 .glass {
   background: var(--glass);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+}
+
+/* ---------- ปุ่มและสิ่งที่กดได้ ----------
+   รวม hover / กด / disabled ไว้ที่เดียว component เลือกแค่ class
+   - hover อยู่ใน @media (hover: hover) → มือถือไม่มี hover ค้างหลังแตะ
+   - ยุบตอนกด (scale) อยู่ใน prefers-reduced-motion: no-preference → คนที่ปิด motion ไม่เห็น
+   - :not(:disabled) → ปุ่มที่กดไม่ได้ไม่ตอบสนอง hover ให้ดูเหมือนกดได้ */
+@layer components {
+  .btn {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem; /* 44px แตะได้บนมือถือ */
+    padding: 0 1.1rem;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+      box-shadow 0.2s ease, transform 0.12s ease, filter 0.15s ease;
+  }
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .btn-cta {
+    background: linear-gradient(135deg, var(--cta-from), var(--cta-to));
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--cta-from) 55%, transparent);
+  }
+  /* แสงวิ่งผ่านปุ่มตอน hover — แถบขาวโปร่งที่เลื่อนจากซ้ายไปขวา */
+  .btn-cta::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.28) 50%, transparent 70%);
+    transform: translateX(-120%);
+  }
+  /* พื้น gradient ของแบรนด์ (โลโก้) — สีเดียวกับปุ่มหลักแต่ไม่ใช่ปุ่ม */
+  .brand-mark {
+    background: linear-gradient(135deg, var(--cta-from), var(--cta-to));
+    color: #fff;
+  }
+  .btn-outline {
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+  }
+  .btn-ghost {
+    color: var(--text);
+  }
+  .btn-danger {
+    border: 1px solid var(--full-line);
+    background: var(--surface);
+    color: var(--full);
+  }
+
+  /* ปุ่มเลือกค่า (วัน, ระยะเวลา, แท็บ, +/-) — aria-pressed/selected = ค่าที่เลือกอยู่ */
+  .chip-btn {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+  }
+  .chip-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  /* ปุ่มเวลา (TimeChip) ที่ยังกดได้ */
+  .time-chip {
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+  }
+
+  /* การ์ดร้าน: hover เปลี่ยนแค่สีขอบ ไม่ลอย (ข้อ 8.3) */
+  .card-title { transition: color 0.15s ease; }
+  .nav-link { transition: background-color 0.15s ease, color 0.15s ease; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 2px rgba(38, 20, 25, 0.05);
+    transition: border-color 0.15s ease;
+  }
+
+  /* ลิงก์ในเนื้อหา */
+  .link {
+    color: var(--sel);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    transition: text-decoration-thickness 0.15s ease, text-underline-offset 0.15s ease;
+  }
+
+  /* ปุ่มฝั่งเจ้าของร้าน — เครื่องมือทำงาน: ทึบ มุม 6px ไม่มี gradient/แสง/ยุบ (ข้อ 8.5) */
+  .obtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    height: 2.25rem;
+    padding: 0 0.85rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    white-space: nowrap;
+    transition: background-color 0.12s ease, border-color 0.12s ease;
+  }
+  .obtn-sm { height: 2rem; padding: 0 0.65rem; }
+  .obtn-primary { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
+  .obtn-danger { border-color: var(--full); color: var(--full); }
+  .obtn-danger-solid { border-color: var(--full); background: var(--full); color: #fff; font-weight: 600; }
+  .obtn:disabled { cursor: not-allowed; opacity: 0.45; }
+}
+
+@media (hover: hover) {
+  .btn-cta:not(:disabled):hover {
+    filter: brightness(1.06);
+    box-shadow: 0 14px 30px -8px color-mix(in srgb, var(--cta-from) 70%, transparent);
+  }
+  .btn-outline:not(:disabled):hover { border-color: var(--text); background: var(--chip); }
+  .btn-ghost:not(:disabled):hover { background: var(--chip); }
+  .btn-danger:not(:disabled):hover { border-color: var(--full); background: var(--full-weak); }
+  .chip-btn:not(:disabled):not([aria-pressed="true"]):not([aria-selected="true"]):not([aria-current]):hover {
+    border-color: var(--border-strong);
+    background: var(--chip);
+  }
+  .time-chip:hover {
+    border-color: var(--sel);
+    box-shadow: 0 0 0 3px var(--sel-weak);
+  }
+  .card:hover { border-color: var(--border-strong); }
+  .nav-link:not([aria-current]):hover { background: var(--chip); color: var(--text); }
+  .card:hover .card-title { color: var(--accent); }
+  .link:hover { text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  .obtn:not(:disabled):hover { background: var(--chip); border-color: var(--text); }
+  .obtn-primary:not(:disabled):hover { background: color-mix(in srgb, var(--accent) 86%, #000); border-color: transparent; }
+  .obtn-danger:not(:disabled):hover { background: var(--full-weak); }
+  .obtn-danger-solid:not(:disabled):hover { background: color-mix(in srgb, var(--full) 86%, #000); }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .btn-cta:not(:disabled):hover::after {
+    transform: translateX(120%);
+    transition: transform 0.7s ease;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn:not(:disabled):active { transform: scale(0.97); }
+  .chip-btn:not(:disabled):active,
+  .time-chip:active { transform: scale(0.95); }
 }
 
 /* ตัวสลับธีม: CSS เลือกว่าจะโชว์ Day หรือ Night ตาม <html data-theme> (ไม่ต้องมี state ใน React) */

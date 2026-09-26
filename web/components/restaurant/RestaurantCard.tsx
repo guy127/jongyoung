@@ -24,14 +24,14 @@ export default function RestaurantCard({ restaurant: r, date, time, party }: Pro
   const cover = r.images[0]?.url;
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_1px_2px_rgba(38,20,25,.05)]">
+    <article className="card flex flex-col overflow-hidden rounded-2xl">
       <Link href={`${detail}?date=${date}&time=${time}&party_size=${party}`} className="relative block aspect-[16/8] bg-chip">
         {cover && <Image src={cover} alt={`รูปร้าน ${r.name}`} fill sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw" className="object-cover" />}
         {r.cuisine && <span className="absolute left-3 top-3 rounded-full bg-black/55 px-2.5 py-0.5 text-[13px] text-white">{r.cuisine}</span>}
       </Link>
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex flex-col gap-1">
-          <Link href={`${detail}?date=${date}&time=${time}&party_size=${party}`} className="text-[19px] font-semibold">{r.name}</Link>
+          <Link href={`${detail}?date=${date}&time=${time}&party_size=${party}`} className="card-title text-[19px] font-semibold">{r.name}</Link>
           <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted tabular">
             <Rating rating={r.rating} />
             <span>· {r.open_24h ? "เปิด 24 ชม." : `${r.open_time}–${r.close_time}`}</span>

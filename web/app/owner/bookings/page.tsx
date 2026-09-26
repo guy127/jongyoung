@@ -45,12 +45,12 @@ function Board() {
           {me.data?.restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
         <div role="group" aria-label="วันทำการ" className="flex items-center rounded-md border border-border-strong bg-surface">
-          <button type="button" aria-label="วันก่อนหน้า" onClick={() => go({ date: shiftDate(date, -1) })} className="grid size-9 place-items-center"><ChevronLeft size={18} /></button>
+          <button type="button" aria-label="วันก่อนหน้า" onClick={() => go({ date: shiftDate(date, -1) })} className="grid size-9 place-items-center rounded-l-md transition-colors hover:bg-chip"><ChevronLeft size={18} /></button>
           <label className="px-2 font-semibold">
             <span className="sr-only">เลือกวัน</span>
             <input type="date" value={date} onChange={(e) => e.target.value && go({ date: e.target.value })} className="bg-transparent" />
           </label>
-          <button type="button" aria-label="วันถัดไป" onClick={() => go({ date: shiftDate(date, 1) })} className="grid size-9 place-items-center"><ChevronRight size={18} /></button>
+          <button type="button" aria-label="วันถัดไป" onClick={() => go({ date: shiftDate(date, 1) })} className="grid size-9 place-items-center rounded-r-md transition-colors hover:bg-chip"><ChevronRight size={18} /></button>
         </div>
         {board.data && (
           <span className="text-muted">
@@ -60,7 +60,7 @@ function Board() {
       </div>
 
       {board.isLoading && <p className="text-muted">กำลังโหลด…</p>}
-      {board.isError && <p role="alert" className="text-full">โหลดบอร์ดไม่สำเร็จ <button className="underline" onClick={() => board.refetch()}>ลองอีกครั้ง</button></p>}
+      {board.isError && <p role="alert" className="text-full">โหลดบอร์ดไม่สำเร็จ <button type="button" className="link" onClick={() => board.refetch()}>ลองอีกครั้ง</button></p>}
 
       {board.data && (
         <>
@@ -113,7 +113,7 @@ function Board() {
                   </thead>
                   <tbody>
                     {board.data.bookings.map((b) => (
-                      <tr key={b.id} className={`border-t border-border ${b.status === "cancelled" ? "text-muted" : ""}`}>
+                      <tr key={b.id} className={`border-t border-border transition-colors hover:bg-chip/50 ${b.status === "cancelled" ? "text-muted" : ""}`}>
                         <td className="px-3.5 py-2 font-medium">{fmtRange(b.start_at, b.end_at, date)}</td>
                         <td className="px-2">{b.customer_name}</td>
                         <td className="px-2">{b.party_size}</td>

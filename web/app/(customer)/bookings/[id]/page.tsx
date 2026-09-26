@@ -54,7 +54,7 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
           <dt className="text-muted">ที่อยู่</dt>
           <dd className="flex flex-col gap-1">
             <span>{b.restaurant.address}</span>
-            <a className="text-sel underline" target="_blank" rel="noreferrer"
+            <a className="link" target="_blank" rel="noreferrer"
               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.restaurant.address)}`}>เปิดใน Google Maps</a>
           </dd>
         </div>

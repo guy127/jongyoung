@@ -62,7 +62,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <nav aria-label="เรียงลำดับ" className="flex gap-1.5">
             {sorts.map((s) => (
               <Link key={s.key} href={withParams({ sort: s.key, page: "1" })} aria-current={s.key === search.sort ? "true" : undefined}
-                className={`rounded-full border px-3.5 py-2 text-sm ${s.key === search.sort ? "border-text bg-text text-surface" : "border-border bg-surface"}`}>
+                className={`chip-btn rounded-full px-3.5 py-2 text-sm ${s.key === search.sort ? "border-text bg-text text-surface" : ""}`}>
                 {s.label}
               </Link>
             ))}
@@ -72,7 +72,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         {failed && (
           <div role="alert" className="rounded-2xl border border-border bg-surface p-4">
             <p className="font-semibold">โหลดรายการร้านไม่สำเร็จ</p>
-            <Link href={withParams({})} className="text-sel underline">ลองอีกครั้ง</Link>
+            <Link href={withParams({})} className="link">ลองอีกครั้ง</Link>
           </div>
         )}
 
@@ -92,7 +92,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <nav aria-label="หน้า" className="flex justify-center gap-2 pt-2">
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
               <Link key={p} href={withParams({ page: String(p) })} aria-current={p === search.page ? "page" : undefined}
-                className={`grid size-11 place-items-center rounded-full border ${p === search.page ? "border-sel font-semibold" : "border-border"}`}>
+                className={`chip-btn grid size-11 place-items-center rounded-full ${p === search.page ? "border-sel font-semibold" : ""}`}>
                 {p}
               </Link>
             ))}

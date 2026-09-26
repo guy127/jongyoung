@@ -1,6 +1,7 @@
 "use client";
 
 import { useQueries } from "@tanstack/react-query";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -29,11 +30,11 @@ export default function OwnerRestaurantsPage() {
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
         <h1 className="text-[22px] font-semibold">ร้านของฉัน ({ids.length})</h1>
-        <button type="button" onClick={() => setEditing("new")} className="h-9 rounded-md border border-border-strong bg-surface px-3.5">+ เพิ่มร้าน</button>
+        <button type="button" onClick={() => setEditing("new")} className="obtn obtn-primary"><Plus size={16} aria-hidden />เพิ่มร้าน</button>
       </div>
 
       {me.isLoading && <p className="text-muted">กำลังโหลด…</p>}
-      {me.isError && <p role="alert" className="text-full">โหลดข้อมูลไม่สำเร็จ <button className="underline" onClick={() => me.refetch()}>ลองอีกครั้ง</button></p>}
+      {me.isError && <p role="alert" className="text-full">โหลดข้อมูลไม่สำเร็จ <button type="button" className="link" onClick={() => me.refetch()}>ลองอีกครั้ง</button></p>}
       {me.data && ids.length === 0 && editing === null && (
         <p className="rounded-md border border-dashed border-border-strong bg-surface p-6 text-center">ยังไม่มีร้าน — กด “+ เพิ่มร้าน” เพื่อเริ่มรับจอง</p>
       )}
@@ -46,7 +47,7 @@ export default function OwnerRestaurantsPage() {
             </thead>
             <tbody>
               {restaurants.map((r) => (
-                <tr key={r.id} className={`border-t border-border ${editing === r.id ? "bg-sel-weak" : ""}`}>
+                <tr key={r.id} className={`border-t border-border transition-colors ${editing === r.id ? "bg-sel-weak" : "hover:bg-chip/50"}`}>
                   <td className={`${td} font-semibold`}>{r.name}</td>
                   <td className={td}>{r.cuisine || "—"}</td>
                   <td className={td}>{r.seats}</td>
@@ -54,8 +55,8 @@ export default function OwnerRestaurantsPage() {
                   <td className={td}>{r.cancel_before_minutes} นาที</td>
                   <td className={td}>{ratingLabel(r.rating).text}</td>
                   <td className={`${td} text-right`}>
-                    <Link href={`/owner/bookings?restaurant=${r.id}`} className="mr-3 text-sel underline">การจอง</Link>
-                    <button type="button" onClick={() => setEditing(r.id)} className="h-8 rounded-md border border-border-strong px-2.5">แก้ไข</button>
+                    <Link href={`/owner/bookings?restaurant=${r.id}`} className="link mr-3">การจอง</Link>
+                    <button type="button" onClick={() => setEditing(r.id)} className="obtn obtn-sm"><Pencil size={14} aria-hidden />แก้ไข</button>
                   </td>
                 </tr>
               ))}
@@ -93,12 +94,12 @@ function DeleteRestaurant({ restaurant, onDeleted }: { restaurant: Restaurant; o
       <h3 className="font-semibold text-full">ลบร้าน</h3>
       <p className="text-muted">ร้านจะหายจากหน้าค้นหาทันที การจองที่ยังไม่ถึงเวลาจะถูกยกเลิกอัตโนมัติ ประวัติและรีวิวยังเก็บไว้</p>
       {!confirm ? (
-        <button type="button" onClick={() => setConfirm(true)} className="h-9 self-start rounded-md border border-full px-3 text-full">ลบร้านนี้</button>
+        <button type="button" onClick={() => setConfirm(true)} className="obtn obtn-danger self-start"><Trash2 size={16} aria-hidden />ลบร้านนี้</button>
       ) : (
         <div className="flex gap-2">
-          <button type="button" onClick={() => setConfirm(false)} className="h-9 rounded-md border border-border-strong px-3">ไม่ลบ</button>
+          <button type="button" onClick={() => setConfirm(false)} className="obtn">ไม่ลบ</button>
           <button type="button" disabled={del.isPending} onClick={() => del.mutate(restaurant.id, { onSuccess: onDeleted })}
-            className="h-9 rounded-md bg-full px-3 font-semibold text-white">ยืนยันลบ “{restaurant.name}”</button>
+            className="obtn obtn-danger-solid">ยืนยันลบ “{restaurant.name}”</button>
         </div>
       )}
       {del.isError && <p role="alert" className="text-full">✕ {errorMessage(apiError(del.error))}</p>}

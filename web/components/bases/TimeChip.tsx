@@ -39,7 +39,9 @@ type Props = {
 export default function TimeChip({ time, note, state, selected, inRange, dayLabel, href, onClick }: Props) {
   const disabled = state === "full" || state === "closed";
   const look = selected ? styles.selected : inRange ? styles.inRange : styles[state];
-  const cls = `flex min-h-14 min-w-14 flex-col items-center justify-center rounded-xl px-2 leading-tight tabular ${look}`;
+  // .time-chip = hover/กด เฉพาะปุ่มที่ยังกดได้และยังไม่ได้เลือก (ปุ่มเต็ม/ปิดต้องนิ่ง ไม่ชวนให้กด)
+  const interactive = !disabled && !selected ? "time-chip cursor-pointer" : "";
+  const cls = `flex min-h-14 min-w-14 flex-col items-center justify-center rounded-xl px-2 leading-tight tabular ${look} ${interactive}`;
   const label = `${time}${dayLabel ? " " + dayLabel : ""} ${note.replace(/^[✓!✕] /, "")}`;
   const content = (
     <>

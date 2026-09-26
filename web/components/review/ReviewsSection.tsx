@@ -49,7 +49,7 @@ export default function ReviewsSection({ restaurant, initial }: { restaurant: Re
           <div>
             <p className="font-semibold">นี่คือร้านของคุณ</p>
             <p className="text-sm text-muted">เจ้าของร้านรีวิวร้านตัวเองไม่ได้ เพื่อให้คะแนนเป็นกลางสำหรับลูกค้า</p>
-            <Link href="/owner/restaurants" className="text-sm text-sel underline">ไปจัดการร้านนี้</Link>
+            <Link href="/owner/restaurants" className="link text-sm">ไปจัดการร้านนี้</Link>
           </div>
         </div>
       )}
@@ -103,7 +103,7 @@ function ReviewForm({ restaurantId, existing }: { restaurantId: string; existing
       <div role="radiogroup" aria-label="คะแนน" className="flex gap-1">
         {[1, 2, 3, 4, 5].map((n) => (
           <button key={n} type="button" role="radio" aria-checked={score === n} aria-label={`${n} ดาว`}
-            onClick={() => setValue("score", n, { shouldValidate: true })} className="grid size-11 place-items-center">
+            onClick={() => setValue("score", n, { shouldValidate: true })} className="grid size-11 place-items-center rounded-full transition-transform duration-150 motion-safe:hover:scale-115 motion-safe:active:scale-95">
             <Star size={26} className={n <= score ? "fill-star text-star" : "text-soft"} aria-hidden />
           </button>
         ))}
@@ -117,8 +117,8 @@ function ReviewForm({ restaurantId, existing }: { restaurantId: string; existing
       {save.isError && <Alert tone="full" title={errorMessage(apiError(save.error))} />}
       {done && <Alert tone="ok" title="บันทึกรีวิวแล้ว" />}
       <div className="flex gap-2">
-        <Button type="submit" disabled={save.isPending}>{existing ? "บันทึกการแก้ไข" : "ส่งรีวิว"}</Button>
-        {existing && <Button variant="danger" disabled={remove.isPending} onClick={() => remove.mutate()}>ลบรีวิว</Button>}
+        <Button type="submit" loading={save.isPending}>{existing ? "บันทึกการแก้ไข" : "ส่งรีวิว"}</Button>
+        {existing && <Button variant="danger" loading={remove.isPending} onClick={() => remove.mutate()}>ลบรีวิว</Button>}
       </div>
     </form>
   );

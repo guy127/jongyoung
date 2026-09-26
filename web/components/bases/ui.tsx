@@ -1,22 +1,23 @@
 // component พื้นฐานที่ใช้ทั้งเว็บ — เขียนเองด้วย Tailwind ให้อธิบายได้ทุกบรรทัด
-import { AlertTriangle, CheckCircle2, Info, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, Loader2, XCircle } from "lucide-react";
 import Link from "next/link";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
+// cta = ปุ่มหลัก ใช้ได้ 1 ปุ่มต่อหน้าจอ — hover/กด/disabled ของทุกแบบอยู่ใน globals.css (.btn-*)
 type Variant = "cta" | "outline" | "ghost" | "danger";
 
-const variants: Record<Variant, string> = {
-  cta: "cta font-semibold shadow-[0_10px_24px_rgba(197,22,46,.22)]", // ปุ่มหลัก 1 ปุ่มต่อหน้าจอ
-  outline: "border border-border-strong bg-surface text-text",
-  ghost: "text-text hover:bg-chip",
-  danger: "border border-full-line bg-surface text-full",
-};
+export const buttonClass = (variant: Variant = "outline", extra = "") => `btn btn-${variant} ${extra}`;
 
-export const buttonClass = (variant: Variant = "outline", extra = "") =>
-  `inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 text-[15px] disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${extra}`;
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; loading?: boolean };
 
-export function Button({ variant = "outline", className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
-  return <button type="button" className={buttonClass(variant, className)} {...props} />;
+/** loading = กำลังรอ API: แสดง spinner แทนไอคอน, กดซ้ำไม่ได้, screen reader รู้ผ่าน aria-busy */
+export function Button({ variant = "outline", className = "", loading = false, disabled, children, ...props }: ButtonProps) {
+  return (
+    <button type="button" className={buttonClass(variant, className)} disabled={disabled || loading} aria-busy={loading || undefined} {...props}>
+      {loading && <Loader2 size={18} className="animate-spin motion-reduce:animate-none" aria-hidden />}
+      {children}
+    </button>
+  );
 }
 
 export function LinkButton({ href, variant = "outline", className = "", children }: { href: string; variant?: Variant; className?: string; children: ReactNode }) {

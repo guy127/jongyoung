@@ -1,0 +1,316 @@
+/*
+ * ธีมหน้า login/สมัครสมาชิกของจองยัง — ทับธีม keycloak.v2 (PatternFly 5) ด้วย CSS อย่างเดียว
+ * ใช้ token สี/ฟอนต์/ปุ่มชุดเดียวกับหน้าเว็บ (web/app/globals.css) ให้ผู้ใช้รู้สึกว่ายังอยู่ที่ระบบเดิม
+ * หลัก: เปลี่ยน "ตัวแปร" ของ PatternFly ก่อน แล้วค่อยเขียน selector เองเฉพาะที่ตัวแปรทำไม่ได้
+ */
+@import url("https://fonts.googleapis.com/css2?family=Kanit:wght@600&family=Prompt:wght@400;500;600&display=swap");
+
+/* ---------- token (Day) ---------- */
+:root {
+  --jy-bg: #fbf6f1;
+  --jy-surface: #ffffff;
+  --jy-chip: #f4ece7;
+  --jy-text: #261419;
+  --jy-muted: #6f4c4d;
+  --jy-border: #eadcd4;
+  --jy-border-strong: #d9c5bb;
+  --jy-sel: #007c91;
+  --jy-sel-weak: #e3f3f5;
+  --jy-cta-from: #c5162e;
+  --jy-cta-to: #b3361a;
+  --jy-full: #b0132a;
+  --jy-focus: #111827;
+  --jy-glow: radial-gradient(circle at 12% 0%, rgba(197, 22, 46, 0.12), transparent 520px),
+    radial-gradient(circle at 90% 0%, rgba(0, 124, 145, 0.1), transparent 480px);
+}
+
+/* ---------- token (Night) — ธีมแม่ใส่ class นี้ตาม prefers-color-scheme ---------- */
+.pf-v5-theme-dark {
+  --jy-bg: #11070a;
+  --jy-surface: #1b0e12;
+  --jy-chip: #26151a;
+  --jy-text: #fff7ed;
+  --jy-muted: #d7b8b4;
+  --jy-border: #3a262c;
+  --jy-border-strong: #4d333a;
+  --jy-sel: #43e8ff;
+  --jy-sel-weak: rgba(67, 232, 255, 0.12);
+  --jy-cta-from: #e11d48;
+  --jy-cta-to: #c2410c;
+  --jy-full: #ff6b7f;
+  --jy-focus: #ffffff;
+  --jy-glow: radial-gradient(circle at 12% 0%, rgba(255, 53, 79, 0.22), transparent 520px),
+    radial-gradient(circle at 90% 0%, rgba(67, 232, 255, 0.12), transparent 480px);
+}
+
+/* ---------- แปลง token ของเราเป็นตัวแปรของ PatternFly ---------- */
+:root,
+.pf-v5-theme-dark {
+  --pf-v5-global--FontFamily--text: "Prompt", system-ui, sans-serif;
+  --pf-v5-global--FontFamily--heading: "Prompt", system-ui, sans-serif;
+  --pf-v5-global--Color--100: var(--jy-text);
+  --pf-v5-global--Color--200: var(--jy-muted);
+  --pf-v5-global--BackgroundColor--100: var(--jy-surface);
+  --pf-v5-global--link--Color: var(--jy-sel);
+  --pf-v5-global--link--Color--hover: var(--jy-sel);
+  --pf-v5-global--primary-color--100: var(--jy-sel);
+  --pf-v5-global--danger-color--100: var(--jy-full);
+  --pf-v5-c-login__main--BackgroundColor: var(--jy-surface);
+  --pf-v5-c-form__label--Color: var(--jy-text);
+}
+
+/* ---------- พื้นหลัง: สีอุ่น + แสงเรืองมุมบน แบบเดียวกับหน้าเว็บ (ไม่ใช้รูปของ Keycloak) ---------- */
+.login-pf body,
+body#keycloak-bg {
+  background: var(--jy-glow) no-repeat, var(--jy-bg);
+  color: var(--jy-text);
+  line-height: 1.6;
+}
+
+.pf-v5-c-login__container {
+  grid-template-columns: min(28rem, calc(100vw - 2rem));
+  justify-content: center; /* จัดกลางทุกขนาดจอ (มือถือเว้นขอบ 1rem สองข้าง) */
+  padding-block: 2.5rem;
+}
+
+/* ---------- โลโก้ (มาจาก displayNameHtml ของ realm) ---------- */
+.jy-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: "Kanit", "Prompt", sans-serif;
+  font-weight: 600;
+  font-size: 1.75rem;
+  color: var(--jy-text);
+  letter-spacing: 0;
+}
+.jy-mark {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--jy-cta-from), var(--jy-cta-to));
+  color: #fff;
+  font-size: 1.35rem;
+  box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--jy-cta-from) 60%, transparent);
+}
+#kc-header-wrapper {
+  text-align: center;
+  padding: 0;
+}
+
+/* ---------- การ์ด: พื้นทึบ ขอบชัด มุมมน แถบแบรนด์บาง ๆ ด้านบนแทนเส้นสีฟ้าของ Keycloak ---------- */
+.pf-v5-c-login__main {
+  /* ตั้งสีตรงนี้ (ไม่ใช่แค่ตัวแปร) เพราะโหมดมืดของ PatternFly ตั้งตัวแปรไว้ที่ตัวการ์ดเอง ชนะค่าที่สืบทอดมา */
+  background-color: var(--jy-surface);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--jy-border);
+  border-radius: 24px;
+  box-shadow: 0 1px 2px rgba(38, 20, 25, 0.05), 0 24px 60px -30px rgba(120, 36, 36, 0.25);
+}
+.pf-v5-c-login__main::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, var(--jy-cta-from), var(--jy-cta-to));
+}
+.pf-v5-c-login__main-header {
+  border-top: 0;
+}
+.pf-v5-c-login__main-title,
+#kc-page-title {
+  font-family: "Prompt", sans-serif;
+  font-weight: 600;
+  font-size: 1.5rem;
+  line-height: 1.3; /* หัวข้อไทย ≥ 1.2 สระ/วรรณยุกต์ไม่ชนบรรทัดบน */
+  color: var(--jy-text);
+}
+
+/* ---------- ช่องกรอก: ขอบรอบทั้งช่อง มุม 12px (PatternFly เดิมมีแค่เส้นล่าง) ---------- */
+.pf-v5-c-form-control {
+  --pf-v5-c-form-control--before--BorderTopColor: var(--jy-border-strong);
+  --pf-v5-c-form-control--before--BorderRightColor: var(--jy-border-strong);
+  --pf-v5-c-form-control--before--BorderLeftColor: var(--jy-border-strong);
+  --pf-v5-c-form-control--before--BorderBottomColor: var(--jy-border-strong);
+  --pf-v5-c-form-control--before--BorderBottomWidth: 1px;
+  --pf-v5-c-form-control--after--BorderBottomWidth: 0;
+  --pf-v5-c-form-control--hover--after--BorderBottomColor: transparent;
+  --pf-v5-c-form-control--focus--after--BorderBottomWidth: 0;
+  --pf-v5-c-form-control--BackgroundColor: var(--jy-surface);
+  --pf-v5-c-form-control--PaddingTop: 0.7rem;
+  --pf-v5-c-form-control--PaddingBottom: 0.7rem;
+  --pf-v5-c-form-control--PaddingLeft: 0.85rem;
+  --pf-v5-c-form-control--PaddingRight: 0.85rem;
+  border-radius: 12px;
+  transition: box-shadow 0.15s ease;
+}
+.pf-v5-c-form-control::before,
+.pf-v5-c-form-control::after {
+  border-radius: 12px;
+}
+.pf-v5-c-form-control:hover {
+  --pf-v5-c-form-control--before--BorderTopColor: var(--jy-muted);
+  --pf-v5-c-form-control--before--BorderRightColor: var(--jy-muted);
+  --pf-v5-c-form-control--before--BorderLeftColor: var(--jy-muted);
+  --pf-v5-c-form-control--before--BorderBottomColor: var(--jy-muted);
+}
+/* โฟกัส: วงแหวนสี --focus แยกจากสีที่เลือก (กติกาเดียวกับหน้าเว็บ ข้อ 8.2) */
+.pf-v5-c-form-control:focus-within {
+  box-shadow: 0 0 0 2px var(--jy-surface), 0 0 0 4px var(--jy-focus);
+}
+.pf-v5-c-form-control > input:focus,
+.pf-v5-c-form-control > select:focus {
+  outline: none;
+}
+.pf-v5-c-form-control.pf-m-error {
+  --pf-v5-c-form-control--before--BorderTopColor: var(--jy-full);
+  --pf-v5-c-form-control--before--BorderRightColor: var(--jy-full);
+  --pf-v5-c-form-control--before--BorderLeftColor: var(--jy-full);
+  --pf-v5-c-form-control--before--BorderBottomColor: var(--jy-full);
+}
+/* ช่องรหัสผ่าน + ปุ่มรูปตา = กล่องเดียวกัน: ช่องกรอกมนแค่ซ้าย ปุ่มมนแค่ขวา ขอบสีเดียวกัน */
+.pf-v5-c-input-group__item.pf-m-fill .pf-v5-c-form-control,
+.pf-v5-c-input-group__item.pf-m-fill .pf-v5-c-form-control::before,
+.pf-v5-c-input-group__item.pf-m-fill .pf-v5-c-form-control::after {
+  border-radius: 12px 0 0 12px;
+}
+.pf-v5-c-input-group__item .pf-v5-c-button.pf-m-control {
+  height: 100%;
+  min-width: 3rem;
+  border-radius: 0 12px 12px 0;
+  background: var(--jy-surface);
+  color: var(--jy-muted);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.pf-v5-c-input-group__item .pf-v5-c-button.pf-m-control::after {
+  border: 1px solid var(--jy-border-strong);
+  border-left: 0;
+  border-radius: 0 12px 12px 0;
+}
+@media (hover: hover) {
+  .pf-v5-c-input-group__item .pf-v5-c-button.pf-m-control:hover {
+    background: var(--jy-chip);
+    color: var(--jy-text);
+  }
+}
+
+/* ---------- ปุ่มหลัก: gradient + hover เรืองแสง + แสงวิ่งผ่าน + ยุบตอนกด (เหมือน .btn-cta ของหน้าเว็บ) ---------- */
+.pf-v5-c-button.pf-m-primary {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 3rem;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--jy-cta-from), var(--jy-cta-to));
+  color: #fff;
+  font-weight: 600;
+  font-size: 1rem;
+  box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--jy-cta-from) 55%, transparent);
+  transition: box-shadow 0.2s ease, filter 0.15s ease, transform 0.12s ease;
+}
+.pf-v5-c-button.pf-m-primary::after {
+  /* PatternFly ใช้ ::after วาดขอบปุ่ม — เอามาทำแถบแสงแทน */
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 0;
+  border-radius: inherit;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.28) 50%, transparent 70%);
+  transform: translateX(-120%);
+}
+.pf-v5-c-button.pf-m-secondary {
+  --pf-v5-c-button--m-secondary--Color: var(--jy-text);
+  --pf-v5-c-button--m-secondary--hover--Color: var(--jy-text);
+  --pf-v5-c-button--m-secondary--BackgroundColor: var(--jy-surface);
+  --pf-v5-c-button--m-secondary--hover--BackgroundColor: var(--jy-chip);
+  --pf-v5-c-button--m-secondary--after--BorderColor: var(--jy-border-strong);
+  --pf-v5-c-button--m-secondary--hover--after--BorderColor: var(--jy-text);
+  --pf-v5-c-button--after--BorderRadius: 999px;
+  border-radius: 999px;
+  min-height: 2.75rem;
+}
+
+@media (hover: hover) {
+  .pf-v5-c-button.pf-m-primary:hover {
+    filter: brightness(1.06);
+    box-shadow: 0 14px 30px -8px color-mix(in srgb, var(--jy-cta-from) 70%, transparent);
+  }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .pf-v5-c-button.pf-m-primary:hover::after {
+    transform: translateX(120%);
+    transition: transform 0.7s ease;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pf-v5-c-button.pf-m-primary:active {
+    transform: scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
+}
+
+/* ---------- focus ของทุกสิ่งที่กดได้ ---------- */
+a:focus-visible,
+button:focus-visible,
+.pf-v5-c-button:focus-visible,
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--jy-focus);
+  outline-offset: 2px;
+}
+
+/* ---------- ลิงก์ ---------- */
+.pf-v5-c-login__main a:not(.pf-v5-c-button) {
+  color: var(--jy-sel);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-decoration-thickness 0.15s ease;
+}
+.pf-v5-c-login__main a:not(.pf-v5-c-button):hover {
+  text-decoration-thickness: 2px;
+}
+
+/* ---------- แถบล่างการ์ด ("ยังไม่มีบัญชี? สมัครสมาชิก") ---------- */
+.pf-v5-c-login__main-footer-band {
+  border-top: 1px solid var(--jy-border);
+  background: transparent;
+  color: var(--jy-muted);
+  padding-block: 1rem 0;
+}
+
+/* ---------- ตัวเลือกภาษา ---------- */
+#login-select-toggle {
+  border-radius: 999px;
+  font-family: inherit;
+}
+
+/* ---------- ข้อความแจ้งเตือน (รหัสผิด ฯลฯ) ---------- */
+.pf-v5-c-alert {
+  border-radius: 14px;
+}
+
+/* ---------- มือถือ: การ์ดเต็มความกว้าง ---------- */
+@media (max-width: 575px) {
+  /* เว้นขอบ 16px ที่กล่องนอกสุด — PatternFly ให้การ์ดเต็มจอบนมือถือ */
+  .pf-v5-c-login {
+    padding-inline: 1rem;
+  }
+  .pf-v5-c-login__container {
+    grid-template-columns: 100%;
+    padding-block: 1.25rem;
+  }
+  .jy-brand {
+    font-size: 1.5rem;
+  }
+}

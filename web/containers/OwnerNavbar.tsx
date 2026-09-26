@@ -12,7 +12,7 @@ export default function OwnerNavbar() {
   const { data: me } = useMe();
   const item = (href: string, label: string, active: boolean) => (
     <Link href={href} aria-current={active ? "page" : undefined}
-      className={`rounded-md px-3 py-2 ${active ? "bg-white/15 text-white" : "text-white/80"}`}>
+      className={`rounded-md px-3 py-2 transition-colors ${active ? "bg-white/15 text-white" : "text-white/80 hover:bg-white/10 hover:text-white"}`}>
       {label}
     </Link>
   );
@@ -26,14 +26,14 @@ export default function OwnerNavbar() {
           {item("/owner/bookings", "การจองรายวัน", pathname.startsWith("/owner/bookings"))}
         </div>
         <div role="group" aria-label="โหมดการใช้งาน" className="flex overflow-hidden rounded-lg border border-white/30">
-          <Link href="/" className="px-3 py-1.5 text-white/85">ลูกค้า</Link>
+          <Link href="/" className="px-3 py-1.5 text-white/85 transition-colors hover:bg-white/10 hover:text-white">ลูกค้า</Link>
           <span aria-current="true" className="bg-white px-3 py-1.5 font-semibold text-[var(--owner-bar)]">เจ้าของร้าน</span>
         </div>
-        <ThemeToggle className="border-white/30 text-white" />
+        <ThemeToggle className="border-white/30 text-white transition-colors hover:bg-white/10" />
         <span className="hidden md:inline">{me?.display_name}</span>
         {/* <a> ธรรมดาโดยตั้งใจ — <Link> จะ prefetch route handler logout (ดู Navbar) */}
         {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a href="/api/auth/logout" className="text-white/80">ออกจากระบบ</a>
+        <a href="/api/auth/logout" className="rounded-md px-2 py-1 text-white/80 transition-colors hover:bg-white/10 hover:text-white">ออกจากระบบ</a>
       </nav>
     </header>
   );
