@@ -128,3 +128,23 @@ func TestRepositoryUpdate(t *testing.T) {
 	assert.Equal(t, r.MapURL, got.MapURL)
 	assert.Equal(t, r.ClosedWeekdays, got.ClosedWeekdays, "วันปิดต้องถูกบันทึกตอนแก้ไขด้วย")
 }
+
+func TestRepositoryUpdateBreak(t *testing.T) {
+	db := testdb.New(t)
+	repo := NewRepository(db)
+	ctx := context.Background()
+	r := createRestaurant(t, repo, createOwner(t, db), "ร้านมีช่วงพัก", 0, 0)
+
+	r.BreakStartMinute, r.BreakEndMinute = 15*60, 17*60
+	require.NoError(t, repo.Update(ctx, &r))
+	got, err := repo.FindByID(ctx, r.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 15*60, got.BreakStartMinute, "ช่วงพักต้องถูกบันทึกตอนแก้ไข")
+	assert.Equal(t, 17*60, got.BreakEndMinute)
+
+	r.BreakStartMinute, r.BreakEndMinute = 0, 0
+	require.NoError(t, repo.Update(ctx, &r))
+	got, err = repo.FindByID(ctx, r.ID)
+	require.NoError(t, err)
+	assert.False(t, got.Hours().HasBreak(), "ลบช่วงพัก (0/0) ต้องบันทึกค่าศูนย์ได้ด้วย")
+}

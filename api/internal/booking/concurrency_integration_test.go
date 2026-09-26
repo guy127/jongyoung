@@ -144,3 +144,21 @@ func TestConcurrentBooking(t *testing.T) {
 		assert.Equal(t, "u", v.CustomerName)
 	})
 }
+
+// ช่วงพักต้องถูกอ่านจาก DB ตอนจองด้วย (restaurantColumns) — ไม่งั้นจองช่วงพักผ่าน API ได้
+func TestBookingInBreakRejected(t *testing.T) {
+	db := testdb.New(t)
+	ctx := context.Background()
+	now := func() time.Time { return bkk(2026, 10, 1, 12, 0) }
+	svc := NewService(NewRepository(db), now)
+	rid := insertRestaurant(t, db, insertUser(t, db), 10) // 11:00–22:00
+	require.NoError(t, db.Exec(`UPDATE restaurants SET break_start_minute = 900, break_end_minute = 1020 WHERE id = ?`, rid).Error)
+
+	inBreak := Choice{Date: bkk(2026, 10, 10, 0, 0), StartMinute: 15 * 60, EndMinute: 16 * 60, PartySize: 2}
+	_, err := svc.Create(ctx, insertUser(t, db), rid, inBreak)
+	assert.ErrorIs(t, err, ErrOutsideHours)
+
+	afterBreak := Choice{Date: bkk(2026, 10, 10, 0, 0), StartMinute: 17 * 60, EndMinute: 18 * 60, PartySize: 2}
+	_, err = svc.Create(ctx, insertUser(t, db), rid, afterBreak)
+	assert.NoError(t, err)
+}

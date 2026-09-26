@@ -55,7 +55,8 @@ func (r *repository) LockByID(ctx context.Context, id uuid.UUID) (Restaurant, er
 func (r *repository) Update(ctx context.Context, rest *Restaurant) error {
 	return r.db.WithContext(ctx).Model(rest).Select(
 		"name", "description", "cuisine", "address", "map_url", "seats",
-		"open_minute", "close_minute", "closed_weekdays", "cancel_before_minutes", "updated_at",
+		"open_minute", "close_minute", "closed_weekdays", "break_start_minute", "break_end_minute",
+		"cancel_before_minutes", "updated_at",
 	).Updates(rest).Error
 }
 

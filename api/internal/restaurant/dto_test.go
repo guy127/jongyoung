@@ -61,3 +61,43 @@ func TestToInputMapURL(t *testing.T) {
 		assert.ErrorIs(t, err, errInvalidMapURL, bad)
 	}
 }
+
+func TestToInputBreak(t *testing.T) {
+	req := RestaurantRequest{OpenTime: "11:00", CloseTime: "22:00"}
+
+	in, err := req.ToInput()
+	require.NoError(t, err)
+	assert.False(t, in.Hours().HasBreak(), "ไม่ส่งมา = ไม่มีช่วงพัก")
+
+	req.BreakStart, req.BreakEnd = "14:00", "17:00"
+	in, err = req.ToInput()
+	require.NoError(t, err)
+	assert.Equal(t, 14*60, in.BreakStartMinute)
+	assert.Equal(t, 17*60, in.BreakEndMinute)
+
+	for _, bad := range [][2]string{
+		{"14:00", ""},      // ส่งตัวเดียว
+		{"", "17:00"},      // ส่งตัวเดียว
+		{"14:00", "14:00"}, // เท่ากัน
+		{"11:00", "12:00"}, // ติดเวลาเปิด
+		{"21:00", "22:00"}, // ติดเวลาปิด
+		{"08:00", "09:00"}, // นอกเวลาเปิด
+		{"14:15", "17:00"}, // ไม่ลง :00/:30
+	} {
+		req.BreakStart, req.BreakEnd = bad[0], bad[1]
+		_, err := req.ToInput()
+		assert.ErrorIs(t, err, errInvalidBreak, "%v", bad)
+	}
+}
+
+func TestNewRestaurantResponseBreak(t *testing.T) {
+	r := Restaurant{OpenMinute: 11 * 60, CloseMinute: 22 * 60}
+	resp := NewRestaurantResponse(r)
+	assert.Empty(t, resp.BreakStart)
+	assert.Empty(t, resp.BreakEnd)
+
+	r.BreakStartMinute, r.BreakEndMinute = 15*60, 17*60
+	resp = NewRestaurantResponse(r)
+	assert.Equal(t, "15:00", resp.BreakStart)
+	assert.Equal(t, "17:00", resp.BreakEnd)
+}

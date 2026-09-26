@@ -22,6 +22,8 @@ type RestaurantRequest struct {
 	Seats               int      `json:"seats" binding:"required,gt=0,lte=1000" example:"10"`
 	OpenTime            string   `json:"open_time" binding:"required" example:"11:00"`
 	CloseTime           string   `json:"close_time" binding:"required" example:"22:00"`
+	BreakStart          string   `json:"break_start" example:"14:00"` // ไม่บังคับ — ส่งคู่กับ break_end หรือไม่ส่งเลย
+	BreakEnd            string   `json:"break_end" example:"17:00"`
 	ClosedWeekdays      []int    `json:"closed_weekdays" binding:"omitempty,dive,min=0,max=6" example:"1"` // 0 = อาทิตย์ … 6 = เสาร์
 	CancelBeforeMinutes int      `json:"cancel_before_minutes" binding:"required,gte=30,lte=1440" example:"30"`
 	ImageURLs           []string `json:"image_urls" binding:"omitempty,max=10,dive,url"`
@@ -31,6 +33,7 @@ var (
 	errInvalidClock  = errors.New(`เวลาเปิด–ปิดต้องเป็นรูปแบบ "HH:MM" และลงที่ :00 หรือ :30`)
 	errClosedAllWeek = errors.New("ร้านต้องเปิดอย่างน้อย 1 วันต่อสัปดาห์")
 	errInvalidMapURL = errors.New("ลิงก์แผนที่ต้องเป็นลิงก์ Google Maps (https)")
+	errInvalidBreak  = errors.New("ช่วงพักต้องกรอกทั้งเวลาเริ่มและเวลาจบ (ลง :00 หรือ :30) และอยู่ภายในเวลาเปิด–ปิด ไม่ติดขอบ")
 )
 
 // ToInput แปลงเวลา "HH:MM" เป็นนาทีจากเที่ยงคืน — ต้องลง :00/:30 เพราะช่วงจองเป็นช่วงละ 30 นาที
@@ -40,6 +43,10 @@ func (req RestaurantRequest) ToInput() (Input, error) {
 		return Input{}, err
 	}
 	shut, err := ParseClock(req.CloseTime)
+	if err != nil {
+		return Input{}, err
+	}
+	breakStart, breakEnd, err := parseBreak(req.BreakStart, req.BreakEnd)
 	if err != nil {
 		return Input{}, err
 	}
@@ -54,11 +61,30 @@ func (req RestaurantRequest) ToInput() (Input, error) {
 	if mapURL != "" && !isGoogleMapsURL(mapURL) {
 		return Input{}, errInvalidMapURL
 	}
-	return Input{
+	in := Input{
 		Name: req.Name, Description: req.Description, Cuisine: req.Cuisine, Address: req.Address, MapURL: mapURL,
 		Seats: req.Seats, OpenMinute: open, CloseMinute: shut, ClosedWeekdays: closed,
+		BreakStartMinute: breakStart, BreakEndMinute: breakEnd,
 		CancelBeforeMinutes: req.CancelBeforeMinutes,
-	}, nil
+	}
+	if !in.Hours().ValidBreak() {
+		return Input{}, errInvalidBreak
+	}
+	return in, nil
+}
+
+// parseBreak: ไม่ส่งทั้งคู่ = ไม่มีช่วงพัก (0, 0); ส่งต้องครบคู่ ลง :00/:30 และไม่เท่ากัน
+// (ส่วน "อยู่ข้างในรอบ" ตรวจด้วย Hours.ValidBreak ตัวเดียวกับที่ booking ใช้)
+func parseBreak(start, end string) (int, int, error) {
+	if start == "" && end == "" {
+		return 0, 0, nil
+	}
+	s, errStart := ParseClock(start)
+	e, errEnd := ParseClock(end)
+	if errStart != nil || errEnd != nil || s == e {
+		return 0, 0, errInvalidBreak
+	}
+	return s, e, nil
 }
 
 // isGoogleMapsURL รับเฉพาะลิงก์ Google Maps แบบ https — ลิงก์นี้ไปอยู่ใน <a href> ที่ลูกค้ากด
@@ -119,6 +145,8 @@ type RestaurantResponse struct {
 	Seats               int             `json:"seats"`
 	OpenTime            string          `json:"open_time" example:"18:00"`
 	CloseTime           string          `json:"close_time" example:"02:00"`
+	BreakStart          string          `json:"break_start" example:"15:00"` // "" = ไม่มีช่วงพัก
+	BreakEnd            string          `json:"break_end" example:"17:00"`
 	Overnight           bool            `json:"overnight"` // ปิดหลังเที่ยงคืน → หน้าเว็บต้องแสดงป้าย "(เช้าวันที่ n)"
 	Open24h             bool            `json:"open_24h"`
 	ClosedWeekdays      []int           `json:"closed_weekdays"` // วันปิดประจำสัปดาห์ของวันทำการ (0 = อาทิตย์ … 6 = เสาร์)
@@ -167,6 +195,10 @@ func NewRestaurantResponse(r Restaurant) RestaurantResponse {
 	for _, d := range r.Hours().ClosedDays() {
 		closed = append(closed, int(d))
 	}
+	breakStart, breakEnd := "", ""
+	if r.Hours().HasBreak() {
+		breakStart, breakEnd = formatClock(r.BreakStartMinute), formatClock(r.BreakEndMinute)
+	}
 	images := make([]ImageResponse, len(r.Images))
 	for i, img := range r.Images {
 		images[i] = ImageResponse{ID: img.ID, URL: img.URL, SortOrder: img.SortOrder}
@@ -175,6 +207,7 @@ func NewRestaurantResponse(r Restaurant) RestaurantResponse {
 		ID: r.ID, OwnerID: r.OwnerID, Name: r.Name, Description: r.Description, Cuisine: r.Cuisine,
 		Address: r.Address, MapURL: r.MapURL, Seats: r.Seats,
 		OpenTime: formatClock(r.OpenMinute), CloseTime: formatClock(r.CloseMinute),
+		BreakStart: breakStart, BreakEnd: breakEnd,
 		Overnight: r.CloseMinute < r.OpenMinute, Open24h: r.OpenMinute == r.CloseMinute, ClosedWeekdays: closed,
 		CancelBeforeMinutes: r.CancelBeforeMinutes,
 		Rating:              RatingResponse{Average: r.AverageRating(), Count: r.RatingCount},

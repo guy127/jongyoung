@@ -263,5 +263,7 @@ func apply(rest *Restaurant, in Input) {
 	rest.OpenMinute = in.OpenMinute
 	rest.CloseMinute = in.CloseMinute
 	rest.ClosedWeekdays = in.ClosedWeekdays
+	rest.BreakStartMinute = in.BreakStartMinute
+	rest.BreakEndMinute = in.BreakEndMinute
 	rest.CancelBeforeMinutes = in.CancelBeforeMinutes
 }

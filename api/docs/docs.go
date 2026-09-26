@@ -1199,6 +1199,15 @@ const docTemplate = `{
                 "address": {
                     "type": "string"
                 },
+                "break_end": {
+                    "type": "string",
+                    "example": "17:00"
+                },
+                "break_start": {
+                    "description": "\"\" = ไม่มีช่วงพัก",
+                    "type": "string",
+                    "example": "15:00"
+                },
                 "cancel_before_minutes": {
                     "type": "integer"
                 },
@@ -1327,6 +1336,15 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 300
                 },
+                "break_end": {
+                    "type": "string",
+                    "example": "17:00"
+                },
+                "break_start": {
+                    "description": "ไม่บังคับ — ส่งคู่กับ break_end หรือไม่ส่งเลย",
+                    "type": "string",
+                    "example": "14:00"
+                },
                 "cancel_before_minutes": {
                     "type": "integer",
                     "maximum": 1440,
@@ -1390,6 +1408,15 @@ const docTemplate = `{
             "properties": {
                 "address": {
                     "type": "string"
+                },
+                "break_end": {
+                    "type": "string",
+                    "example": "17:00"
+                },
+                "break_start": {
+                    "description": "\"\" = ไม่มีช่วงพัก",
+                    "type": "string",
+                    "example": "15:00"
                 },
                 "cancel_before_minutes": {
                     "type": "integer"

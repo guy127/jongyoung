@@ -860,6 +860,13 @@ components:
       properties:
         address:
           type: string
+        break_end:
+          example: 17:00
+          type: string
+        break_start:
+          description: '"" = ไม่มีช่วงพัก'
+          example: 15:00
+          type: string
         cancel_before_minutes:
           type: integer
         close_time:
@@ -941,6 +948,13 @@ components:
         address:
           maxLength: 300
           type: string
+        break_end:
+          example: 17:00
+          type: string
+        break_start:
+          description: ไม่บังคับ — ส่งคู่กับ break_end หรือไม่ส่งเลย
+          example: 14:00
+          type: string
         cancel_before_minutes:
           example: 30
           maximum: 1440
@@ -995,6 +1009,13 @@ components:
     restaurant.RestaurantResponse:
       properties:
         address:
+          type: string
+        break_end:
+          example: 17:00
+          type: string
+        break_start:
+          description: '"" = ไม่มีช่วงพัก'
+          example: 15:00
           type: string
         cancel_before_minutes:
           type: integer

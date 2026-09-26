@@ -22,6 +22,8 @@ type Restaurant struct {
 	OpenMinute          int
 	CloseMinute         int
 	ClosedWeekdays      int // บิตวันปิดประจำสัปดาห์ (ดู booking.Hours)
+	BreakStartMinute    int // ช่วงพัก (ดู booking.Hours) — เท่ากัน = ไม่มีช่วงพัก
+	BreakEndMinute      int
 	CancelBeforeMinutes int
 	RatingSum           int
 	RatingCount         int
@@ -41,7 +43,8 @@ type Image struct {
 func (Image) TableName() string { return "restaurant_images" }
 
 func (r Restaurant) Hours() booking.Hours {
-	return booking.Hours{OpenMinute: r.OpenMinute, CloseMinute: r.CloseMinute, ClosedWeekdays: r.ClosedWeekdays}
+	return booking.Hours{OpenMinute: r.OpenMinute, CloseMinute: r.CloseMinute, ClosedWeekdays: r.ClosedWeekdays,
+		BreakStartMinute: r.BreakStartMinute, BreakEndMinute: r.BreakEndMinute}
 }
 
 // AverageRating คืน nil เมื่อยังไม่มีรีวิว (หน้าเว็บแสดง "ยังไม่มีรีวิว" แทน 0)
@@ -64,11 +67,14 @@ type Input struct {
 	OpenMinute          int
 	CloseMinute         int
 	ClosedWeekdays      int
+	BreakStartMinute    int
+	BreakEndMinute      int
 	CancelBeforeMinutes int
 }
 
 func (in Input) Hours() booking.Hours {
-	return booking.Hours{OpenMinute: in.OpenMinute, CloseMinute: in.CloseMinute, ClosedWeekdays: in.ClosedWeekdays}
+	return booking.Hours{OpenMinute: in.OpenMinute, CloseMinute: in.CloseMinute, ClosedWeekdays: in.ClosedWeekdays,
+		BreakStartMinute: in.BreakStartMinute, BreakEndMinute: in.BreakEndMinute}
 }
 
 // ListQuery คือตัวกรองของหน้าค้นหา; Date != nil แปลว่าผู้ใช้เลือกวัน/เวลา/จำนวนคน → คำนวณปุ่มเวลาด้วย

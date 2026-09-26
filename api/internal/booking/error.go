@@ -25,7 +25,7 @@ var (
 	ErrTooFarAhead   = &RuleError{"TOO_FAR_AHEAD", "จองล่วงหน้าได้ไม่เกิน 90 วัน"}
 	ErrInvalidParty  = &RuleError{"INVALID_PARTY_SIZE", "จำนวนคนต้องอย่างน้อย 1 คน"}
 	ErrPartyTooLarge = &RuleError{"PARTY_TOO_LARGE", "จำนวนคนมากกว่าที่นั่งทั้งร้าน"}
-	ErrOutsideHours  = &RuleError{"OUTSIDE_OPENING_HOURS", "ช่วงที่เลือกอยู่นอกเวลาเปิด–ปิดของร้าน"}
+	ErrOutsideHours  = &RuleError{"OUTSIDE_OPENING_HOURS", "ช่วงที่เลือกอยู่นอกเวลาเปิด–ปิด หรือตรงกับช่วงพักของร้าน"}
 	ErrClosedWeekday = &RuleError{"CLOSED_WEEKDAY", "วันที่เลือกเป็นวันปิดประจำสัปดาห์ของร้าน"}
 )
 
