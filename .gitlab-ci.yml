@@ -1,0 +1,110 @@
+# CI/CD ของ jongyoung (CLAUDE.md ข้อ 13)
+# lint → test → build รันทุก push; image (push ขึ้น GitLab Container Registry) รันเฉพาะ main
+# ไม่ต้องใช้ SSH key: runner ดึงโค้ดด้วย job token และ login registry ด้วย CI_JOB_TOKEN
+
+stages: [lint, test, build, image]
+
+variables:
+  GO_IMAGE: golang:1.26
+  NODE_IMAGE: node:24-alpine
+  GOPATH: $CI_PROJECT_DIR/.go # ให้ cache ของ Go module อยู่ใน project → GitLab cache เก็บได้
+
+.go:
+  image: $GO_IMAGE
+  cache:
+    key: go-$CI_COMMIT_REF_SLUG
+    paths: [.go/pkg/mod]
+  before_script:
+    - cd api
+
+.web:
+  image: $NODE_IMAGE
+  cache:
+    key:
+      files: [web/package-lock.json]
+    paths: [web/.npm]
+  before_script:
+    - cd web
+    - npm ci --cache .npm --prefer-offline
+
+# ---------- lint ----------
+api:lint:
+  extends: .go
+  stage: lint
+  script:
+    - go vet ./...
+    # gofmt -l คืนรายชื่อไฟล์ที่ยังไม่ได้ format — มีสักไฟล์ถือว่าไม่ผ่าน
+    - test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+
+web:lint:
+  extends: .web
+  stage: lint
+  script:
+    - npm run lint
+    - npx tsc --noEmit
+
+# ---------- test ----------
+api:test:
+  extends: .go
+  stage: test
+  # testcontainers ต้องมี Docker daemon → ใช้ Docker-in-Docker เป็น service
+  services:
+    - name: docker:28-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: "" # dind แบบไม่มี TLS ภายใน job เดียว (runner ต้องเปิด privileged)
+    TESTCONTAINERS_HOST_OVERRIDE: docker # container ของ Postgres เปิดพอร์ตที่ host "docker" ไม่ใช่ localhost
+  script:
+    - go test -count=1 ./...
+
+web:test:
+  extends: .web
+  stage: test
+  script:
+    - npm test
+
+# ---------- build ----------
+web:build:
+  extends: .web
+  stage: build
+  variables:
+    NEXT_TELEMETRY_DISABLED: "1"
+  script:
+    - npm run build
+
+api:build:
+  extends: .go
+  stage: build
+  script:
+    - CGO_ENABLED=0 go build ./...
+
+# ---------- image (เฉพาะ main) ----------
+.image:
+  stage: image
+  image: docker:28
+  services:
+    - name: docker:28-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  before_script:
+    - echo "$CI_JOB_TOKEN" | docker login -u gitlab-ci-token --password-stdin "$CI_REGISTRY"
+  script:
+    # tag ด้วย commit SHA (ย้อนเวอร์ชันได้) และ latest (ของล่าสุดบน main)
+    - docker build -t "$CI_REGISTRY_IMAGE/$APP:$CI_COMMIT_SHORT_SHA" -t "$CI_REGISTRY_IMAGE/$APP:latest" $BUILD_ARGS "./$APP"
+    - docker push --all-tags "$CI_REGISTRY_IMAGE/$APP"
+
+api:image:
+  extends: .image
+  variables:
+    APP: api
+
+web:image:
+  extends: .image
+  variables:
+    APP: web
+    BUILD_ARGS: --build-arg NEXT_PUBLIC_API_BASE_URL=http://api.jongyoung.localhost/api/v1
