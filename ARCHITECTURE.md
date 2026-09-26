@@ -115,7 +115,8 @@ react-hook-form + zod, Tailwind v4, lucide-react
   - `businessday.go` — แปลง "วันทำการ" (รอบที่เปิดในวันนั้น รองรับข้ามเที่ยงคืนและ 24 ชม.) ↔ เวลาจริง ใช้ร่วมกันทุกที่
   - `availability.go` — `maxConcurrent()` sweep line ใช้ทั้งตอนจอง แก้ไข ลดที่นั่ง และคำนวณช่วงว่าง
 - ปุ่มเวลาบนการ์ดร้าน: query booking ครั้งเดียวต่อหน้า (`restaurant_id IN (...)`) แล้วคำนวณใน Go — ไม่มี N+1
-- middleware: Recovery → Logger → CORS (`http://jongyoung.localhost` เท่านั้น) → JWT (เฉพาะ route ที่ต้อง login)
+- middleware: Recovery → RequestLog (`X-Request-ID` + log JSON ต่อคำขอ) → CORS (`http://jongyoung.localhost` เท่านั้น)
+  → RateLimit (POST/PUT/DELETE 30 ครั้ง/นาที/IP → 429 `RATE_LIMITED`) → JWT (เฉพาะ route ที่ต้อง login)
 - Swagger ที่ `/swagger/index.html`, health check ที่ `/healthz`
 
 **Technologies:** Go 1.26, Gin, GORM (pgx) + raw SQL, goose, coreos/go-oidc, caarlos0/env + validator, swaggo, log/slog
@@ -132,7 +133,8 @@ react-hook-form + zod, Tailwind v4, lucide-react
 
 **Technologies:** Keycloak 26.4 (`start-dev --import-realm`)
 
-**Deployment:** container ใน compose, import realm จาก `keycloak/import/` ทุกครั้งที่เริ่ม
+**Deployment:** container ใน compose, import realm จาก `keycloak/import/` ทุกครั้งที่เริ่ม;
+หน้า login ใช้ธีม `keycloak/themes/jongyoung` (ต่อยอด keycloak.v2 ด้วย CSS อย่างเดียว, ภาษาไทยเป็นค่าเริ่มต้น)
 
 #### 3.2.3. Reverse Proxy
 
@@ -196,7 +198,7 @@ Migration อยู่ที่ `api/migrations/` (goose, มี Down ทุก�
 
 ยังไม่มี deploy อัตโนมัติ — ถ้าทำ ใช้ deploy key คู่ใหม่เก็บเป็น CI/CD variable แบบ Protected + Masked
 
-**Monitoring & Logging:** log ลง stdout — api ใช้ `log/slog` + Gin logger, ดูด้วย `docker compose logs`; `/healthz` สำหรับ health check
+**Monitoring & Logging:** log JSON ลง stdout (`log/slog`) หนึ่งบรรทัดต่อคำขอพร้อม `request_id` (ส่งกลับใน header `X-Request-ID` ด้วย) ดูด้วย `docker compose logs`; `/healthz` สำหรับ health check
 
 ## 7. Security Considerations
 
@@ -230,7 +232,7 @@ Migration อยู่ที่ `api/migrations/` (goose, มี Down ทุก�
 
 ## 9. Future Considerations / Roadmap
 
-- ยังไม่มี rate limit และ request ID ใน middleware (spec ข้อ 6 ระบุไว้แบบเบา ๆ)
+- rate limit เก็บตัวนับในหน่วยความจำของ process — ถ้ารัน api หลาย instance ต้องย้ายไปเก็บที่ Redis
 - ย้าย token ไปอยู่ฝั่ง server ทั้งหมดด้วย BFF proxy
 - ถ้ามีร้านหลาย timezone ต้องเก็บ timezone ต่อร้าน และคำนวณวันทำการตามปฏิทินของ timezone นั้น (ตอนนี้ `Asia/Bangkok` ไม่มี DST)
 - ถ้ามีการตัดเงินมัดจำ ต้องใช้ `Idempotency-Key` จริง (ตอนนี้กันกดซ้ำด้วยกฎ DUPLICATE_BOOKING)

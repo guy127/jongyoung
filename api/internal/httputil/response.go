@@ -23,6 +23,9 @@ type ErrorResponse struct {
 	Error ErrorBody `json:"error"`
 }
 
+// RequestIDKey คือ key ใน gin.Context ที่ middleware.RequestLog เก็บเลขประจำคำขอไว้
+const RequestIDKey = "request_id"
+
 // Abort ตอบ error แล้วหยุด chain ของ handler
 func Abort(c *gin.Context, status int, code, message string, details any) {
 	c.AbortWithStatusJSON(status, ErrorResponse{Error: ErrorBody{Code: code, Message: message, Details: details}})
@@ -30,7 +33,7 @@ func Abort(c *gin.Context, status int, code, message string, details any) {
 
 // Internal log error จริงไว้ฝั่ง server แล้วตอบผู้ใช้แบบไม่เปิดเผยรายละเอียด
 func Internal(c *gin.Context, err error) {
-	slog.ErrorContext(c.Request.Context(), "internal error", "path", c.FullPath(), "error", err)
+	slog.ErrorContext(c.Request.Context(), "internal error", "path", c.FullPath(), "request_id", c.GetString(RequestIDKey), "error", err)
 	Abort(c, http.StatusInternalServerError, "INTERNAL", "เกิดข้อผิดพลาดภายในระบบ", nil)
 }
 

@@ -23,7 +23,7 @@ import (
 )
 
 // newRouter ประกอบ dependency, middleware และ route ทั้งหมด
-// ลำดับ middleware: Recovery → Logger → CORS → (JWT เฉพาะ route ที่ต้อง login)
+// ลำดับ middleware: Recovery → RequestLog (request id + log) → CORS → RateLimit (เฉพาะการเขียน) → (JWT เฉพาะ route ที่ต้อง login)
 func newRouter(ctx context.Context, cfg config.Config, db *gorm.DB, sqlDB *sql.DB) *gin.Engine {
 	if !cfg.App.IsDevelopment() {
 		gin.SetMode(gin.ReleaseMode)
@@ -45,14 +45,22 @@ func newRouter(ctx context.Context, cfg config.Config, db *gorm.DB, sqlDB *sql.D
 	}
 
 	r := gin.New()
-	r.Use(gin.Recovery(), gin.Logger())
+	// api อยู่หลัง Caddy: เชื่อ X-Forwarded-For เฉพาะเมื่อมาจากเครือข่ายภายใน (docker) เท่านั้น
+	// ไม่งั้น ClientIP จะเป็น IP ของ Caddy สำหรับทุกคน หรือใครก็ปลอม header มาเลี่ยง rate limit ได้
+	if err := r.SetTrustedProxies([]string{"127.0.0.1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}); err != nil {
+		panic(err) // ค่าคงที่ในโค้ด — ผิดได้แค่ตอนเขียนผิดเท่านั้น
+	}
+	r.Use(gin.Recovery(), middleware.RequestLog())
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{cfg.App.CORSOrigin},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{middleware.RequestIDHeader, "Retry-After"}, // ให้ JavaScript ฝั่ง browser อ่านได้
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+	// กันยิงจอง/รีวิวถี่ ๆ แบบเบา ๆ: 30 คำขอที่เขียนข้อมูลต่อนาทีต่อ IP (คนกดจริงไม่มีทางถึง)
+	r.Use(middleware.RateLimit(30, time.Minute, time.Now))
 
 	r.GET("/healthz", func(c *gin.Context) {
 		if err := sqlDB.PingContext(c.Request.Context()); err != nil {
