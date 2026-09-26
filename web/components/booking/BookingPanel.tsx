@@ -89,6 +89,7 @@ export default function BookingPanel({ restaurant: r, initialDate, initialTime, 
       setError(e ?? { code: "NETWORK", message: "" });
       // ที่นั่งเปลี่ยนไปแล้ว หรือร้านเพิ่งปิดชั่วคราว → โหลดเวลาว่างล่าสุดให้เห็นของจริง
       if (e?.code === "NOT_ENOUGH_SEATS" || e?.code === "RESTAURANT_CLOSED") void availability.refetch();
+      if (e?.code === "RESTAURANT_CLOSED") void closures.refetch(); // ให้ป้าย "ร้านปิด" และแถบบนหน้าร้านเห็นช่วงปิดใหม่ด้วย
     }
   };
 
