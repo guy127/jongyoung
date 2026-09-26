@@ -34,7 +34,7 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-3 z-20 mx-auto mt-3 w-[min(1120px,calc(100%-2rem))]">
-      <nav aria-label="เมนูหลัก" className="glass flex items-center gap-1 rounded-full border border-border py-1.5 pl-2 pr-1.5 shadow-[0_16px_40px_rgba(120,36,36,.10)] sm:gap-2 sm:pl-3">
+      <nav aria-label="เมนูหลัก" className="glass flex items-center gap-0.5 rounded-full border border-border py-1.5 pl-2 pr-1.5 shadow-[0_16px_40px_rgba(120,36,36,.10)] sm:gap-2 sm:pl-3">
         <Link href="/" className="group mr-1 flex items-center gap-2 font-display text-xl">
           <span className="brand-mark grid size-9 place-items-center rounded-[10px] transition-transform duration-300 group-hover:-rotate-8 motion-reduce:transition-none">
             <BrandMark size={27} />
@@ -47,21 +47,22 @@ export default function Navbar() {
         </div>
 
         {/* ทางเข้าฝั่งเจ้าของร้าน — ทุกคนที่ login สร้างร้านได้ (ข้อ 5.1) จึงต้องมีทางเข้าเสมอ ไม่ใช่เฉพาะคนที่มีร้านแล้ว
-            มือถือ: ช่อง "ลูกค้า" ซ่อน (อยู่หน้าลูกค้าอยู่แล้ว) เหลือไอคอนร้าน + ข้อความสั้น */}
+            มือถือ: ช่อง "ลูกค้า" ซ่อน (อยู่หน้าลูกค้าอยู่แล้ว) เหลือแค่ไอคอนร้าน (ข้อความอยู่ใน sr-only)
+            — 375px ต้องมีที่ให้กระดิ่งแจ้งเตือน ถ้าใส่ข้อความด้วย navbar จะล้นจอ */}
         {me && (
           isOwner ? (
             <div role="group" aria-label="โหมดการใช้งาน" className="flex rounded-full border border-border bg-chip p-0.5">
               <span aria-current="true" className="hidden rounded-full bg-surface px-3 py-1.5 text-sm font-semibold md:inline">ลูกค้า</span>
-              <Link href="/owner/restaurants" className="nav-link inline-flex min-h-10 items-center gap-1.5 rounded-full px-2.5 text-sm text-muted md:min-h-0 md:px-3 md:py-1.5">
+              <Link href="/owner/restaurants" className="nav-link inline-flex min-h-10 min-w-10 items-center justify-center gap-1.5 rounded-full text-sm text-muted md:min-h-0 md:px-3 md:py-1.5">
                 <Store size={16} aria-hidden className="md:hidden" />
-                <span className="md:hidden">ร้าน<span className="sr-only">ของฉัน (โหมดเจ้าของร้าน)</span></span>
+                <span className="sr-only md:hidden">ร้านของฉัน (โหมดเจ้าของร้าน)</span>
                 <span className="hidden md:inline">เจ้าของร้าน</span>
               </Link>
             </div>
           ) : (
-            <Link href="/owner/restaurants" className="nav-link inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border px-2.5 text-sm text-muted md:px-3">
+            <Link href="/owner/restaurants" className="nav-link inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full border border-border text-sm text-muted md:px-3">
               <Store size={16} aria-hidden />
-              <span className="md:hidden">เปิดร้าน<span className="sr-only">ของคุณ</span></span>
+              <span className="sr-only md:hidden">เปิดร้านของคุณ</span>
               <span className="hidden md:inline">เปิดร้านของคุณ</span>
             </Link>
           )
