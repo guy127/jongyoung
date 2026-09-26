@@ -163,7 +163,7 @@ jongyoung/
 │   │   │   └── availability_test.go
 │   │   └── review/
 │   ├── migrations/               # goose (Up + Down ทุกไฟล์) — ห้ามใส่ seed data
-│   ├── docs/                     # swagger generated + ARCHITECTURE/TESTING
+│   ├── docs/                     # swagger generated (ภาพรวมระบบอยู่ที่ ARCHITECTURE.md ที่ root)
 │   ├── .mockery.yml              # mock ลง mocks_test.go ข้างไฟล์ interface
 │   └── Dockerfile
 ├── web/                          # Next.js
@@ -183,6 +183,7 @@ jongyoung/
 ├── docs/                         # spec, UI design, ER diagram
 ├── .gitlab-ci.yml
 ├── CLAUDE.md
+├── ARCHITECTURE.md               # ภาพรวมสถาปัตยกรรม (อัปเดตเมื่อโครงสร้างเปลี่ยน)
 └── README.md
 ```
 
