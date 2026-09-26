@@ -54,3 +54,18 @@ func TestInsertSnapshot(t *testing.T) {
 	assert.True(t, n.StartAt.Equal(at(18)))
 	assert.Nil(t, n.ReadAt)
 }
+
+func TestInsertMissingBooking(t *testing.T) {
+	db := testdb.New(t)
+	ctx := context.Background()
+	owner := insertUser(t, db, "เจ้าของ")
+
+	// ยิง Insert ด้วย booking ID ที่ไม่มีจริง — ต้องคืน error
+	err := Insert(ctx, db, Draft{Recipient: owner, Kind: KindBookingCreated, BookingID: uuid.New(), BusinessDate: "2026-10-10"})
+	require.Error(t, err, "Insert ต้องคืน error เมื่อไม่พบการจอง")
+
+	// ยืนยันว่าไม่มีแจ้งเตือนถูกเขียนลง DB
+	var count int64
+	require.NoError(t, db.Model(&Notification{}).Count(&count).Error)
+	assert.Equal(t, int64(0), count, "ไม่ควรมีแจ้งเตือนในฐานข้อมูล")
+}
