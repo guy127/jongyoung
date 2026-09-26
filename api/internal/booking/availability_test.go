@@ -120,3 +120,12 @@ func TestSlotsClosedWeekday(t *testing.T) {
 		assert.True(t, s.Closed, "ปุ่มเวลาวันปิดต้องเป็น closed ทั้งหมด")
 	}
 }
+
+func TestSlotsSkipBreak(t *testing.T) {
+	longAgo := bkk(2026, 10, 1, 0, 0)
+	s := Slots(lunchDinner, 10, nil, bkk(2026, 10, 10, 0, 0), longAgo)
+	require.Len(t, s, 16, "11:00–14:00 = 6 ช่วง + 17:00–22:00 = 10 ช่วง")
+	assert.True(t, s[5].StartAt.Equal(bkk(2026, 10, 10, 13, 30)))
+	assert.True(t, s[5].EndAt.Equal(bkk(2026, 10, 10, 14, 0)))
+	assert.True(t, s[6].StartAt.Equal(bkk(2026, 10, 10, 17, 0)), "ถัดจาก 13:30 คือ 17:00 — ช่วงพักไม่อยู่ในลิสต์")
+}

@@ -104,3 +104,23 @@ func TestCheckHoursChangeClosedWeekday(t *testing.T) {
 		assert.NoError(t, CheckHoursChange([]Booking{sat, sun}, Hours{OpenMinute: 11 * 60, CloseMinute: 22 * 60, ClosedWeekdays: WeekdayMask(time.Monday)}))
 	})
 }
+
+func TestSlotsAroundBreak(t *testing.T) {
+	longAgo := bkk(2026, 10, 1, 0, 0)
+	s := SlotsAround(lunchDinner, 10, nil, bkk(2026, 10, 10, 0, 0), 14*60, longAgo)
+	require.Len(t, s, 5)
+	closed := []bool{s[0].Closed, s[1].Closed, s[2].Closed, s[3].Closed, s[4].Closed}
+	assert.Equal(t, []bool{false, false, true, true, true}, closed, "13:00 13:30 เปิด / 14:00 14:30 15:00 พัก")
+}
+
+func TestCheckHoursChangeAddBreak(t *testing.T) {
+	lunch := bk(2, bkk(2026, 10, 10, 14, 30), bkk(2026, 10, 10, 15, 30))
+	lunch.ID = uuid.New()
+	dinner := bk(2, bkk(2026, 10, 10, 18, 0), bkk(2026, 10, 10, 19, 0))
+	dinner.ID = uuid.New()
+
+	err := CheckHoursChange([]Booking{lunch, dinner}, lunchDinner)
+	var e *HoursConflictError
+	require.True(t, errors.As(err, &e), "ตั้งช่วงพักทับ booking ในอนาคต → 409 HOURS_CONFLICT_EXISTING_BOOKINGS")
+	assert.Equal(t, []uuid.UUID{lunch.ID}, e.BookingIDs)
+}
