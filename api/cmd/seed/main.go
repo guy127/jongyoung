@@ -16,6 +16,7 @@ import (
 
 	"jongyoung/internal/booking"
 	"jongyoung/internal/config"
+	"jongyoung/internal/notification"
 	"jongyoung/internal/platform/database"
 
 	"github.com/google/uuid"
@@ -120,8 +121,8 @@ func seed(tx *gorm.DB, now time.Time) error {
 	tomorrow := s.today.AddDate(0, 0, 1)
 
 	// การจองของ customer1: กำลังจะถึง 2 รายการ (หนึ่งรายการคร่อมเที่ยงคืน) + ผ่านไปแล้ว 1 + ยกเลิกแล้ว 1
-	s.book(seafood, customer1, 3, s.at(tomorrow, 23, 30), s.at(tomorrow.AddDate(0, 0, 1), 0, 30), booking.StatusActive)
-	s.book(sushi, customer1, 2, s.at(tomorrow.AddDate(0, 0, 2), 19, 0), s.at(tomorrow.AddDate(0, 0, 2), 20, 30), booking.StatusActive)
+	seaMidnight := s.book(seafood, customer1, 3, s.at(tomorrow, 23, 30), s.at(tomorrow.AddDate(0, 0, 1), 0, 30), booking.StatusActive)
+	sushiDay3 := s.book(sushi, customer1, 2, s.at(tomorrow.AddDate(0, 0, 2), 19, 0), s.at(tomorrow.AddDate(0, 0, 2), 20, 30), booking.StatusActive)
 	s.book(tamsang, customer1, 4, s.at(s.today.AddDate(0, 0, -3), 12, 0), s.at(s.today.AddDate(0, 0, -3), 13, 0), booking.StatusActive)
 	s.book(buffet, customer1, 2, s.at(s.today.AddDate(0, 0, 5), 18, 0), s.at(s.today.AddDate(0, 0, 5), 19, 30), booking.StatusCancelled)
 
@@ -137,6 +138,23 @@ func seed(tx *gorm.DB, now time.Time) error {
 	s.book(seafood, reviewers[46], 2, s.at(tomorrow.AddDate(0, 0, 1), 1, 0), s.at(tomorrow.AddDate(0, 0, 1), 2, 0), booking.StatusActive)
 	// โจ๊ก 24 ชม.: มีคนคร่อมเที่ยงคืน
 	s.book(jok, reviewers[47], 3, s.at(tomorrow, 23, 30), s.at(tomorrow.AddDate(0, 0, 1), 0, 30), booking.StatusActive)
+
+	// ร้านยกเลิกการจองของ customer1 (ร้านตามสั่ง 4 วันข้างหน้า) + แจ้งเตือนที่ยังไม่อ่าน → login แล้วเห็นตัวเลขบนกระดิ่ง
+	day4 := s.today.AddDate(0, 0, 4)
+	byShop := s.book(tamsang, customer1, 2, s.at(day4, 12, 0), s.at(day4, 13, 0), booking.StatusActive)
+	s.exec(`UPDATE bookings SET status = ?, cancelled_at = ?, cancelled_by = ?, cancel_reason = ? WHERE id = ?`,
+		booking.StatusCancelled, s.today, booking.CancelledByRestaurant, "ไฟดับทั้งซอย", byShop)
+	s.notify(customer1, notification.KindCancelledByRestaurant, byShop, day4, "ไฟดับทั้งซอย")
+
+	// เจ้าของร้านได้รับแจ้งการจองใหม่ (ยังไม่อ่าน)
+	s.notify(owner2, notification.KindBookingCreated, sushiDay3, tomorrow.AddDate(0, 0, 2), "")
+	s.notify(owner2, notification.KindBookingCreated, seaMidnight, tomorrow, "")
+
+	// บุฟเฟ่ต์ปิดปรับปรุงทั้งวัน 5 วันข้างหน้า (ร้านนี้ไม่มีการจอง active จึงไม่มีการจองถูกยกเลิก)
+	day5 := s.today.AddDate(0, 0, 5)
+	closeStart, closeEnd := booking.Hours{OpenMinute: 17 * 60, CloseMinute: 23 * 60}.Days(day5, day5)
+	s.exec(`INSERT INTO restaurant_closures (restaurant_id, start_at, end_at, reason) VALUES (?, ?, ?, ?)`,
+		buffet, closeStart, closeEnd, "ปิดปรับปรุงร้าน")
 
 	// คะแนนรวมคำนวณจากรีวิวจริง จึงตรงกันเสมอ
 	s.exec(`UPDATE restaurants r SET
@@ -190,14 +208,25 @@ func (s *seeder) reviews(restaurant uuid.UUID, users []uuid.UUID, scores []int, 
 	}
 }
 
-func (s *seeder) book(restaurant, user uuid.UUID, party int, start, end time.Time, status string) {
+func (s *seeder) book(restaurant, user uuid.UUID, party int, start, end time.Time, status string) uuid.UUID {
 	var cancelledAt *time.Time
+	var cancelledBy *string
 	if status == booking.StatusCancelled {
 		t := s.today.AddDate(0, 0, -1)
-		cancelledAt = &t
+		by := booking.CancelledByCustomer
+		cancelledAt, cancelledBy = &t, &by
 	}
-	s.exec(`INSERT INTO bookings (restaurant_id, user_id, party_size, start_at, end_at, status, cancelled_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		restaurant, user, party, start, end, status, cancelledAt)
+	return s.scanID(`INSERT INTO bookings (restaurant_id, user_id, party_size, start_at, end_at, status, cancelled_at, cancelled_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+		restaurant, user, party, start, end, status, cancelledAt, cancelledBy)
+}
+
+// notify เขียนแจ้งเตือนด้วยฟังก์ชันเดียวกับระบบจริง (snapshot จาก DB)
+func (s *seeder) notify(recipient uuid.UUID, kind string, bookingID uuid.UUID, businessDate time.Time, reason string) {
+	if s.err == nil {
+		s.err = notification.Insert(context.Background(), s.tx, notification.Draft{Recipient: recipient, Kind: kind,
+			BookingID: bookingID, BusinessDate: businessDate.Format("2006-01-02"), Reason: reason})
+	}
 }
 
 func (s *seeder) at(day time.Time, hour, minute int) time.Time {

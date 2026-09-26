@@ -277,6 +277,90 @@
                 }
             }
         },
+        "/me/notifications": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "me"
+                ],
+                "summary": "แจ้งเตือนล่าสุดของฉัน + จำนวนที่ยังไม่อ่าน",
+                "operationId": "listMyNotifications",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/notification.ListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/me/notifications/read-all": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "me"
+                ],
+                "summary": "กดอ่านแจ้งเตือนทั้งหมดของฉัน",
+                "operationId": "markAllNotificationsRead",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/me/notifications/{id}/read": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "me"
+                ],
+                "summary": "กดอ่านแจ้งเตือนหนึ่งรายการ (ของคนอื่น → 404)",
+                "operationId": "markNotificationRead",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "notification id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/restaurants": {
             "get": {
                 "produces": [
@@ -605,6 +689,135 @@
                         "schema": {
                             "$ref": "#/definitions/httputil.ErrorResponse"
                         }
+                    }
+                }
+            }
+        },
+        "/restaurants/{id}/closures": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "restaurants"
+                ],
+                "summary": "ช่วงปิดชั่วคราวที่ยังไม่จบ",
+                "operationId": "listClosures",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "restaurant id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/restaurant.ClosureResponse"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "restaurants"
+                ],
+                "summary": "ปิดร้านชั่วคราว (บางช่วงของวัน หรือทั้งวัน/หลายวัน) — ทับการจองต้องยืนยันด้วย confirm_booking_ids",
+                "operationId": "createClosure",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "restaurant id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "ช่วงปิด",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/restaurant.ClosureRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/restaurant.ClosureResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "INVALID_CLOSURE",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "CLOSURE_AFFECTS_BOOKINGS",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/restaurants/{id}/closures/{closureId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "restaurants"
+                ],
+                "summary": "เปิดร้านกลับ (ลบช่วงปิด) — การจองที่ยกเลิกไปแล้วไม่ฟื้น",
+                "operationId": "deleteClosure",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "restaurant id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "closure id",
+                        "name": "closureId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -1057,10 +1270,18 @@
                     "description": "แก้/ยกเลิกได้ตอนนี้ไหม (หน้าเว็บใช้ disable ปุ่มพร้อมเหตุผล)",
                     "type": "boolean"
                 },
+                "cancel_reason": {
+                    "description": "เหตุผลเมื่อร้านยกเลิก",
+                    "type": "string"
+                },
                 "cancel_until": {
                     "type": "string"
                 },
                 "cancelled_at": {
+                    "type": "string"
+                },
+                "cancelled_by": {
+                    "description": "\"customer\" | \"restaurant\" | null",
                     "type": "string"
                 },
                 "code": {
@@ -1137,6 +1358,66 @@
                 }
             }
         },
+        "notification.ListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/notification.NotificationResponse"
+                    }
+                },
+                "unread_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "notification.NotificationResponse": {
+            "type": "object",
+            "properties": {
+                "booking_id": {
+                    "type": "string"
+                },
+                "business_date": {
+                    "type": "string",
+                    "example": "2026-10-10"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "customer_name": {
+                    "type": "string"
+                },
+                "end_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string",
+                    "example": "booking_cancelled_by_restaurant"
+                },
+                "party_size": {
+                    "type": "integer"
+                },
+                "read_at": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "restaurant_id": {
+                    "type": "string"
+                },
+                "restaurant_name": {
+                    "type": "string"
+                },
+                "start_at": {
+                    "type": "string"
+                }
+            }
+        },
         "restaurant.AvailabilityResponse": {
             "type": "object",
             "properties": {
@@ -1162,6 +1443,58 @@
                     "items": {
                         "$ref": "#/definitions/restaurant.SlotResponse"
                     }
+                }
+            }
+        },
+        "restaurant.ClosureRequest": {
+            "type": "object",
+            "properties": {
+                "confirm_booking_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "date": {
+                    "type": "string",
+                    "example": "2026-10-15"
+                },
+                "end_time": {
+                    "type": "string",
+                    "example": "20:00"
+                },
+                "from_date": {
+                    "type": "string",
+                    "example": "2026-10-20"
+                },
+                "reason": {
+                    "type": "string",
+                    "example": "ไฟดับทั้งซอย"
+                },
+                "start_time": {
+                    "type": "string",
+                    "example": "18:00"
+                },
+                "to_date": {
+                    "type": "string",
+                    "example": "2026-10-22"
+                }
+            }
+        },
+        "restaurant.ClosureResponse": {
+            "type": "object",
+            "properties": {
+                "end_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "start_at": {
+                    "type": "string"
                 }
             }
         },

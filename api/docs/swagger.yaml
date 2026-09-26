@@ -63,9 +63,15 @@ definitions:
       can_change:
         description: แก้/ยกเลิกได้ตอนนี้ไหม (หน้าเว็บใช้ disable ปุ่มพร้อมเหตุผล)
         type: boolean
+      cancel_reason:
+        description: เหตุผลเมื่อร้านยกเลิก
+        type: string
       cancel_until:
         type: string
       cancelled_at:
+        type: string
+      cancelled_by:
+        description: '"customer" | "restaurant" | null'
         type: string
       code:
         example: JY-7F3K2A
@@ -117,6 +123,46 @@ definitions:
       error:
         $ref: '#/definitions/httputil.ErrorBody'
     type: object
+  notification.ListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/notification.NotificationResponse'
+        type: array
+      unread_count:
+        type: integer
+    type: object
+  notification.NotificationResponse:
+    properties:
+      booking_id:
+        type: string
+      business_date:
+        example: "2026-10-10"
+        type: string
+      created_at:
+        type: string
+      customer_name:
+        type: string
+      end_at:
+        type: string
+      id:
+        type: string
+      kind:
+        example: booking_cancelled_by_restaurant
+        type: string
+      party_size:
+        type: integer
+      read_at:
+        type: string
+      reason:
+        type: string
+      restaurant_id:
+        type: string
+      restaurant_name:
+        type: string
+      start_at:
+        type: string
+    type: object
   restaurant.AvailabilityResponse:
     properties:
       business_date:
@@ -135,6 +181,42 @@ definitions:
         items:
           $ref: '#/definitions/restaurant.SlotResponse'
         type: array
+    type: object
+  restaurant.ClosureRequest:
+    properties:
+      confirm_booking_ids:
+        items:
+          type: string
+        type: array
+      date:
+        example: "2026-10-15"
+        type: string
+      end_time:
+        example: "20:00"
+        type: string
+      from_date:
+        example: "2026-10-20"
+        type: string
+      reason:
+        example: ไฟดับทั้งซอย
+        type: string
+      start_time:
+        example: "18:00"
+        type: string
+      to_date:
+        example: "2026-10-22"
+        type: string
+    type: object
+  restaurant.ClosureResponse:
+    properties:
+      end_at:
+        type: string
+      id:
+        type: string
+      reason:
+        type: string
+      start_at:
+        type: string
     type: object
   restaurant.ImageRequest:
     properties:
@@ -604,6 +686,57 @@ paths:
       summary: การจองของฉัน
       tags:
       - me
+  /me/notifications:
+    get:
+      operationId: listMyNotifications
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/notification.ListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: แจ้งเตือนล่าสุดของฉัน + จำนวนที่ยังไม่อ่าน
+      tags:
+      - me
+  /me/notifications/{id}/read:
+    put:
+      operationId: markNotificationRead
+      parameters:
+      - description: notification id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: กดอ่านแจ้งเตือนหนึ่งรายการ (ของคนอื่น → 404)
+      tags:
+      - me
+  /me/notifications/read-all:
+    put:
+      operationId: markAllNotificationsRead
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: กดอ่านแจ้งเตือนทั้งหมดของฉัน
+      tags:
+      - me
   /restaurants:
     get:
       operationId: listRestaurants
@@ -819,6 +952,90 @@ paths:
       - BearerAuth: []
       summary: บอร์ดการจองรายวันทำการของร้าน (เจ้าของร้านเท่านั้น) + คนในร้านต่อช่วง
         30 นาที
+      tags:
+      - restaurants
+  /restaurants/{id}/closures:
+    get:
+      operationId: listClosures
+      parameters:
+      - description: restaurant id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/restaurant.ClosureResponse'
+            type: array
+      summary: ช่วงปิดชั่วคราวที่ยังไม่จบ
+      tags:
+      - restaurants
+    post:
+      consumes:
+      - application/json
+      operationId: createClosure
+      parameters:
+      - description: restaurant id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ช่วงปิด
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/restaurant.ClosureRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/restaurant.ClosureResponse'
+        "400":
+          description: INVALID_CLOSURE
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "409":
+          description: CLOSURE_AFFECTS_BOOKINGS
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: ปิดร้านชั่วคราว (บางช่วงของวัน หรือทั้งวัน/หลายวัน) — ทับการจองต้องยืนยันด้วย
+        confirm_booking_ids
+      tags:
+      - restaurants
+  /restaurants/{id}/closures/{closureId}:
+    delete:
+      operationId: deleteClosure
+      parameters:
+      - description: restaurant id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: closure id
+        in: path
+        name: closureId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: เปิดร้านกลับ (ลบช่วงปิด) — การจองที่ยกเลิกไปแล้วไม่ฟื้น
       tags:
       - restaurants
   /restaurants/{id}/images:
