@@ -1,0 +1,1097 @@
+# OpenAPI 3 ของ jongyoung API — แปลงมาจาก swagger.yaml (Swagger 2.0 ที่ swaggo สร้างจาก comment ใน handler)
+# สร้างใหม่หลังแก้ comment ใน handler:
+#   cd api && swag init -g cmd/api/main.go -o docs
+#   npx swagger2openapi@7 --yaml docs/swagger.yaml -o docs/openapi.yaml
+#   แล้วตัด prefix internal_ ออก + เปลี่ยน BearerAuth เป็น type: http / scheme: bearer
+
+openapi: 3.0.0
+info:
+  contact: {}
+  description: ระบบจองโต๊ะร้านอาหาร + รีวิว — เวลาทั้งหมดเป็น timestamp เต็ม (RFC
+    3339) ส่วน date = วันทำการ
+  title: jongyoung API
+  version: "1.0"
+paths:
+  /bookings:
+    post:
+      description: 409 NOT_ENOUGH_SEATS = ที่นั่งไม่พอ (details.available,
+        details.at); 409 DUPLICATE_BOOKING = มีการจองที่ทับช่วงนี้อยู่แล้ว
+        (details.booking_id)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/booking.BookingRequest"
+        description: วันทำการ + เวลา + จำนวนคน
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/booking.BookingResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      security:
+        - BearerAuth: []
+      summary: จองโต๊ะ
+      tags:
+        - bookings
+  "/bookings/{id}":
+    delete:
+      parameters:
+        - description: booking id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "403":
+          description: CANCEL_WINDOW_PASSED (details.cancel_until) หรือไม่ใช่การจองของตัวเอง
+          content:
+            "*/*":
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+        "409":
+          description: Conflict
+          content:
+            "*/*":
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      security:
+        - BearerAuth: []
+      summary: ยกเลิกการจอง (เปลี่ยนสถานะเป็น cancelled ไม่ลบจริง)
+      tags:
+        - bookings
+    get:
+      parameters:
+        - description: booking id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/booking.BookingResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      security:
+        - BearerAuth: []
+      summary: รายละเอียดการจอง (หน้ายืนยัน) — เจ้าของการจองหรือเจ้าของร้านเท่านั้น
+      tags:
+        - bookings
+    put:
+      parameters:
+        - description: booking id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/booking.BookingRequest"
+        description: ไม่ต้องส่ง restaurant_id
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/booking.BookingResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      security:
+        - BearerAuth: []
+      summary: แก้ไขการจอง (จำนวนคน/วัน/เวลา) — ต้องยังไม่เลยเส้นตายของเวลาเดิม
+      tags:
+        - bookings
+  /me:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/user.MeResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      security:
+        - BearerAuth: []
+      summary: โปรไฟล์ของผู้ใช้ปัจจุบัน + ร้านที่เป็นเจ้าของ
+      tags:
+        - me
+  /me/bookings:
+    get:
+      parameters:
+        - description: upcoming (ค่าเริ่มต้น) | past | cancelled
+          in: query
+          name: status
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/booking.BookingResponse"
+                type: array
+      security:
+        - BearerAuth: []
+      summary: การจองของฉัน
+      tags:
+        - me
+  /restaurants:
+    get:
+      parameters:
+        - description: ชื่อร้าน/เมนู
+          in: query
+          name: q
+          schema:
+            type: string
+        - description: ประเภทอาหาร
+          in: query
+          name: cuisine
+          schema:
+            type: string
+        - description: rating | reviews | newest
+          in: query
+          name: sort
+          schema:
+            type: string
+        - description: หน้า
+          in: query
+          name: page
+          schema:
+            type: integer
+        - description: จำนวนต่อหน้า (สูงสุด 50)
+          in: query
+          name: limit
+          schema:
+            type: integer
+        - description: วันทำการ YYYY-MM-DD
+          in: query
+          name: date
+          schema:
+            type: string
+        - description: เวลาประมาณ HH:MM
+          in: query
+          name: time
+          schema:
+            type: string
+        - description: จำนวนคน
+          in: query
+          name: party_size
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/restaurant.ListResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      summary: ค้นหาร้าน (+ ปุ่มเวลาว่าง 5 ช่วงเมื่อส่ง date, time, party_size มาครบ)
+      tags:
+        - restaurants
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/restaurant.RestaurantRequest"
+        description: ข้อมูลร้าน (ต้องมี image_urls อย่างน้อย 1)
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/restaurant.RestaurantResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      security:
+        - BearerAuth: []
+      summary: สร้างร้าน (ผู้สร้างเป็นเจ้าของ)
+      tags:
+        - restaurants
+  "/restaurants/{id}":
+    delete:
+      parameters:
+        - description: restaurant id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "403":
+          description: Forbidden
+          content:
+            "*/*":
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      security:
+        - BearerAuth: []
+      summary: ลบร้าน (soft delete) และยกเลิกการจองที่ยังไม่เริ่มทั้งหมด
+      tags:
+        - restaurants
+    get:
+      parameters:
+        - description: restaurant id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/restaurant.RestaurantResponse"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      summary: รายละเอียดร้าน
+      tags:
+        - restaurants
+    put:
+      description: ลดที่นั่งต่ำกว่าคนสูงสุดของการจองที่จะถึง
+        หรือย่นเวลาจนการจองตกนอกเวลา → 409
+      parameters:
+        - description: restaurant id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/restaurant.RestaurantRequest"
+        description: ข้อมูลร้าน (ไม่ใช้ image_urls)
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/restaurant.RestaurantResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      security:
+        - BearerAuth: []
+      summary: แก้ไขร้าน (เฉพาะเจ้าของ)
+      tags:
+        - restaurants
+  "/restaurants/{id}/availability":
+    get:
+      parameters:
+        - description: restaurant id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - description: วันทำการ YYYY-MM-DD (รอบที่เริ่มเปิดในวันนั้น)
+          in: query
+          name: date
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/restaurant.AvailabilityResponse"
+      summary: ที่ว่างทุกช่วง 30 นาทีของรอบวันทำการ
+      tags:
+        - restaurants
+  "/restaurants/{id}/bookings":
+    get:
+      parameters:
+        - description: restaurant id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - description: วันทำการ YYYY-MM-DD — แขกตี 1 คืนวันเสาร์อยู่ในวันเสาร์
+          in: query
+          name: date
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/booking.BoardResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      security:
+        - BearerAuth: []
+      summary: บอร์ดการจองรายวันทำการของร้าน (เจ้าของร้านเท่านั้น) + คนในร้านต่อช่วง
+        30 นาที
+      tags:
+        - restaurants
+  "/restaurants/{id}/images":
+    post:
+      parameters:
+        - description: restaurant id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/restaurant.ImageRequest"
+        description: URL รูป
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/restaurant.ImageResponse"
+      security:
+        - BearerAuth: []
+      summary: เพิ่มรูปร้าน (URL)
+      tags:
+        - restaurants
+  "/restaurants/{id}/images/{imageId}":
+    delete:
+      parameters:
+        - description: restaurant id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - description: image id
+          in: path
+          name: imageId
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          content:
+            "*/*":
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      security:
+        - BearerAuth: []
+      summary: ลบรูปร้าน (ห้ามลบรูปสุดท้าย)
+      tags:
+        - restaurants
+  "/restaurants/{id}/next-available":
+    get:
+      parameters:
+        - description: restaurant id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - description: วันทำการที่ค้น YYYY-MM-DD
+          in: query
+          name: date
+          required: true
+          schema:
+            type: string
+        - description: HH:MM
+          in: query
+          name: time
+          required: true
+          schema:
+            type: string
+        - description: จำนวนคน
+          in: query
+          name: party_size
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/restaurant.NextAvailableResponse"
+      summary: วันทำการถัดไป (ไม่เกิน 14 วัน) ที่มีช่วงรอบเวลาที่ค้นว่างพอ — ไม่เจอคืน
+        null
+      tags:
+        - restaurants
+  "/restaurants/{id}/reviews":
+    delete:
+      parameters:
+        - description: restaurant id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          content:
+            "*/*":
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      security:
+        - BearerAuth: []
+      summary: ลบรีวิวของตัวเอง
+      tags:
+        - reviews
+    get:
+      parameters:
+        - description: restaurant id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - description: หน้า
+          in: query
+          name: page
+          schema:
+            type: integer
+        - description: จำนวนต่อหน้า
+          in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/review.ListResponse"
+      summary: รีวิวของร้าน (ใหม่สุดก่อน)
+      tags:
+        - reviews
+    post:
+      parameters:
+        - description: restaurant id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/review.ReviewRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/review.ReviewResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      security:
+        - BearerAuth: []
+      summary: เขียนรีวิว (มีอยู่แล้ว → 409 REVIEW_EXISTS, ร้านตัวเอง → 403
+        OWN_RESTAURANT)
+      tags:
+        - reviews
+    put:
+      parameters:
+        - description: restaurant id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/review.ReviewRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/review.ReviewResponse"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      security:
+        - BearerAuth: []
+      summary: แก้รีวิวของตัวเอง (ยังไม่เคยรีวิว → 404)
+      tags:
+        - reviews
+  "/restaurants/{id}/reviews/mine":
+    get:
+      parameters:
+        - description: restaurant id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/review.ReviewResponse"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+      security:
+        - BearerAuth: []
+      summary: รีวิวของฉันในร้านนี้ (ไม่มี → 404)
+      tags:
+        - reviews
+servers:
+  - url: http://api.jongyoung.localhost/api/v1
+components:
+  requestBodies:
+    review.ReviewRequest:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/review.ReviewRequest"
+      description: คะแนน 1–5 + ข้อความ
+      required: true
+  securitySchemes:
+    BearerAuth:
+      description: access token จาก Keycloak (realm jongyoung, aud = jongyoung-api)
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    booking.BoardResponse:
+      properties:
+        bookings:
+          items:
+            $ref: "#/components/schemas/booking.BookingResponse"
+          type: array
+        business_date:
+          type: string
+        closed:
+          description: วันปิดประจำสัปดาห์
+          type: boolean
+        closes_at:
+          type: string
+        opens_at:
+          type: string
+        seats:
+          type: integer
+        slots:
+          items:
+            $ref: "#/components/schemas/booking.BoardSlot"
+          type: array
+      type: object
+    booking.BoardSlot:
+      properties:
+        booked:
+          description: คนในร้านสูงสุดในช่วงนี้
+          type: integer
+        end_at:
+          type: string
+        start_at:
+          type: string
+      type: object
+    booking.BookingRequest:
+      properties:
+        date:
+          example: 2026-10-10
+          type: string
+        end_time:
+          example: 19:00
+          type: string
+        party_size:
+          example: 2
+          type: integer
+        restaurant_id:
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          type: string
+        start_time:
+          example: 18:00
+          type: string
+      required:
+        - date
+        - end_time
+        - party_size
+        - start_time
+      type: object
+    booking.BookingResponse:
+      properties:
+        business_date:
+          description: วันทำการของรอบที่ booking นี้อยู่ (ใช้ทำป้าย "(เช้าวันที่ n)")
+          type: string
+        can_change:
+          description: แก้/ยกเลิกได้ตอนนี้ไหม (หน้าเว็บใช้ disable ปุ่มพร้อมเหตุผล)
+          type: boolean
+        cancel_until:
+          type: string
+        cancelled_at:
+          type: string
+        code:
+          example: JY-7F3K2A
+          type: string
+        created_at:
+          type: string
+        customer_name:
+          type: string
+        end_at:
+          type: string
+        id:
+          type: string
+        party_size:
+          type: integer
+        restaurant:
+          $ref: "#/components/schemas/booking.RestaurantSummary"
+        start_at:
+          type: string
+        status:
+          example: active
+          type: string
+      type: object
+    booking.RestaurantSummary:
+      properties:
+        address:
+          type: string
+        id:
+          type: string
+        map_url:
+          description: ว่าง = ค้นแผนที่จาก address
+          type: string
+        name:
+          type: string
+        overnight:
+          type: boolean
+      type: object
+    restaurant.AvailabilityResponse:
+      properties:
+        business_date:
+          example: 2026-10-10
+          type: string
+        closed:
+          description: วันปิดประจำสัปดาห์ → slots ว่าง
+          type: boolean
+        closes_at:
+          type: string
+        opens_at:
+          type: string
+        seats:
+          type: integer
+        slots:
+          items:
+            $ref: "#/components/schemas/restaurant.SlotResponse"
+          type: array
+      type: object
+    restaurant.ImageRequest:
+      properties:
+        url:
+          type: string
+      required:
+        - url
+      type: object
+    restaurant.ImageResponse:
+      properties:
+        id:
+          type: string
+        sort_order:
+          type: integer
+        url:
+          type: string
+      type: object
+    restaurant.ListItemResponse:
+      properties:
+        address:
+          type: string
+        cancel_before_minutes:
+          type: integer
+        close_time:
+          example: 02:00
+          type: string
+        closed_weekdays:
+          description: วันปิดประจำสัปดาห์ของวันทำการ (0 = อาทิตย์ … 6 = เสาร์)
+          items:
+            type: integer
+          type: array
+        created_at:
+          type: string
+        cuisine:
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+        images:
+          items:
+            $ref: "#/components/schemas/restaurant.ImageResponse"
+          type: array
+        map_url:
+          description: ว่าง = หน้าเว็บค้นแผนที่จาก address
+          type: string
+        name:
+          type: string
+        open_24h:
+          type: boolean
+        open_time:
+          example: 18:00
+          type: string
+        overnight:
+          description: ปิดหลังเที่ยงคืน → หน้าเว็บต้องแสดงป้าย "(เช้าวันที่ n)"
+          type: boolean
+        owner_id:
+          type: string
+        rating:
+          $ref: "#/components/schemas/restaurant.RatingResponse"
+        seats:
+          type: integer
+        slots:
+          items:
+            $ref: "#/components/schemas/restaurant.SlotResponse"
+          type: array
+      type: object
+    restaurant.ListResponse:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/restaurant.ListItemResponse"
+          type: array
+        limit:
+          type: integer
+        page:
+          type: integer
+        total:
+          type: integer
+      type: object
+    restaurant.NextAvailableResponse:
+      properties:
+        business_date:
+          type: string
+        slots:
+          items:
+            $ref: "#/components/schemas/restaurant.SlotResponse"
+          type: array
+      type: object
+    restaurant.RatingResponse:
+      properties:
+        average:
+          description: null = ยังไม่มีรีวิว
+          type: number
+        count:
+          type: integer
+      type: object
+    restaurant.RestaurantRequest:
+      properties:
+        address:
+          maxLength: 300
+          type: string
+        cancel_before_minutes:
+          example: 30
+          maximum: 1440
+          minimum: 30
+          type: integer
+        close_time:
+          example: 22:00
+          type: string
+        closed_weekdays:
+          description: 0 = อาทิตย์ … 6 = เสาร์
+          example:
+            - 1
+          items:
+            type: integer
+          type: array
+        cuisine:
+          example: อาหารไทย
+          maxLength: 60
+          type: string
+        description:
+          maxLength: 2000
+          type: string
+        image_urls:
+          items:
+            type: string
+          maxItems: 10
+          type: array
+        map_url:
+          description: ไม่บังคับ
+          example: https://maps.app.goo.gl/AbCdEf123
+          maxLength: 500
+          type: string
+        name:
+          example: ครัวบ้านสวน
+          maxLength: 120
+          type: string
+        open_time:
+          example: 11:00
+          type: string
+        seats:
+          example: 10
+          maximum: 1000
+          type: integer
+      required:
+        - address
+        - cancel_before_minutes
+        - close_time
+        - name
+        - open_time
+        - seats
+      type: object
+    restaurant.RestaurantResponse:
+      properties:
+        address:
+          type: string
+        cancel_before_minutes:
+          type: integer
+        close_time:
+          example: 02:00
+          type: string
+        closed_weekdays:
+          description: วันปิดประจำสัปดาห์ของวันทำการ (0 = อาทิตย์ … 6 = เสาร์)
+          items:
+            type: integer
+          type: array
+        created_at:
+          type: string
+        cuisine:
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+        images:
+          items:
+            $ref: "#/components/schemas/restaurant.ImageResponse"
+          type: array
+        map_url:
+          description: ว่าง = หน้าเว็บค้นแผนที่จาก address
+          type: string
+        name:
+          type: string
+        open_24h:
+          type: boolean
+        open_time:
+          example: 18:00
+          type: string
+        overnight:
+          description: ปิดหลังเที่ยงคืน → หน้าเว็บต้องแสดงป้าย "(เช้าวันที่ n)"
+          type: boolean
+        owner_id:
+          type: string
+        rating:
+          $ref: "#/components/schemas/restaurant.RatingResponse"
+        seats:
+          type: integer
+      type: object
+    restaurant.SlotResponse:
+      properties:
+        available:
+          type: integer
+        closed:
+          type: boolean
+        end_at:
+          type: string
+        start_at:
+          type: string
+      type: object
+    review.ListResponse:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/review.ReviewResponse"
+          type: array
+        limit:
+          type: integer
+        page:
+          type: integer
+        total:
+          type: integer
+      type: object
+    review.ReviewRequest:
+      properties:
+        body:
+          example: อร่อยมาก
+          maxLength: 2000
+          type: string
+        score:
+          example: 5
+          maximum: 5
+          minimum: 1
+          type: integer
+      required:
+        - score
+      type: object
+    review.ReviewResponse:
+      properties:
+        author_name:
+          type: string
+        body:
+          type: string
+        created_at:
+          type: string
+        id:
+          type: string
+        score:
+          type: integer
+        updated_at:
+          type: string
+      type: object
+    user.MeResponse:
+      properties:
+        display_name:
+          type: string
+        email:
+          type: string
+        id:
+          type: string
+        restaurants:
+          items:
+            $ref: "#/components/schemas/user.OwnedRestaurant"
+          type: array
+      type: object
+    user.OwnedRestaurant:
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      type: object
+    jongyoung_httputil.ErrorBody:
+      properties:
+        code:
+          example: NOT_ENOUGH_SEATS
+          type: string
+        details: {}
+        message:
+          example: ที่นั่งไม่พอ
+          type: string
+      type: object
+    jongyoung_httputil.ErrorResponse:
+      properties:
+        error:
+          $ref: "#/components/schemas/jongyoung_httputil.ErrorBody"
+      type: object
