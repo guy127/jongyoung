@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+/* design tokens (CLAUDE.md ข้อ 8.2) — Day เป็นค่าเริ่มต้น, Night เปิดด้วย <html data-theme="night"> */
+:root {
+  --bg: #fbf6f1;
+  --surface: #ffffff;
+  --chip: #f4ece7;
+  --text: #261419;
+  --muted: #6f4c4d;
+  --soft: #7d625f;
+  --accent: #c5162e;
+  --eyebrow: #8a5a00;
+  --star: #b77900;
+  --sel: #007c91;
+  --sel-weak: #e3f3f5;
+  --sel-text: #ffffff;
+  --cta-from: #c5162e;
+  --cta-to: #b3361a;
+  --ok: #006e40;
+  --ok-weak: #e6f5ec;
+  --warn: #8a5a00;
+  --warn-weak: #fdf1dc;
+  --warn-line: #efcf93;
+  --full: #b0132a;
+  --full-weak: #fcebed;
+  --full-line: #f0b5bd;
+  --border: #eadcd4;
+  --border-strong: #d9c5bb;
+  --focus: #111827;
+  --glass: rgba(255, 255, 255, 0.82);
+  --owner-bar: #261419;
+  --glow: radial-gradient(circle at 12% 0%, rgba(197, 22, 46, 0.1), transparent 520px),
+    radial-gradient(circle at 90% 0%, rgba(0, 124, 145, 0.08), transparent 480px);
+  color-scheme: light;
+}
+
+[data-theme="night"] {
+  --bg: #11070a;
+  --surface: #1b0e12;
+  --chip: #26151a;
+  --text: #fff7ed;
+  --muted: #d7b8b4;
+  --soft: #a88b8d;
+  --accent: #ff5a6e;
+  --eyebrow: #ffb703;
+  --star: #ffb703;
+  --sel: #43e8ff;
+  --sel-weak: rgba(67, 232, 255, 0.12);
+  --sel-text: #11070a;
+  --cta-from: #e11d48;
+  --cta-to: #c2410c;
+  --ok: #27e88b;
+  --ok-weak: rgba(39, 232, 139, 0.1);
+  --warn: #ffb703;
+  --warn-weak: rgba(255, 183, 3, 0.1);
+  --warn-line: rgba(255, 183, 3, 0.35);
+  --full: #ff6b7f;
+  --full-weak: rgba(255, 53, 79, 0.12);
+  --full-line: rgba(255, 53, 79, 0.4);
+  --border: #3a262c;
+  --border-strong: #4d333a;
+  --focus: #ffffff;
+  --glass: rgba(27, 14, 18, 0.82);
+  --owner-bar: #000000;
+  --glow: radial-gradient(circle at 12% 0%, rgba(255, 53, 79, 0.22), transparent 520px),
+    radial-gradient(circle at 90% 0%, rgba(67, 232, 255, 0.12), transparent 480px);
+  color-scheme: dark;
+}
+
+/* ให้ Tailwind สร้าง utility จาก token เช่น bg-surface, text-muted, border-border */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-chip: var(--chip);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-soft: var(--soft);
+  --color-accent: var(--accent);
+  --color-eyebrow: var(--eyebrow);
+  --color-star: var(--star);
+  --color-sel: var(--sel);
+  --color-sel-weak: var(--sel-weak);
+  --color-sel-text: var(--sel-text);
+  --color-ok: var(--ok);
+  --color-ok-weak: var(--ok-weak);
+  --color-warn: var(--warn);
+  --color-warn-weak: var(--warn-weak);
+  --color-warn-line: var(--warn-line);
+  --color-full: var(--full);
+  --color-full-weak: var(--full-weak);
+  --color-full-line: var(--full-line);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --font-sans: var(--font-prompt), sans-serif;
+  --font-display: var(--font-kanit), var(--font-prompt), sans-serif;
+}
+
+body {
+  background: var(--glow) no-repeat, var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+}
+
+h1, h2, h3 {
+  line-height: 1.25; /* หัวข้อไทยห้ามแน่นกว่านี้ สระ/วรรณยุกต์จะชนบรรทัดบน */
+}
+
+/* focus ring คนละสีกับช่วงเวลาที่เลือก (--sel) */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ปุ่มหลัก 1 ปุ่มต่อหน้าจอ */
+.cta {
+  background: linear-gradient(135deg, var(--cta-from), var(--cta-to));
+  color: #fff;
+}
+
+/* กระจกขุ่นใช้แค่ navbar / hero / แผงจอง (ข้อ 8.0) */
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* ตัวสลับธีม: CSS เลือกว่าจะโชว์ Day หรือ Night ตาม <html data-theme> (ไม่ต้องมี state ใน React) */
+.theme-night { display: none; }
+[data-theme="night"] .theme-day { display: none; }
+[data-theme="night"] .theme-night { display: inline-flex; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

@@ -71,13 +71,30 @@ services:
       keycloak:
         condition: service_started
 
+  web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://api.jongyoung.localhost/api/v1
+    restart: unless-stopped
+    environment:
+      NEXTAUTH_URL: http://jongyoung.localhost
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      # ชื่อเดียวกับที่ browser เห็น (ผ่าน alias ของ caddy) → issuer ตรงกับใน token
+      KEYCLOAK_ISSUER: http://keycloak.jongyoung.localhost/realms/jongyoung
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+    depends_on:
+      - api
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
       - "80:80"
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # mount ทั้งโฟลเดอร์ (mount ไฟล์เดี่ยวบน WSL/Rancher Desktop พังง่ายเมื่อไฟล์ถูกแก้)
+      - ./caddy:/etc/caddy:ro
     networks:
       default:
         aliases:

@@ -1,0 +1,59 @@
+import Image from "next/image";
+import Link from "next/link";
+
+import Rating from "@/components/bases/Rating";
+import TimeChip, { chipNote } from "@/components/bases/TimeChip";
+import { chipState, fmtTime, nextDayLabel } from "@/lib/format";
+import type { ListItem } from "@/lib/types";
+
+import NextAvailableHint from "./NextAvailableHint";
+
+type Props = { restaurant: ListItem; date: string; time: string; party: number };
+
+/** การ์ดร้าน (พื้นทึบ ไม่ใช้ glass) + ปุ่มเวลา 5 ช่วงรอบเวลาที่ค้น — กดแล้วไปหน้าร้านพร้อมเวลาที่เลือกไว้ */
+export default function RestaurantCard({ restaurant: r, date, time, party }: Props) {
+  const detail = `/restaurants/${r.id}`;
+  const slots = r.slots ?? [];
+  const chips = slots.map((s) => {
+    const state = chipState(s, r.seats, party);
+    const clock = fmtTime(s.start_at);
+    return { s, state, clock, dayLabel: nextDayLabel(s.start_at, date) };
+  });
+  const anyBookable = chips.some((c) => c.state === "ok" || c.state === "low");
+  const allClosed = chips.length > 0 && chips.every((c) => c.state === "closed");
+  const cover = r.images[0]?.url;
+
+  return (
+    <article className="flex flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_1px_2px_rgba(38,20,25,.05)]">
+      <Link href={`${detail}?date=${date}&time=${time}&party_size=${party}`} className="relative block aspect-[16/8] bg-chip">
+        {cover && <Image src={cover} alt={`รูปร้าน ${r.name}`} fill sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw" className="object-cover" />}
+        {r.cuisine && <span className="absolute left-3 top-3 rounded-full bg-black/55 px-2.5 py-0.5 text-[13px] text-white">{r.cuisine}</span>}
+      </Link>
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        <div className="flex flex-col gap-1">
+          <Link href={`${detail}?date=${date}&time=${time}&party_size=${party}`} className="text-[19px] font-semibold">{r.name}</Link>
+          <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted tabular">
+            <Rating rating={r.rating} />
+            <span>· {r.open_24h ? "เปิด 24 ชม." : `${r.open_time}–${r.close_time}`}</span>
+          </div>
+          {r.overnight && <span className="text-[13px] text-muted">เปิดถึง {r.close_time} ของเช้าวันถัดไป</span>}
+        </div>
+
+        {anyBookable && (
+          <div role="group" aria-label={`เวลาว่างของ ${r.name}`} className="mt-auto grid grid-cols-5 gap-1.5">
+            {chips.map(({ s, state, clock, dayLabel }) => (
+              <TimeChip key={s.start_at} time={clock} state={state} note={chipNote(state, s.available)} dayLabel={dayLabel}
+                href={`${detail}?date=${date}&time=${clock}&party_size=${party}`} />
+            ))}
+          </div>
+        )}
+        {!anyBookable && slots.length > 0 && (
+          <div className="mt-auto flex flex-col gap-2 rounded-xl border border-dashed border-border-strong p-3">
+            <span className="text-sm font-medium">{allClosed ? "ร้านปิดช่วงเวลานี้" : "เต็มช่วงเวลานี้"}</span>
+            <NextAvailableHint restaurantId={r.id} date={date} time={time} party={party} />
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
