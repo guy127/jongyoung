@@ -57,7 +57,7 @@ func TestSlotsAround(t *testing.T) {
 
 	t.Run("5 ช่วงรอบเวลาที่ค้น ช่วงนอกเวลาเปิดเป็น closed", func(t *testing.T) {
 		// ร้านเปิด 18:00 ค้น 18:30 → 17:30, 18:00, 18:30, 19:00, 19:30
-		s := SlotsAround(overnight, 10, nil, date, 18*60+30, longAgo)
+		s := SlotsAround(overnight, 10, nil, nil, date, 18*60+30, longAgo)
 		require.Len(t, s, 5)
 		assert.True(t, s[0].StartAt.Equal(bkk(2026, 10, 10, 17, 30)))
 		assert.True(t, s[0].Closed, "17:30 ร้านยังไม่เปิด")
@@ -66,14 +66,14 @@ func TestSlotsAround(t *testing.T) {
 	})
 
 	t.Run("ค้นเวลาหลังเที่ยงคืนของรอบข้ามคืน → ได้ช่วงของเช้าวันถัดไป", func(t *testing.T) {
-		s := SlotsAround(overnight, 10, nil, date, 60, longAgo) // 01:00 ของรอบวันที่ 10
+		s := SlotsAround(overnight, 10, nil, nil, date, 60, longAgo) // 01:00 ของรอบวันที่ 10
 		assert.True(t, s[2].StartAt.Equal(bkk(2026, 10, 11, 1, 0)))
 		assert.False(t, s[2].Closed)
 		assert.True(t, s[4].Closed, "02:00 ร้านปิดแล้ว")
 	})
 
 	t.Run("ช่วงที่เลย lead time แล้วเป็น closed", func(t *testing.T) {
-		s := SlotsAround(normal, 10, nil, date, 12*60, bkk(2026, 10, 10, 11, 45))
+		s := SlotsAround(normal, 10, nil, nil, date, 12*60, bkk(2026, 10, 10, 11, 45))
 		assert.True(t, s[0].Closed, "11:00 ผ่านไปแล้ว")
 		assert.True(t, s[1].Closed, "11:30 ผ่านไปแล้ว")
 		assert.True(t, s[2].Closed, "12:00 เหลือแค่ 15 นาที น้อยกว่า lead time")
@@ -82,7 +82,7 @@ func TestSlotsAround(t *testing.T) {
 
 	t.Run("ที่ว่างนับจาก booking", func(t *testing.T) {
 		b := bk(8, bkk(2026, 10, 10, 19, 0), bkk(2026, 10, 10, 20, 0))
-		s := SlotsAround(overnight, 10, []Booking{b}, date, 19*60, longAgo)
+		s := SlotsAround(overnight, 10, []Booking{b}, nil, date, 19*60, longAgo)
 		assert.Equal(t, 2, s[2].Available)
 		assert.Equal(t, 10, s[4].Available)
 	})
@@ -107,7 +107,7 @@ func TestCheckHoursChangeClosedWeekday(t *testing.T) {
 
 func TestSlotsAroundBreak(t *testing.T) {
 	longAgo := bkk(2026, 10, 1, 0, 0)
-	s := SlotsAround(lunchDinner, 10, nil, bkk(2026, 10, 10, 0, 0), 14*60, longAgo)
+	s := SlotsAround(lunchDinner, 10, nil, nil, bkk(2026, 10, 10, 0, 0), 14*60, longAgo)
 	require.Len(t, s, 5)
 	closed := []bool{s[0].Closed, s[1].Closed, s[2].Closed, s[3].Closed, s[4].Closed}
 	assert.Equal(t, []bool{false, false, true, true, true}, closed, "13:00 13:30 เปิด / 14:00 14:30 15:00 พัก")

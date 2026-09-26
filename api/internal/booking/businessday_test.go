@@ -258,3 +258,30 @@ func TestOpenAtMinuteBreak(t *testing.T) {
 	assert.False(t, overnightBreak.OpenAtMinute(23*60+30))
 	assert.True(t, overnightBreak.OpenAtMinute(0))
 }
+
+func TestSpanAndDays(t *testing.T) {
+	start, end := overnight.Span(bkk(2026, 10, 10, 0, 0), 23*60, 60)
+	assert.True(t, start.Equal(bkk(2026, 10, 10, 23, 0)), "start = %s", start)
+	assert.True(t, end.Equal(bkk(2026, 10, 11, 1, 0)), "01:00 ของรอบวันที่ 10 = เช้าวันที่ 11 (end = %s)", end)
+
+	start, end = overnight.Span(bkk(2026, 10, 10, 0, 0), 30, 90)
+	assert.True(t, start.Equal(bkk(2026, 10, 11, 0, 30)), "00:30 ของรอบวันที่ 10 = เช้าวันที่ 11 (start = %s)", start)
+	assert.True(t, end.Equal(bkk(2026, 10, 11, 1, 30)))
+
+	start, end = overnight.Days(bkk(2026, 10, 10, 0, 0), bkk(2026, 10, 12, 0, 0))
+	assert.True(t, start.Equal(bkk(2026, 10, 10, 18, 0)))
+	assert.True(t, end.Equal(bkk(2026, 10, 13, 2, 0)), "ถึงเวลาปิดของรอบวันที่ 12 = ตีสองวันที่ 13 (end = %s)", end)
+}
+
+func TestClosureAt(t *testing.T) {
+	a := Closure{Reason: "ไฟดับ", StartAt: bkk(2026, 10, 10, 18, 0), EndAt: bkk(2026, 10, 10, 20, 0)}
+	b := Closure{Reason: "ปรับปรุง", StartAt: bkk(2026, 10, 10, 21, 0), EndAt: bkk(2026, 10, 10, 22, 0)}
+	list := []Closure{a, b}
+
+	assert.Nil(t, closureAt(nil, bkk(2026, 10, 10, 18, 0), bkk(2026, 10, 10, 19, 0)))
+	assert.Nil(t, closureAt(list, bkk(2026, 10, 10, 17, 0), bkk(2026, 10, 10, 18, 0)), "จบตอนเริ่มปิดพอดี = ไม่ทับ")
+	assert.Nil(t, closureAt(list, bkk(2026, 10, 10, 20, 0), bkk(2026, 10, 10, 21, 0)), "อยู่ระหว่างสองช่วงพอดี")
+	got := closureAt(list, bkk(2026, 10, 10, 19, 30), bkk(2026, 10, 10, 21, 30))
+	require.NotNil(t, got)
+	assert.Equal(t, "ไฟดับ", got.Reason, "ทับสองช่วง → คืนตัวแรก")
+}

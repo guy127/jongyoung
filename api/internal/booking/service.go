@@ -31,14 +31,9 @@ type Choice struct {
 	PartySize   int
 }
 
-// toRequest แปลงตัวเลือกเป็นเวลาจริงผ่าน Hours.At (เวลาที่น้อยกว่าเวลาเปิด = หลังเที่ยงคืนของรอบนั้น)
-// ถ้าเวลาจบไม่หลังเวลาเริ่ม (เช่นร้าน 24 ชม. 23:30–00:00) แปลว่าจบวันถัดไป
+// toRequest แปลงตัวเลือกเป็นเวลาจริงผ่าน Hours.Span (เวลาที่น้อยกว่าเวลาเปิด = หลังเที่ยงคืนของรอบนั้น)
 func (c Choice) toRequest(h Hours) Request {
-	start := h.At(c.Date, c.StartMinute)
-	end := h.At(c.Date, c.EndMinute)
-	if !end.After(start) {
-		end = end.AddDate(0, 0, 1)
-	}
+	start, end := h.Span(c.Date, c.StartMinute, c.EndMinute)
 	return Request{StartAt: start, EndAt: end, PartySize: c.PartySize}
 }
 
@@ -166,7 +161,7 @@ func (s *service) Board(ctx context.Context, userID, restaurantID uuid.UUID, dat
 		}
 	}
 	// now = เวลาศูนย์ → ไม่ตัดช่วงที่ผ่านไปแล้วออก (เจ้าของต้องเห็นทั้งรอบ)
-	slots := Slots(r.Hours(), r.Seats, active, date, time.Time{})
+	slots := Slots(r.Hours(), r.Seats, active, nil, date, time.Time{})
 	return Board{Restaurant: r, Closed: r.Hours().ClosedOn(date), OpensAt: opensAt, ClosesAt: closesAt, Bookings: views, Slots: slots}, nil
 }
 

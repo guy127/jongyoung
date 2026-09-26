@@ -167,3 +167,32 @@ func (h Hours) Fits(start, end time.Time) bool {
 	next := date.AddDate(0, 0, 1)
 	return h.Is24h() && !h.ClosedOn(next) && !h.overlapsBreak(next, start, end) && !end.After(closesAt.Add(24*time.Hour))
 }
+
+// Span แปลงช่วงเวลาบนนาฬิกาในวันทำการ date เป็นช่วงจริง (ใช้ทั้งการจองและการปิดร้านบางช่วง)
+// ผ่าน At จึงรองรับร้านข้ามคืน; เวลาจบที่ไม่หลังเวลาเริ่ม (เช่นร้าน 24 ชม. 23:30–00:00) แปลว่าจบวันถัดไป
+func (h Hours) Span(date time.Time, startMinute, endMinute int) (start, end time.Time) {
+	start = h.At(date, startMinute)
+	end = h.At(date, endMinute)
+	if !end.After(start) {
+		end = end.AddDate(0, 0, 1)
+	}
+	return start, end
+}
+
+// Days คืนช่วงตั้งแต่เวลาเปิดของวันทำการ from ถึงเวลาปิดของวันทำการ to (ปิดร้านทั้งวัน/หลายวัน)
+func (h Hours) Days(from, to time.Time) (start, end time.Time) {
+	start, _ = h.Window(from)
+	_, end = h.Window(to)
+	return start, end
+}
+
+// closureAt คืนช่วงปิดตัวแรกที่ทับ [start,end) — nil ถ้าไม่ทับ (จบตอนเริ่มปิดพอดี = ไม่ทับ)
+// ใช้ทั้งตอนจอง/แก้การจองและตอนคำนวณตารางเวลาว่าง — มีฟังก์ชันเดียว ห้ามเขียนซ้ำ
+func closureAt(closures []Closure, start, end time.Time) *Closure {
+	for i := range closures {
+		if start.Before(closures[i].EndAt) && end.After(closures[i].StartAt) {
+			return &closures[i]
+		}
+	}
+	return nil
+}

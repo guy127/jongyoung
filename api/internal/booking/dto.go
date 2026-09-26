@@ -74,8 +74,9 @@ func Code(id uuid.UUID) string {
 	return "JY-" + strings.ToUpper(strings.ReplaceAll(id.String(), "-", "")[:6])
 }
 
-// businessDate: ถ้าเวลาเริ่มอยู่ก่อนเวลาเปิดของวันปฏิทินนั้น แปลว่าเป็นส่วนหลังเที่ยงคืนของรอบเมื่อวาน
-func businessDate(start time.Time, h Hours) string {
+// BusinessDateOf: วันทำการของการจองที่เริ่ม start — ถ้าเวลาเริ่มอยู่ก่อนเวลาเปิดของวันปฏิทินนั้น แปลว่าเป็นส่วนหลังเที่ยงคืนของรอบเมื่อวาน
+// export ไว้ให้ package restaurant ใช้ทำ notification ด้วยกติกาเดียวกัน
+func BusinessDateOf(start time.Time, h Hours) string {
 	local := start.In(Bangkok)
 	opensAt, _ := h.Window(local)
 	if !h.Is24h() && local.Before(opensAt) {
@@ -97,7 +98,7 @@ func NewBookingResponse(v View, now time.Time) BookingResponse {
 		PartySize:    v.PartySize,
 		StartAt:      v.StartAt.In(Bangkok),
 		EndAt:        v.EndAt.In(Bangkok),
-		BusinessDate: businessDate(v.StartAt, h),
+		BusinessDate: BusinessDateOf(v.StartAt, h),
 		Status:       v.Status,
 		CancelUntil:  until.In(Bangkok),
 		CanChange:    v.Status == StatusActive && v.StartAt.After(now) && CanCancel(v.StartAt, v.CancelBeforeMinutes, now),

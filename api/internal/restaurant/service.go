@@ -174,7 +174,7 @@ func (s *service) List(ctx context.Context, q ListQuery) ([]ListItem, int64, err
 	}
 	now := s.now()
 	for i, r := range list {
-		items[i].Slots = booking.SlotsAround(r.Hours(), r.Seats, byRestaurant[r.ID], *q.Date, q.Minute, now)
+		items[i].Slots = booking.SlotsAround(r.Hours(), r.Seats, byRestaurant[r.ID], nil, *q.Date, q.Minute, now)
 	}
 	return items, total, nil
 }
@@ -190,7 +190,7 @@ func (s *service) Availability(ctx context.Context, id uuid.UUID, date time.Time
 	if err != nil {
 		return Restaurant{}, nil, err
 	}
-	return rest, booking.Slots(rest.Hours(), rest.Seats, bookings, date, s.now()), nil
+	return rest, booking.Slots(rest.Hours(), rest.Seats, bookings, nil, date, s.now()), nil
 }
 
 // NextAvailable หาวันทำการแรก (ตั้งแต่ date ถึง date+14) ที่ยังมีช่วงว่างพอสำหรับ party คน
@@ -213,13 +213,13 @@ func (s *service) NextAvailable(ctx context.Context, id uuid.UUID, date time.Tim
 	now := s.now()
 	for day := 0; day <= nextAvailableDays; day++ {
 		d := date.AddDate(0, 0, day)
-		around := booking.SlotsAround(h, rest.Seats, bookings, d, minute, now)
+		around := booking.SlotsAround(h, rest.Seats, bookings, nil, d, minute, now)
 		var ok []booking.CardSlot
 		if day > 0 {
 			ok = freeSlots(around, party)
 		}
 		if len(ok) == 0 && !h.OpenAtMinute(minute) {
-			ok = firstFree(booking.Slots(h, rest.Seats, bookings, d, now), party, len(around))
+			ok = firstFree(booking.Slots(h, rest.Seats, bookings, nil, d, now), party, len(around))
 		}
 		if len(ok) > 0 {
 			return &NextAvailable{Date: d, Slots: ok}, nil

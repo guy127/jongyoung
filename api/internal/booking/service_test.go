@@ -193,10 +193,10 @@ func TestServiceGetAndBoard(t *testing.T) {
 }
 
 func TestBusinessDateLabel(t *testing.T) {
-	assert.Equal(t, "2026-10-10", businessDate(bkk(2026, 10, 11, 0, 30), overnight), "00:30 เช้าวันที่ 11 เป็นของรอบวันที่ 10")
-	assert.Equal(t, "2026-10-10", businessDate(bkk(2026, 10, 10, 23, 0), overnight))
-	assert.Equal(t, "2026-10-10", businessDate(bkk(2026, 10, 10, 12, 0), normal))
-	assert.Equal(t, "2026-10-11", businessDate(bkk(2026, 10, 11, 0, 30), allDay))
+	assert.Equal(t, "2026-10-10", BusinessDateOf(bkk(2026, 10, 11, 0, 30), overnight), "00:30 เช้าวันที่ 11 เป็นของรอบวันที่ 10")
+	assert.Equal(t, "2026-10-10", BusinessDateOf(bkk(2026, 10, 10, 23, 0), overnight))
+	assert.Equal(t, "2026-10-10", BusinessDateOf(bkk(2026, 10, 10, 12, 0), normal))
+	assert.Equal(t, "2026-10-11", BusinessDateOf(bkk(2026, 10, 11, 0, 30), allDay))
 }
 
 func TestCode(t *testing.T) {

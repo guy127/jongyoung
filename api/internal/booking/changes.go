@@ -66,12 +66,12 @@ type CardSlot struct {
 	StartAt   time.Time
 	EndAt     time.Time
 	Available int
-	Closed    bool // ร้านปิดช่วงนั้น หรือจองไม่ทันแล้ว (เลย lead time)
+	Closed    bool // ร้านปิดช่วงนั้น (นอกเวลา/ช่วงพัก/ปิดชั่วคราว) หรือจองไม่ทันแล้ว (เลย lead time)
 }
 
 // SlotsAround คืน 5 ช่วงรอบเวลาที่ผู้ใช้ค้น (ก่อน 2 ช่วง, ตรงเวลา, หลัง 2 ช่วง) ของวันทำการ date
 // minuteOfDay คือเวลาบนนาฬิกาที่ผู้ใช้เลือก — แปลงผ่าน Hours.At จึงรองรับร้านข้ามคืน
-func SlotsAround(h Hours, seats int, bookings []Booking, date time.Time, minuteOfDay int, now time.Time) []CardSlot {
+func SlotsAround(h Hours, seats int, bookings []Booking, closures []Closure, date time.Time, minuteOfDay int, now time.Time) []CardSlot {
 	center := h.At(date, minuteOfDay)
 	earliest := now.Add(LeadTime)
 	slots := make([]CardSlot, 0, 5)
@@ -79,7 +79,7 @@ func SlotsAround(h Hours, seats int, bookings []Booking, date time.Time, minuteO
 		start := center.Add(time.Duration(i) * SlotLength)
 		end := start.Add(SlotLength)
 		s := CardSlot{StartAt: start, EndAt: end}
-		if !h.Fits(start, end) || start.Before(earliest) {
+		if !h.Fits(start, end) || start.Before(earliest) || closureAt(closures, start, end) != nil {
 			s.Closed = true
 		} else {
 			peak, _ := maxConcurrent(bookings, start, end)

@@ -40,9 +40,9 @@ type Slot struct {
 }
 
 // Slots คืนทุกช่วง 30 นาทีของรอบวันทำการ date
-// bookings = booking 'active' ที่ทับกับรอบนั้น; ช่วงที่เริ่มก่อน now+LeadTime จองไม่ได้แล้ว และช่วงพักของร้าน จึงไม่อยู่ในลิสต์
+// bookings = booking 'active' ที่ทับกับรอบนั้น; ช่วงที่เริ่มก่อน now+LeadTime จองไม่ได้แล้ว, ช่วงพัก และช่วงที่ร้านปิดชั่วคราว จึงไม่อยู่ในลิสต์
 // วันปิดประจำสัปดาห์ไม่มีรอบ → คืนลิสต์ว่าง
-func Slots(h Hours, seats int, bookings []Booking, date, now time.Time) []Slot {
+func Slots(h Hours, seats int, bookings []Booking, closures []Closure, date, now time.Time) []Slot {
 	if h.ClosedOn(date) {
 		return nil
 	}
@@ -51,7 +51,7 @@ func Slots(h Hours, seats int, bookings []Booking, date, now time.Time) []Slot {
 	var slots []Slot
 	for t := opensAt; t.Before(closesAt); t = t.Add(SlotLength) {
 		end := t.Add(SlotLength)
-		if t.Before(earliest) || h.overlapsBreak(date, t, end) {
+		if t.Before(earliest) || h.overlapsBreak(date, t, end) || closureAt(closures, t, end) != nil {
 			continue
 		}
 		peak, _ := maxConcurrent(bookings, t, end)

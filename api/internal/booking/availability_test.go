@@ -30,7 +30,7 @@ func TestSlots(t *testing.T) {
 	longAgo := bkk(2026, 10, 1, 0, 0)
 
 	t.Run("13) ข้ามคืน date=10 → 18:00 วันที่ 10 ถึงช่วงสุดท้าย 01:30 วันที่ 11", func(t *testing.T) {
-		s := Slots(overnight, 10, nil, bkk(2026, 10, 10, 0, 0), longAgo)
+		s := Slots(overnight, 10, nil, nil, bkk(2026, 10, 10, 0, 0), longAgo)
 		require.Len(t, s, 16)
 		assert.True(t, s[0].StartAt.Equal(bkk(2026, 10, 10, 18, 0)))
 		assert.True(t, s[15].StartAt.Equal(bkk(2026, 10, 11, 1, 30)))
@@ -38,7 +38,7 @@ func TestSlots(t *testing.T) {
 	})
 
 	t.Run("14) ข้ามคืน date=11 → ไม่มีช่วงตี 0–2 ของเช้าวันที่ 11", func(t *testing.T) {
-		s := Slots(overnight, 10, nil, bkk(2026, 10, 11, 0, 0), longAgo)
+		s := Slots(overnight, 10, nil, nil, bkk(2026, 10, 11, 0, 0), longAgo)
 		require.NotEmpty(t, s)
 		for _, slot := range s {
 			assert.False(t, slot.StartAt.Before(bkk(2026, 10, 11, 18, 0)), "เจอช่วง %s ซึ่งเป็นของรอบวันที่ 10", slot.StartAt)
@@ -47,7 +47,7 @@ func TestSlots(t *testing.T) {
 
 	t.Run("ที่ว่างต่อช่วงคิดจาก peak ภายในช่วง", func(t *testing.T) {
 		b := bk(4, bkk(2026, 10, 11, 0, 30), bkk(2026, 10, 11, 1, 30))
-		s := Slots(overnight, 10, []Booking{b}, bkk(2026, 10, 10, 0, 0), longAgo)
+		s := Slots(overnight, 10, []Booking{b}, nil, bkk(2026, 10, 10, 0, 0), longAgo)
 		byStart := map[string]int{}
 		for _, slot := range s {
 			byStart[slot.StartAt.Format("02 15:04")] = slot.Available
@@ -59,13 +59,13 @@ func TestSlots(t *testing.T) {
 	})
 
 	t.Run("วันนี้ตัดช่วงที่เริ่มก่อน now+30 นาที แต่เก็บช่วงที่ตรงพอดี", func(t *testing.T) {
-		s := Slots(overnight, 10, nil, bkk(2026, 10, 10, 0, 0), bkk(2026, 10, 10, 18, 30))
+		s := Slots(overnight, 10, nil, nil, bkk(2026, 10, 10, 0, 0), bkk(2026, 10, 10, 18, 30))
 		require.NotEmpty(t, s)
 		assert.True(t, s[0].StartAt.Equal(bkk(2026, 10, 10, 19, 0)))
 	})
 
 	t.Run("24 ชม. มี 48 ช่วง", func(t *testing.T) {
-		assert.Len(t, Slots(allDay, 10, nil, bkk(2026, 10, 10, 0, 0), longAgo), 48)
+		assert.Len(t, Slots(allDay, 10, nil, nil, bkk(2026, 10, 10, 0, 0), longAgo), 48)
 	})
 }
 
@@ -112,10 +112,10 @@ func TestSlotsClosedWeekday(t *testing.T) {
 	h := overnight
 	h.ClosedWeekdays = WeekdayMask(time.Monday)
 	longAgo := bkk(2026, 1, 1, 0, 0)
-	assert.Empty(t, Slots(h, 10, nil, bkk(2026, 10, 12, 0, 0), longAgo), "วันจันทร์ไม่มีรอบ")
-	assert.Len(t, Slots(h, 10, nil, bkk(2026, 10, 11, 0, 0), longAgo), 16, "รอบวันอาทิตย์ยังครบถึงตีสองเช้าวันจันทร์")
+	assert.Empty(t, Slots(h, 10, nil, nil, bkk(2026, 10, 12, 0, 0), longAgo), "วันจันทร์ไม่มีรอบ")
+	assert.Len(t, Slots(h, 10, nil, nil, bkk(2026, 10, 11, 0, 0), longAgo), 16, "รอบวันอาทิตย์ยังครบถึงตีสองเช้าวันจันทร์")
 
-	cards := SlotsAround(h, 10, nil, bkk(2026, 10, 12, 0, 0), 19*60, longAgo)
+	cards := SlotsAround(h, 10, nil, nil, bkk(2026, 10, 12, 0, 0), 19*60, longAgo)
 	for _, s := range cards {
 		assert.True(t, s.Closed, "ปุ่มเวลาวันปิดต้องเป็น closed ทั้งหมด")
 	}
@@ -123,9 +123,23 @@ func TestSlotsClosedWeekday(t *testing.T) {
 
 func TestSlotsSkipBreak(t *testing.T) {
 	longAgo := bkk(2026, 10, 1, 0, 0)
-	s := Slots(lunchDinner, 10, nil, bkk(2026, 10, 10, 0, 0), longAgo)
+	s := Slots(lunchDinner, 10, nil, nil, bkk(2026, 10, 10, 0, 0), longAgo)
 	require.Len(t, s, 16, "11:00–14:00 = 6 ช่วง + 17:00–22:00 = 10 ช่วง")
 	assert.True(t, s[5].StartAt.Equal(bkk(2026, 10, 10, 13, 30)))
 	assert.True(t, s[5].EndAt.Equal(bkk(2026, 10, 10, 14, 0)))
 	assert.True(t, s[6].StartAt.Equal(bkk(2026, 10, 10, 17, 0)), "ถัดจาก 13:30 คือ 17:00 — ช่วงพักไม่อยู่ในลิสต์")
+}
+
+func TestSlotsSkipClosure(t *testing.T) {
+	longAgo := bkk(2026, 10, 1, 0, 0)
+	closed := []Closure{{Reason: "ไฟดับ", StartAt: bkk(2026, 10, 10, 18, 0), EndAt: bkk(2026, 10, 10, 20, 0)}}
+
+	s := Slots(normal, 10, nil, closed, bkk(2026, 10, 10, 0, 0), longAgo)
+	require.Len(t, s, 18, "22 ช่วง − 4 ช่วงที่ปิด")
+	assert.True(t, s[13].StartAt.Equal(bkk(2026, 10, 10, 17, 30)))
+	assert.True(t, s[14].StartAt.Equal(bkk(2026, 10, 10, 20, 0)), "ถัดจาก 17:30 คือ 20:00")
+
+	cards := SlotsAround(normal, 10, nil, closed, bkk(2026, 10, 10, 0, 0), 18*60, longAgo)
+	assert.Equal(t, []bool{false, false, true, true, true},
+		[]bool{cards[0].Closed, cards[1].Closed, cards[2].Closed, cards[3].Closed, cards[4].Closed}, "17:00 17:30 เปิด / 18:00–19:00 ปิด")
 }
