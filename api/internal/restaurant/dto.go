@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"jongyoung/internal/booking"
 
@@ -228,6 +229,82 @@ func newSlots(slots []booking.Slot) []SlotResponse {
 	out := make([]SlotResponse, len(slots))
 	for i, s := range slots {
 		out[i] = SlotResponse{StartAt: s.StartAt.In(booking.Bangkok), EndAt: s.EndAt.In(booking.Bangkok), Available: s.Available}
+	}
+	return out
+}
+
+// ClosureRequest: ปิดบางช่วงของวันทำการ (date + start_time + end_time) หรือทั้งวัน/หลายวัน (from_date + to_date) อย่างใดอย่างหนึ่ง
+// ส่งครั้งแรกไม่ต้องมี confirm_booking_ids — ถ้ามีการจองทับ API ตอบ 409 พร้อมรายการ แล้วส่งซ้ำพร้อม id ที่เห็น
+type ClosureRequest struct {
+	Date              string      `json:"date" example:"2026-10-15"`
+	StartTime         string      `json:"start_time" example:"18:00"`
+	EndTime           string      `json:"end_time" example:"20:00"`
+	FromDate          string      `json:"from_date" example:"2026-10-20"`
+	ToDate            string      `json:"to_date" example:"2026-10-22"`
+	Reason            string      `json:"reason" example:"ไฟดับทั้งซอย"`
+	ConfirmBookingIDs []uuid.UUID `json:"confirm_booking_ids"`
+}
+
+// ToInput ตรวจรูปแบบ (ช่วงเวลาจริงคำนวณใน service เพราะต้องรู้เวลาเปิดของร้าน)
+func (req ClosureRequest) ToInput() (ClosureInput, error) {
+	reason := strings.TrimSpace(req.Reason)
+	if reason == "" || utf8.RuneCountInString(reason) > 200 {
+		return ClosureInput{}, ErrInvalidClosure
+	}
+	in := ClosureInput{Reason: reason, ConfirmBookingIDs: req.ConfirmBookingIDs}
+	partial := req.Date != "" || req.StartTime != "" || req.EndTime != ""
+	days := req.FromDate != "" || req.ToDate != ""
+	var err error
+	switch {
+	case partial && !days:
+		in.Partial = true
+		if in.Date, err = booking.ParseDate(req.Date); err != nil {
+			return ClosureInput{}, ErrInvalidClosure
+		}
+		if in.StartMinute, err = ParseClock(req.StartTime); err != nil {
+			return ClosureInput{}, ErrInvalidClosure
+		}
+		if in.EndMinute, err = ParseClock(req.EndTime); err != nil || in.EndMinute == in.StartMinute {
+			return ClosureInput{}, ErrInvalidClosure
+		}
+	case days && !partial:
+		if in.FromDate, err = booking.ParseDate(req.FromDate); err != nil {
+			return ClosureInput{}, ErrInvalidClosure
+		}
+		if in.ToDate, err = booking.ParseDate(req.ToDate); err != nil || in.ToDate.Before(in.FromDate) {
+			return ClosureInput{}, ErrInvalidClosure
+		}
+	default: // ผสมสองแบบ หรือไม่ส่งช่วงเวลาเลย
+		return ClosureInput{}, ErrInvalidClosure
+	}
+	return in, nil
+}
+
+type ClosureResponse struct {
+	ID      uuid.UUID `json:"id"`
+	StartAt time.Time `json:"start_at"`
+	EndAt   time.Time `json:"end_at"`
+	Reason  string    `json:"reason"`
+}
+
+func newClosure(c booking.Closure) ClosureResponse {
+	return ClosureResponse{ID: c.ID, StartAt: c.StartAt.In(booking.Bangkok), EndAt: c.EndAt.In(booking.Bangkok), Reason: c.Reason}
+}
+
+type AffectedBookingResponse struct {
+	ID           uuid.UUID `json:"id"`
+	Code         string    `json:"code" example:"JY-7F3K2A"`
+	CustomerName string    `json:"customer_name"`
+	StartAt      time.Time `json:"start_at"`
+	EndAt        time.Time `json:"end_at"`
+	PartySize    int       `json:"party_size"`
+}
+
+func newAffected(list []AffectedBooking) []AffectedBookingResponse {
+	out := make([]AffectedBookingResponse, len(list))
+	for i, b := range list {
+		out[i] = AffectedBookingResponse{ID: b.ID, Code: booking.Code(b.ID), CustomerName: b.CustomerName,
+			StartAt: b.StartAt.In(booking.Bangkok), EndAt: b.EndAt.In(booking.Bangkok), PartySize: b.PartySize}
 	}
 	return out
 }

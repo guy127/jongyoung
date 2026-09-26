@@ -100,3 +100,18 @@ type NextAvailable struct {
 	Date  time.Time
 	Slots []booking.CardSlot
 }
+
+// AffectedBooking = การจองที่ยังไม่เริ่มซึ่งจะถูกยกเลิก (แสดงให้เจ้าของร้านเห็นก่อนยืนยันปิดร้าน)
+type AffectedBooking struct {
+	booking.Booking
+	CustomerName string
+}
+
+// ClosureInput = คำขอปิดร้านที่ parse แล้ว: Partial = บางช่วงของวันทำการ Date, ไม่งั้น = ทั้งวัน FromDate–ToDate
+type ClosureInput struct {
+	Partial                bool
+	Date, FromDate, ToDate time.Time
+	StartMinute, EndMinute int
+	Reason                 string
+	ConfirmBookingIDs      []uuid.UUID // รายการที่เจ้าของร้านเห็นแล้วยืนยันให้ยกเลิก
+}

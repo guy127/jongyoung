@@ -101,3 +101,29 @@ func TestNewRestaurantResponseBreak(t *testing.T) {
 	assert.Equal(t, "15:00", resp.BreakStart)
 	assert.Equal(t, "17:00", resp.BreakEnd)
 }
+
+func TestClosureRequestToInput(t *testing.T) {
+	in, err := ClosureRequest{Date: "2026-10-10", StartTime: "18:00", EndTime: "20:00", Reason: " ไฟดับ "}.ToInput()
+	require.NoError(t, err)
+	assert.True(t, in.Partial)
+	assert.Equal(t, 18*60, in.StartMinute)
+	assert.Equal(t, "ไฟดับ", in.Reason)
+
+	in, err = ClosureRequest{FromDate: "2026-10-20", ToDate: "2026-10-22", Reason: "หยุดยาว"}.ToInput()
+	require.NoError(t, err)
+	assert.False(t, in.Partial)
+
+	for name, bad := range map[string]ClosureRequest{
+		"ไม่มีเหตุผล":      {Date: "2026-10-10", StartTime: "18:00", EndTime: "20:00"},
+		"เหตุผลยาวเกิน":    {Date: "2026-10-10", StartTime: "18:00", EndTime: "20:00", Reason: strings.Repeat("ก", 201)},
+		"ผสมสองแบบ":        {Date: "2026-10-10", StartTime: "18:00", EndTime: "20:00", FromDate: "2026-10-10", ToDate: "2026-10-10", Reason: "x"},
+		"ไม่ระบุช่วง":      {Reason: "x"},
+		"ไม่ลง :30":        {Date: "2026-10-10", StartTime: "18:15", EndTime: "20:00", Reason: "x"},
+		"เริ่มเท่ากับจบ":   {Date: "2026-10-10", StartTime: "18:00", EndTime: "18:00", Reason: "x"},
+		"ถึงวันก่อนจากวัน": {FromDate: "2026-10-22", ToDate: "2026-10-20", Reason: "x"},
+		"ขาดเวลาจบ":        {Date: "2026-10-10", StartTime: "18:00", Reason: "x"},
+	} {
+		_, err := bad.ToInput()
+		assert.ErrorIs(t, err, ErrInvalidClosure, name)
+	}
+}

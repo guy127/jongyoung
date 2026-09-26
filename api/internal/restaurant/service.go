@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"jongyoung/internal/booking"
+	"jongyoung/internal/notification"
 
 	"github.com/google/uuid"
 )
@@ -18,16 +19,29 @@ type Repository interface {
 	Update(ctx context.Context, rest *Restaurant) error
 	SoftDelete(ctx context.Context, id uuid.UUID) error
 	FutureBookings(ctx context.Context, restaurantID uuid.UUID, now time.Time) ([]booking.Booking, error)
-	CancelFutureBookings(ctx context.Context, restaurantID uuid.UUID, now time.Time) (int64, error)
 	BookingsBetween(ctx context.Context, restaurantIDs []uuid.UUID, from, to time.Time) ([]booking.Booking, error)
 	CountImages(ctx context.Context, restaurantID uuid.UUID) (int64, error)
 	AddImage(ctx context.Context, img *Image) error
 	DeleteImage(ctx context.Context, restaurantID, imageID uuid.UUID) error
 	List(ctx context.Context, q ListQuery) ([]Restaurant, int64, error)
+	UpcomingBookings(ctx context.Context, restaurantID uuid.UUID, now time.Time) ([]AffectedBooking, error)
+	AffectedBookings(ctx context.Context, restaurantID uuid.UUID, start, end, now time.Time) ([]AffectedBooking, error)
+	CancelByRestaurant(ctx context.Context, ids []uuid.UUID, reason string, now time.Time) error
+	Notify(ctx context.Context, d notification.Draft) error
+	CreateClosure(ctx context.Context, c *booking.Closure) error
+	ClosuresBetween(ctx context.Context, restaurantIDs []uuid.UUID, from, to time.Time) ([]booking.Closure, error)
+	UpcomingClosures(ctx context.Context, restaurantID uuid.UUID, now time.Time) ([]booking.Closure, error)
+	DeleteClosure(ctx context.Context, restaurantID, closureID uuid.UUID) (bool, error)
 }
 
 // nextAvailableDays = ค้นวันถัดไปที่ว่างได้ไกลสุดกี่วัน
 const nextAvailableDays = 14
+
+// maxClosure = ปิดชั่วคราวได้ครั้งละไม่เกิน 90 วัน (เท่าระยะจองล่วงหน้า — ไกลกว่านี้ไม่มีการจองให้กระทบ)
+const maxClosure = booking.MaxAdvance
+
+// deletedReason = เหตุผลที่ลูกค้าเห็นเมื่อร้านถูกลบ
+const deletedReason = "ร้านปิดให้บริการ"
 
 type service struct {
 	repository Repository
@@ -89,8 +103,8 @@ func (s *service) Update(ctx context.Context, userID, id uuid.UUID, in Input) (R
 	return s.repository.FindByID(ctx, id)
 }
 
-// Delete = soft delete + ยกเลิก booking ที่ยังไม่เริ่มในทรานแซกชันเดียวกัน
-// เลือกแบบนี้แทนการห้ามลบ: เจ้าของปิดร้านได้จริง และลูกค้าเห็นว่าการจองถูกยกเลิก (ไม่ใช่มาแล้วเจอร้านปิด)
+// Delete = soft delete + ยกเลิก booking ที่ยังไม่เริ่มและแจ้งลูกค้า ในทรานแซกชันเดียวกัน
+// เลือกแบบนี้แทนการห้ามลบ: เจ้าของปิดร้านได้จริง และลูกค้ารู้ว่าร้านยกเลิกให้ (ไม่ใช่มาแล้วเจอร้านปิด)
 func (s *service) Delete(ctx context.Context, userID, id uuid.UUID) error {
 	return s.repository.Transaction(ctx, func(tx Repository) error {
 		rest, err := tx.LockByID(ctx, id)
@@ -100,7 +114,11 @@ func (s *service) Delete(ctx context.Context, userID, id uuid.UUID) error {
 		if rest.OwnerID != userID {
 			return ErrNotOwner
 		}
-		if _, err := tx.CancelFutureBookings(ctx, id, s.now()); err != nil {
+		upcoming, err := tx.UpcomingBookings(ctx, id, s.now())
+		if err != nil {
+			return err
+		}
+		if err := cancelByRestaurant(ctx, tx, rest, upcoming, deletedReason, s.now()); err != nil {
 			return err
 		}
 		return tx.SoftDelete(ctx, id)
@@ -172,9 +190,17 @@ func (s *service) List(ctx context.Context, q ListQuery) ([]ListItem, int64, err
 	for _, b := range bookings {
 		byRestaurant[b.RestaurantID] = append(byRestaurant[b.RestaurantID], b)
 	}
+	closures, err := s.repository.ClosuresBetween(ctx, ids, from, to)
+	if err != nil {
+		return nil, 0, err
+	}
+	closuresOf := map[uuid.UUID][]booking.Closure{}
+	for _, c := range closures {
+		closuresOf[c.RestaurantID] = append(closuresOf[c.RestaurantID], c)
+	}
 	now := s.now()
 	for i, r := range list {
-		items[i].Slots = booking.SlotsAround(r.Hours(), r.Seats, byRestaurant[r.ID], nil, *q.Date, q.Minute, now)
+		items[i].Slots = booking.SlotsAround(r.Hours(), r.Seats, byRestaurant[r.ID], closuresOf[r.ID], *q.Date, q.Minute, now)
 	}
 	return items, total, nil
 }
@@ -190,7 +216,11 @@ func (s *service) Availability(ctx context.Context, id uuid.UUID, date time.Time
 	if err != nil {
 		return Restaurant{}, nil, err
 	}
-	return rest, booking.Slots(rest.Hours(), rest.Seats, bookings, nil, date, s.now()), nil
+	closures, err := s.repository.ClosuresBetween(ctx, []uuid.UUID{id}, opensAt, closesAt)
+	if err != nil {
+		return Restaurant{}, nil, err
+	}
+	return rest, booking.Slots(rest.Hours(), rest.Seats, bookings, closures, date, s.now()), nil
 }
 
 // NextAvailable หาวันทำการแรก (ตั้งแต่ date ถึง date+14) ที่ยังมีช่วงว่างพอสำหรับ party คน
@@ -210,16 +240,20 @@ func (s *service) NextAvailable(ctx context.Context, id uuid.UUID, date time.Tim
 	if err != nil {
 		return nil, err
 	}
+	closures, err := s.repository.ClosuresBetween(ctx, []uuid.UUID{id}, from, to)
+	if err != nil {
+		return nil, err
+	}
 	now := s.now()
 	for day := 0; day <= nextAvailableDays; day++ {
 		d := date.AddDate(0, 0, day)
-		around := booking.SlotsAround(h, rest.Seats, bookings, nil, d, minute, now)
+		around := booking.SlotsAround(h, rest.Seats, bookings, closures, d, minute, now)
 		var ok []booking.CardSlot
 		if day > 0 {
 			ok = freeSlots(around, party)
 		}
 		if len(ok) == 0 && !h.OpenAtMinute(minute) {
-			ok = firstFree(booking.Slots(h, rest.Seats, bookings, nil, d, now), party, len(around))
+			ok = firstFree(booking.Slots(h, rest.Seats, bookings, closures, d, now), party, len(around))
 		}
 		if len(ok) > 0 {
 			return &NextAvailable{Date: d, Slots: ok}, nil
@@ -266,4 +300,114 @@ func apply(rest *Restaurant, in Input) {
 	rest.BreakStartMinute = in.BreakStartMinute
 	rest.BreakEndMinute = in.BreakEndMinute
 	rest.CancelBeforeMinutes = in.CancelBeforeMinutes
+}
+
+// CreateClosure ปิดร้านชั่วคราว — ตรวจและเขียนในทรานแซกชันเดียวที่ล็อกแถวร้าน (คำขอจองที่มาพร้อมกันต่อคิวที่ล็อกเดียวกัน)
+// ถ้ามีการจองที่ยังไม่เริ่มทับช่วงปิด ต้องยืนยันด้วยรายการ id ที่ตรงกันพอดี ไม่งั้นคืน AffectsBookingsError พร้อมรายการล่าสุด
+// → ไม่มีทางยกเลิกการจองที่เจ้าของร้านยังไม่เคยเห็น (เช่นมีคนจองแทรกระหว่างที่ดูรายการอยู่)
+func (s *service) CreateClosure(ctx context.Context, userID, id uuid.UUID, in ClosureInput) (booking.Closure, error) {
+	var created booking.Closure
+	err := s.repository.Transaction(ctx, func(tx Repository) error {
+		rest, err := tx.LockByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		if rest.OwnerID != userID {
+			return ErrNotOwner
+		}
+		now := s.now()
+		start, end := closureRange(rest.Hours(), in)
+		// ปัดตอนนี้ลงเป็น :00/:30 — "ปิดตอนนี้" ตอน 15:10 เริ่มได้ที่ 15:00 (เวลาไทยต่างจาก UTC เป็นชั่วโมงเต็ม จึงปัดตรงกัน)
+		if !end.After(start) || end.Sub(start) > maxClosure || start.Before(now.Truncate(30*time.Minute)) {
+			return ErrInvalidClosure
+		}
+		affected, err := tx.AffectedBookings(ctx, id, start, end, now)
+		if err != nil {
+			return err
+		}
+		if len(affected) > 0 && !sameIDs(affected, in.ConfirmBookingIDs) {
+			return &AffectsBookingsError{Bookings: affected}
+		}
+		created = booking.Closure{RestaurantID: id, StartAt: start, EndAt: end, Reason: in.Reason}
+		if err := tx.CreateClosure(ctx, &created); err != nil {
+			return err
+		}
+		return cancelByRestaurant(ctx, tx, rest, affected, in.Reason, now)
+	})
+	return created, err
+}
+
+// closureRange แปลงคำขอเป็นช่วงเวลาจริงผ่าน businessday.go (รองรับร้านข้ามคืน)
+func closureRange(h booking.Hours, in ClosureInput) (time.Time, time.Time) {
+	if in.Partial {
+		return h.Span(in.Date, in.StartMinute, in.EndMinute)
+	}
+	return h.Days(in.FromDate, in.ToDate)
+}
+
+// sameIDs: การจองที่จะถูกยกเลิกตรงกับที่เจ้าของร้านยืนยันมาพอดีไหม (ไม่สนลำดับ)
+func sameIDs(affected []AffectedBooking, confirmed []uuid.UUID) bool {
+	if len(affected) != len(confirmed) {
+		return false
+	}
+	want := make(map[uuid.UUID]bool, len(confirmed))
+	for _, id := range confirmed {
+		want[id] = true
+	}
+	for _, b := range affected {
+		if !want[b.ID] {
+			return false
+		}
+	}
+	return true
+}
+
+// cancelByRestaurant ยกเลิกการจองด้วยเหตุผลจากร้าน แล้วแจ้งลูกค้าแต่ละราย (เรียกใน tx เดียวกัน)
+// ไม่แจ้งเจ้าของร้านที่จองร้านตัวเองไว้ — เขาเป็นคนปิดร้านเอง
+func cancelByRestaurant(ctx context.Context, tx Repository, rest Restaurant, list []AffectedBooking, reason string, now time.Time) error {
+	if len(list) == 0 {
+		return nil
+	}
+	ids := make([]uuid.UUID, len(list))
+	for i, b := range list {
+		ids[i] = b.ID
+	}
+	if err := tx.CancelByRestaurant(ctx, ids, reason, now); err != nil {
+		return err
+	}
+	for _, b := range list {
+		if b.UserID == rest.OwnerID {
+			continue
+		}
+		d := notification.Draft{Recipient: b.UserID, Kind: notification.KindCancelledByRestaurant, BookingID: b.ID,
+			BusinessDate: booking.BusinessDateOf(b.StartAt, rest.Hours()), Reason: reason}
+		if err := tx.Notify(ctx, d); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ListClosures = ช่วงปิดที่ยังไม่จบ (สาธารณะ — หน้าร้านแสดงให้ลูกค้าเห็น)
+func (s *service) ListClosures(ctx context.Context, id uuid.UUID) ([]booking.Closure, error) {
+	return s.repository.UpcomingClosures(ctx, id, s.now())
+}
+
+// DeleteClosure = เปิดร้านกลับ — การจองที่ยกเลิกไปแล้วไม่ฟื้น (ลูกค้าได้รับแจ้งแล้วและอาจไปจองที่อื่น)
+func (s *service) DeleteClosure(ctx context.Context, userID, id, closureID uuid.UUID) error {
+	rest, err := s.repository.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if rest.OwnerID != userID {
+		return ErrNotOwner
+	}
+	ok, err := s.repository.DeleteClosure(ctx, id, closureID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrClosureNotFound
+	}
+	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"jongyoung/internal/booking"
+	"jongyoung/internal/notification"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -125,7 +126,13 @@ func TestDelete(t *testing.T) {
 		repo := NewMockRepository(t)
 		expectTx(repo)
 		repo.EXPECT().LockByID(ctx, id).Return(Restaurant{ID: id, OwnerID: owner}, nil)
-		repo.EXPECT().CancelFutureBookings(ctx, id, fixedNow).Return(3, nil)
+		customer, bid := uuid.New(), uuid.New()
+		repo.EXPECT().UpcomingBookings(ctx, id, fixedNow).Return([]AffectedBooking{
+			{Booking: booking.Booking{ID: bid, UserID: customer, StartAt: time.Date(2026, 10, 10, 19, 0, 0, 0, booking.Bangkok)}},
+		}, nil)
+		repo.EXPECT().CancelByRestaurant(ctx, []uuid.UUID{bid}, "ร้านปิดให้บริการ", fixedNow).Return(nil)
+		repo.EXPECT().Notify(ctx, notification.Draft{Recipient: customer, Kind: notification.KindCancelledByRestaurant,
+			BookingID: bid, BusinessDate: "2026-10-10", Reason: "ร้านปิดให้บริการ"}).Return(nil)
 		repo.EXPECT().SoftDelete(ctx, id).Return(nil)
 		assert.NoError(t, newServiceWith(repo).Delete(ctx, owner, id))
 	})
@@ -171,6 +178,7 @@ func TestNextAvailable(t *testing.T) {
 		repo := NewMockRepository(t)
 		repo.EXPECT().FindByID(ctx, id).Return(rest, nil)
 		repo.EXPECT().BookingsBetween(ctx, []uuid.UUID{id}, mock.Anything, mock.Anything).Return(full, nil)
+		repo.EXPECT().ClosuresBetween(ctx, []uuid.UUID{id}, mock.Anything, mock.Anything).Return(nil, nil)
 		next, err := newServiceWith(repo).NextAvailable(ctx, id, date, 19*60, 2)
 		require.NoError(t, err)
 		require.NotNil(t, next)
@@ -182,6 +190,7 @@ func TestNextAvailable(t *testing.T) {
 		repo := NewMockRepository(t)
 		repo.EXPECT().FindByID(ctx, id).Return(rest, nil)
 		repo.EXPECT().BookingsBetween(ctx, []uuid.UUID{id}, mock.Anything, mock.Anything).Return(nil, nil)
+		repo.EXPECT().ClosuresBetween(ctx, []uuid.UUID{id}, mock.Anything, mock.Anything).Return(nil, nil)
 		next, err := newServiceWith(repo).NextAvailable(ctx, id, date, 10*60+30, 2)
 		require.NoError(t, err)
 		require.NotNil(t, next)
@@ -194,6 +203,7 @@ func TestNextAvailable(t *testing.T) {
 		repo := NewMockRepository(t)
 		repo.EXPECT().FindByID(ctx, id).Return(rest, nil)
 		repo.EXPECT().BookingsBetween(ctx, []uuid.UUID{id}, mock.Anything, mock.Anything).Return(nil, nil)
+		repo.EXPECT().ClosuresBetween(ctx, []uuid.UUID{id}, mock.Anything, mock.Anything).Return(nil, nil)
 		next, err := newServiceWith(repo).NextAvailable(ctx, id, date, 19*60, 5)
 		require.NoError(t, err)
 		assert.Nil(t, next)
@@ -208,4 +218,100 @@ func TestParseClock(t *testing.T) {
 	assert.Error(t, err, "ต้องลง :00/:30")
 	_, err = ParseClock("25:00")
 	assert.Error(t, err)
+}
+
+func TestCreateClosure(t *testing.T) {
+	ctx := context.Background()
+	owner, id, customer := uuid.New(), uuid.New(), uuid.New()
+	rest := Restaurant{ID: id, OwnerID: owner, Seats: 10, OpenMinute: 11 * 60, CloseMinute: 22 * 60}
+	bkk := func(h, m int) time.Time { return time.Date(2026, 10, 10, h, m, 0, 0, booking.Bangkok) }
+	// fixedNow = 10 ต.ค. 09:00 → ปิด 10 ต.ค. 18:00–20:00
+	in := ClosureInput{Partial: true, Date: bkk(0, 0), StartMinute: 18 * 60, EndMinute: 20 * 60, Reason: "ไฟดับ"}
+	start, end := bkk(18, 0), bkk(20, 0)
+	hit := AffectedBooking{Booking: booking.Booking{ID: uuid.New(), UserID: customer, StartAt: bkk(19, 0), EndAt: bkk(20, 0)}, CustomerName: "มะลิ"}
+	isClosure := mock.MatchedBy(func(c *booking.Closure) bool {
+		return c.RestaurantID == id && c.StartAt.Equal(start) && c.EndAt.Equal(end) && c.Reason == "ไฟดับ"
+	})
+
+	t.Run("ไม่มีการจองทับ → บันทึกเลย", func(t *testing.T) {
+		repo := NewMockRepository(t)
+		expectTx(repo)
+		repo.EXPECT().LockByID(ctx, id).Return(rest, nil)
+		repo.EXPECT().AffectedBookings(ctx, id, start, end, fixedNow).Return(nil, nil)
+		repo.EXPECT().CreateClosure(ctx, isClosure).Return(nil)
+		_, err := newServiceWith(repo).CreateClosure(ctx, owner, id, in)
+		assert.NoError(t, err)
+	})
+
+	t.Run("มีการจองทับแต่ยังไม่ยืนยัน → AffectsBookingsError พร้อมรายการ ไม่บันทึกอะไร", func(t *testing.T) {
+		repo := NewMockRepository(t)
+		expectTx(repo)
+		repo.EXPECT().LockByID(ctx, id).Return(rest, nil)
+		repo.EXPECT().AffectedBookings(ctx, id, start, end, fixedNow).Return([]AffectedBooking{hit}, nil)
+		_, err := newServiceWith(repo).CreateClosure(ctx, owner, id, in)
+		var affects *AffectsBookingsError
+		require.True(t, errors.As(err, &affects))
+		assert.Equal(t, []AffectedBooking{hit}, affects.Bookings)
+	})
+
+	t.Run("ยืนยันตรงรายการ → บันทึก + ยกเลิก + แจ้งลูกค้า", func(t *testing.T) {
+		repo := NewMockRepository(t)
+		expectTx(repo)
+		repo.EXPECT().LockByID(ctx, id).Return(rest, nil)
+		repo.EXPECT().AffectedBookings(ctx, id, start, end, fixedNow).Return([]AffectedBooking{hit}, nil)
+		repo.EXPECT().CreateClosure(ctx, isClosure).Return(nil)
+		repo.EXPECT().CancelByRestaurant(ctx, []uuid.UUID{hit.ID}, "ไฟดับ", fixedNow).Return(nil)
+		repo.EXPECT().Notify(ctx, notification.Draft{Recipient: customer, Kind: notification.KindCancelledByRestaurant,
+			BookingID: hit.ID, BusinessDate: "2026-10-10", Reason: "ไฟดับ"}).Return(nil)
+		confirmed := in
+		confirmed.ConfirmBookingIDs = []uuid.UUID{hit.ID}
+		_, err := newServiceWith(repo).CreateClosure(ctx, owner, id, confirmed)
+		assert.NoError(t, err)
+	})
+
+	t.Run("ยืนยันรายการเก่า แต่มีการจองใหม่แทรก → 409 ใหม่ ไม่ยกเลิกอะไร", func(t *testing.T) {
+		newcomer := AffectedBooking{Booking: booking.Booking{ID: uuid.New(), UserID: uuid.New(), StartAt: bkk(18, 30), EndAt: bkk(19, 30)}}
+		repo := NewMockRepository(t)
+		expectTx(repo)
+		repo.EXPECT().LockByID(ctx, id).Return(rest, nil)
+		repo.EXPECT().AffectedBookings(ctx, id, start, end, fixedNow).Return([]AffectedBooking{newcomer, hit}, nil)
+		confirmed := in
+		confirmed.ConfirmBookingIDs = []uuid.UUID{hit.ID}
+		_, err := newServiceWith(repo).CreateClosure(ctx, owner, id, confirmed)
+		var affects *AffectsBookingsError
+		require.True(t, errors.As(err, &affects))
+		assert.Len(t, affects.Bookings, 2)
+	})
+
+	t.Run("การจองของเจ้าของร้านเอง → ยกเลิก แต่ไม่แจ้งตัวเอง", func(t *testing.T) {
+		mine := AffectedBooking{Booking: booking.Booking{ID: uuid.New(), UserID: owner, StartAt: bkk(19, 0), EndAt: bkk(20, 0)}}
+		repo := NewMockRepository(t)
+		expectTx(repo)
+		repo.EXPECT().LockByID(ctx, id).Return(rest, nil)
+		repo.EXPECT().AffectedBookings(ctx, id, start, end, fixedNow).Return([]AffectedBooking{mine}, nil)
+		repo.EXPECT().CreateClosure(ctx, isClosure).Return(nil)
+		repo.EXPECT().CancelByRestaurant(ctx, []uuid.UUID{mine.ID}, "ไฟดับ", fixedNow).Return(nil)
+		confirmed := in
+		confirmed.ConfirmBookingIDs = []uuid.UUID{mine.ID}
+		_, err := newServiceWith(repo).CreateClosure(ctx, owner, id, confirmed)
+		assert.NoError(t, err)
+	})
+
+	t.Run("เริ่มก่อนตอนนี้ (08:00 ขณะที่ตอนนี้ 09:00) → ErrInvalidClosure", func(t *testing.T) {
+		repo := NewMockRepository(t)
+		expectTx(repo)
+		repo.EXPECT().LockByID(ctx, id).Return(rest, nil)
+		past := in
+		past.StartMinute = 8 * 60
+		_, err := newServiceWith(repo).CreateClosure(ctx, owner, id, past)
+		assert.ErrorIs(t, err, ErrInvalidClosure)
+	})
+
+	t.Run("ไม่ใช่เจ้าของ → ErrNotOwner", func(t *testing.T) {
+		repo := NewMockRepository(t)
+		expectTx(repo)
+		repo.EXPECT().LockByID(ctx, id).Return(rest, nil)
+		_, err := newServiceWith(repo).CreateClosure(ctx, uuid.New(), id, in)
+		assert.ErrorIs(t, err, ErrNotOwner)
+	})
 }

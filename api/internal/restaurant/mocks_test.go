@@ -7,6 +7,7 @@ package restaurant
 import (
 	"context"
 	"jongyoung/internal/booking"
+	"jongyoung/internal/notification"
 	"time"
 
 	"github.com/google/uuid"
@@ -276,6 +277,84 @@ func (_c *MockService_Create_Call) RunAndReturn(run func(ctx context.Context, ow
 	return _c
 }
 
+// CreateClosure provides a mock function for the type MockService
+func (_mock *MockService) CreateClosure(ctx context.Context, userID uuid.UUID, id uuid.UUID, in ClosureInput) (booking.Closure, error) {
+	ret := _mock.Called(ctx, userID, id, in)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateClosure")
+	}
+
+	var r0 booking.Closure
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, ClosureInput) (booking.Closure, error)); ok {
+		return returnFunc(ctx, userID, id, in)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, ClosureInput) booking.Closure); ok {
+		r0 = returnFunc(ctx, userID, id, in)
+	} else {
+		r0 = ret.Get(0).(booking.Closure)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, ClosureInput) error); ok {
+		r1 = returnFunc(ctx, userID, id, in)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockService_CreateClosure_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateClosure'
+type MockService_CreateClosure_Call struct {
+	*mock.Call
+}
+
+// CreateClosure is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID uuid.UUID
+//   - id uuid.UUID
+//   - in ClosureInput
+func (_e *MockService_Expecter) CreateClosure(ctx any, userID any, id any, in any) *MockService_CreateClosure_Call {
+	return &MockService_CreateClosure_Call{Call: _e.mock.On("CreateClosure", ctx, userID, id, in)}
+}
+
+func (_c *MockService_CreateClosure_Call) Run(run func(ctx context.Context, userID uuid.UUID, id uuid.UUID, in ClosureInput)) *MockService_CreateClosure_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 uuid.UUID
+		if args[2] != nil {
+			arg2 = args[2].(uuid.UUID)
+		}
+		var arg3 ClosureInput
+		if args[3] != nil {
+			arg3 = args[3].(ClosureInput)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockService_CreateClosure_Call) Return(closure booking.Closure, err error) *MockService_CreateClosure_Call {
+	_c.Call.Return(closure, err)
+	return _c
+}
+
+func (_c *MockService_CreateClosure_Call) RunAndReturn(run func(ctx context.Context, userID uuid.UUID, id uuid.UUID, in ClosureInput) (booking.Closure, error)) *MockService_CreateClosure_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Delete provides a mock function for the type MockService
 func (_mock *MockService) Delete(ctx context.Context, userID uuid.UUID, id uuid.UUID) error {
 	ret := _mock.Called(ctx, userID, id)
@@ -335,6 +414,75 @@ func (_c *MockService_Delete_Call) Return(err error) *MockService_Delete_Call {
 }
 
 func (_c *MockService_Delete_Call) RunAndReturn(run func(ctx context.Context, userID uuid.UUID, id uuid.UUID) error) *MockService_Delete_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteClosure provides a mock function for the type MockService
+func (_mock *MockService) DeleteClosure(ctx context.Context, userID uuid.UUID, id uuid.UUID, closureID uuid.UUID) error {
+	ret := _mock.Called(ctx, userID, id, closureID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteClosure")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error); ok {
+		r0 = returnFunc(ctx, userID, id, closureID)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockService_DeleteClosure_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteClosure'
+type MockService_DeleteClosure_Call struct {
+	*mock.Call
+}
+
+// DeleteClosure is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID uuid.UUID
+//   - id uuid.UUID
+//   - closureID uuid.UUID
+func (_e *MockService_Expecter) DeleteClosure(ctx any, userID any, id any, closureID any) *MockService_DeleteClosure_Call {
+	return &MockService_DeleteClosure_Call{Call: _e.mock.On("DeleteClosure", ctx, userID, id, closureID)}
+}
+
+func (_c *MockService_DeleteClosure_Call) Run(run func(ctx context.Context, userID uuid.UUID, id uuid.UUID, closureID uuid.UUID)) *MockService_DeleteClosure_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 uuid.UUID
+		if args[2] != nil {
+			arg2 = args[2].(uuid.UUID)
+		}
+		var arg3 uuid.UUID
+		if args[3] != nil {
+			arg3 = args[3].(uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockService_DeleteClosure_Call) Return(err error) *MockService_DeleteClosure_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockService_DeleteClosure_Call) RunAndReturn(run func(ctx context.Context, userID uuid.UUID, id uuid.UUID, closureID uuid.UUID) error) *MockService_DeleteClosure_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -544,6 +692,74 @@ func (_c *MockService_List_Call) Return(listItems []ListItem, n int64, err error
 }
 
 func (_c *MockService_List_Call) RunAndReturn(run func(ctx context.Context, q ListQuery) ([]ListItem, int64, error)) *MockService_List_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListClosures provides a mock function for the type MockService
+func (_mock *MockService) ListClosures(ctx context.Context, id uuid.UUID) ([]booking.Closure, error) {
+	ret := _mock.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListClosures")
+	}
+
+	var r0 []booking.Closure
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]booking.Closure, error)); ok {
+		return returnFunc(ctx, id)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID) []booking.Closure); ok {
+		r0 = returnFunc(ctx, id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]booking.Closure)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockService_ListClosures_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListClosures'
+type MockService_ListClosures_Call struct {
+	*mock.Call
+}
+
+// ListClosures is a helper method to define mock.On call
+//   - ctx context.Context
+//   - id uuid.UUID
+func (_e *MockService_Expecter) ListClosures(ctx any, id any) *MockService_ListClosures_Call {
+	return &MockService_ListClosures_Call{Call: _e.mock.On("ListClosures", ctx, id)}
+}
+
+func (_c *MockService_ListClosures_Call) Run(run func(ctx context.Context, id uuid.UUID)) *MockService_ListClosures_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockService_ListClosures_Call) Return(closures []booking.Closure, err error) *MockService_ListClosures_Call {
+	_c.Call.Return(closures, err)
+	return _c
+}
+
+func (_c *MockService_ListClosures_Call) RunAndReturn(run func(ctx context.Context, id uuid.UUID) ([]booking.Closure, error)) *MockService_ListClosures_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -796,6 +1012,92 @@ func (_c *MockRepository_AddImage_Call) RunAndReturn(run func(ctx context.Contex
 	return _c
 }
 
+// AffectedBookings provides a mock function for the type MockRepository
+func (_mock *MockRepository) AffectedBookings(ctx context.Context, restaurantID uuid.UUID, start time.Time, end time.Time, now time.Time) ([]AffectedBooking, error) {
+	ret := _mock.Called(ctx, restaurantID, start, end, now)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AffectedBookings")
+	}
+
+	var r0 []AffectedBooking
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time, time.Time, time.Time) ([]AffectedBooking, error)); ok {
+		return returnFunc(ctx, restaurantID, start, end, now)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time, time.Time, time.Time) []AffectedBooking); ok {
+		r0 = returnFunc(ctx, restaurantID, start, end, now)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]AffectedBooking)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, time.Time, time.Time, time.Time) error); ok {
+		r1 = returnFunc(ctx, restaurantID, start, end, now)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_AffectedBookings_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AffectedBookings'
+type MockRepository_AffectedBookings_Call struct {
+	*mock.Call
+}
+
+// AffectedBookings is a helper method to define mock.On call
+//   - ctx context.Context
+//   - restaurantID uuid.UUID
+//   - start time.Time
+//   - end time.Time
+//   - now time.Time
+func (_e *MockRepository_Expecter) AffectedBookings(ctx any, restaurantID any, start any, end any, now any) *MockRepository_AffectedBookings_Call {
+	return &MockRepository_AffectedBookings_Call{Call: _e.mock.On("AffectedBookings", ctx, restaurantID, start, end, now)}
+}
+
+func (_c *MockRepository_AffectedBookings_Call) Run(run func(ctx context.Context, restaurantID uuid.UUID, start time.Time, end time.Time, now time.Time)) *MockRepository_AffectedBookings_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 time.Time
+		if args[2] != nil {
+			arg2 = args[2].(time.Time)
+		}
+		var arg3 time.Time
+		if args[3] != nil {
+			arg3 = args[3].(time.Time)
+		}
+		var arg4 time.Time
+		if args[4] != nil {
+			arg4 = args[4].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+			arg4,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_AffectedBookings_Call) Return(affectedBookings []AffectedBooking, err error) *MockRepository_AffectedBookings_Call {
+	_c.Call.Return(affectedBookings, err)
+	return _c
+}
+
+func (_c *MockRepository_AffectedBookings_Call) RunAndReturn(run func(ctx context.Context, restaurantID uuid.UUID, start time.Time, end time.Time, now time.Time) ([]AffectedBooking, error)) *MockRepository_AffectedBookings_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // BookingsBetween provides a mock function for the type MockRepository
 func (_mock *MockRepository) BookingsBetween(ctx context.Context, restaurantIDs []uuid.UUID, from time.Time, to time.Time) ([]booking.Booking, error) {
 	ret := _mock.Called(ctx, restaurantIDs, from, to)
@@ -876,74 +1178,151 @@ func (_c *MockRepository_BookingsBetween_Call) RunAndReturn(run func(ctx context
 	return _c
 }
 
-// CancelFutureBookings provides a mock function for the type MockRepository
-func (_mock *MockRepository) CancelFutureBookings(ctx context.Context, restaurantID uuid.UUID, now time.Time) (int64, error) {
-	ret := _mock.Called(ctx, restaurantID, now)
+// CancelByRestaurant provides a mock function for the type MockRepository
+func (_mock *MockRepository) CancelByRestaurant(ctx context.Context, ids []uuid.UUID, reason string, now time.Time) error {
+	ret := _mock.Called(ctx, ids, reason, now)
 
 	if len(ret) == 0 {
-		panic("no return value specified for CancelFutureBookings")
+		panic("no return value specified for CancelByRestaurant")
 	}
 
-	var r0 int64
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) (int64, error)); ok {
-		return returnFunc(ctx, restaurantID, now)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) int64); ok {
-		r0 = returnFunc(ctx, restaurantID, now)
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID, string, time.Time) error); ok {
+		r0 = returnFunc(ctx, ids, reason, now)
 	} else {
-		r0 = ret.Get(0).(int64)
+		r0 = ret.Error(0)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, time.Time) error); ok {
-		r1 = returnFunc(ctx, restaurantID, now)
+	return r0
+}
+
+// MockRepository_CancelByRestaurant_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelByRestaurant'
+type MockRepository_CancelByRestaurant_Call struct {
+	*mock.Call
+}
+
+// CancelByRestaurant is a helper method to define mock.On call
+//   - ctx context.Context
+//   - ids []uuid.UUID
+//   - reason string
+//   - now time.Time
+func (_e *MockRepository_Expecter) CancelByRestaurant(ctx any, ids any, reason any, now any) *MockRepository_CancelByRestaurant_Call {
+	return &MockRepository_CancelByRestaurant_Call{Call: _e.mock.On("CancelByRestaurant", ctx, ids, reason, now)}
+}
+
+func (_c *MockRepository_CancelByRestaurant_Call) Run(run func(ctx context.Context, ids []uuid.UUID, reason string, now time.Time)) *MockRepository_CancelByRestaurant_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].([]uuid.UUID)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 time.Time
+		if args[3] != nil {
+			arg3 = args[3].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_CancelByRestaurant_Call) Return(err error) *MockRepository_CancelByRestaurant_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockRepository_CancelByRestaurant_Call) RunAndReturn(run func(ctx context.Context, ids []uuid.UUID, reason string, now time.Time) error) *MockRepository_CancelByRestaurant_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ClosuresBetween provides a mock function for the type MockRepository
+func (_mock *MockRepository) ClosuresBetween(ctx context.Context, restaurantIDs []uuid.UUID, from time.Time, to time.Time) ([]booking.Closure, error) {
+	ret := _mock.Called(ctx, restaurantIDs, from, to)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClosuresBetween")
+	}
+
+	var r0 []booking.Closure
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID, time.Time, time.Time) ([]booking.Closure, error)); ok {
+		return returnFunc(ctx, restaurantIDs, from, to)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID, time.Time, time.Time) []booking.Closure); ok {
+		r0 = returnFunc(ctx, restaurantIDs, from, to)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]booking.Closure)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, []uuid.UUID, time.Time, time.Time) error); ok {
+		r1 = returnFunc(ctx, restaurantIDs, from, to)
 	} else {
 		r1 = ret.Error(1)
 	}
 	return r0, r1
 }
 
-// MockRepository_CancelFutureBookings_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelFutureBookings'
-type MockRepository_CancelFutureBookings_Call struct {
+// MockRepository_ClosuresBetween_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClosuresBetween'
+type MockRepository_ClosuresBetween_Call struct {
 	*mock.Call
 }
 
-// CancelFutureBookings is a helper method to define mock.On call
+// ClosuresBetween is a helper method to define mock.On call
 //   - ctx context.Context
-//   - restaurantID uuid.UUID
-//   - now time.Time
-func (_e *MockRepository_Expecter) CancelFutureBookings(ctx any, restaurantID any, now any) *MockRepository_CancelFutureBookings_Call {
-	return &MockRepository_CancelFutureBookings_Call{Call: _e.mock.On("CancelFutureBookings", ctx, restaurantID, now)}
+//   - restaurantIDs []uuid.UUID
+//   - from time.Time
+//   - to time.Time
+func (_e *MockRepository_Expecter) ClosuresBetween(ctx any, restaurantIDs any, from any, to any) *MockRepository_ClosuresBetween_Call {
+	return &MockRepository_ClosuresBetween_Call{Call: _e.mock.On("ClosuresBetween", ctx, restaurantIDs, from, to)}
 }
 
-func (_c *MockRepository_CancelFutureBookings_Call) Run(run func(ctx context.Context, restaurantID uuid.UUID, now time.Time)) *MockRepository_CancelFutureBookings_Call {
+func (_c *MockRepository_ClosuresBetween_Call) Run(run func(ctx context.Context, restaurantIDs []uuid.UUID, from time.Time, to time.Time)) *MockRepository_ClosuresBetween_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 uuid.UUID
+		var arg1 []uuid.UUID
 		if args[1] != nil {
-			arg1 = args[1].(uuid.UUID)
+			arg1 = args[1].([]uuid.UUID)
 		}
 		var arg2 time.Time
 		if args[2] != nil {
 			arg2 = args[2].(time.Time)
 		}
+		var arg3 time.Time
+		if args[3] != nil {
+			arg3 = args[3].(time.Time)
+		}
 		run(
 			arg0,
 			arg1,
 			arg2,
+			arg3,
 		)
 	})
 	return _c
 }
 
-func (_c *MockRepository_CancelFutureBookings_Call) Return(n int64, err error) *MockRepository_CancelFutureBookings_Call {
-	_c.Call.Return(n, err)
+func (_c *MockRepository_ClosuresBetween_Call) Return(closures []booking.Closure, err error) *MockRepository_ClosuresBetween_Call {
+	_c.Call.Return(closures, err)
 	return _c
 }
 
-func (_c *MockRepository_CancelFutureBookings_Call) RunAndReturn(run func(ctx context.Context, restaurantID uuid.UUID, now time.Time) (int64, error)) *MockRepository_CancelFutureBookings_Call {
+func (_c *MockRepository_ClosuresBetween_Call) RunAndReturn(run func(ctx context.Context, restaurantIDs []uuid.UUID, from time.Time, to time.Time) ([]booking.Closure, error)) *MockRepository_ClosuresBetween_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1067,6 +1446,135 @@ func (_c *MockRepository_Create_Call) Return(err error) *MockRepository_Create_C
 }
 
 func (_c *MockRepository_Create_Call) RunAndReturn(run func(ctx context.Context, rest *Restaurant) error) *MockRepository_Create_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateClosure provides a mock function for the type MockRepository
+func (_mock *MockRepository) CreateClosure(ctx context.Context, c *booking.Closure) error {
+	ret := _mock.Called(ctx, c)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateClosure")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *booking.Closure) error); ok {
+		r0 = returnFunc(ctx, c)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockRepository_CreateClosure_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateClosure'
+type MockRepository_CreateClosure_Call struct {
+	*mock.Call
+}
+
+// CreateClosure is a helper method to define mock.On call
+//   - ctx context.Context
+//   - c *booking.Closure
+func (_e *MockRepository_Expecter) CreateClosure(ctx any, c any) *MockRepository_CreateClosure_Call {
+	return &MockRepository_CreateClosure_Call{Call: _e.mock.On("CreateClosure", ctx, c)}
+}
+
+func (_c *MockRepository_CreateClosure_Call) Run(run func(ctx context.Context, c *booking.Closure)) *MockRepository_CreateClosure_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *booking.Closure
+		if args[1] != nil {
+			arg1 = args[1].(*booking.Closure)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_CreateClosure_Call) Return(err error) *MockRepository_CreateClosure_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockRepository_CreateClosure_Call) RunAndReturn(run func(ctx context.Context, c *booking.Closure) error) *MockRepository_CreateClosure_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteClosure provides a mock function for the type MockRepository
+func (_mock *MockRepository) DeleteClosure(ctx context.Context, restaurantID uuid.UUID, closureID uuid.UUID) (bool, error) {
+	ret := _mock.Called(ctx, restaurantID, closureID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteClosure")
+	}
+
+	var r0 bool
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) (bool, error)); ok {
+		return returnFunc(ctx, restaurantID, closureID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) bool); ok {
+		r0 = returnFunc(ctx, restaurantID, closureID)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, restaurantID, closureID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_DeleteClosure_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteClosure'
+type MockRepository_DeleteClosure_Call struct {
+	*mock.Call
+}
+
+// DeleteClosure is a helper method to define mock.On call
+//   - ctx context.Context
+//   - restaurantID uuid.UUID
+//   - closureID uuid.UUID
+func (_e *MockRepository_Expecter) DeleteClosure(ctx any, restaurantID any, closureID any) *MockRepository_DeleteClosure_Call {
+	return &MockRepository_DeleteClosure_Call{Call: _e.mock.On("DeleteClosure", ctx, restaurantID, closureID)}
+}
+
+func (_c *MockRepository_DeleteClosure_Call) Run(run func(ctx context.Context, restaurantID uuid.UUID, closureID uuid.UUID)) *MockRepository_DeleteClosure_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 uuid.UUID
+		if args[2] != nil {
+			arg2 = args[2].(uuid.UUID)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_DeleteClosure_Call) Return(b bool, err error) *MockRepository_DeleteClosure_Call {
+	_c.Call.Return(b, err)
+	return _c
+}
+
+func (_c *MockRepository_DeleteClosure_Call) RunAndReturn(run func(ctx context.Context, restaurantID uuid.UUID, closureID uuid.UUID) (bool, error)) *MockRepository_DeleteClosure_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1414,6 +1922,63 @@ func (_c *MockRepository_LockByID_Call) RunAndReturn(run func(ctx context.Contex
 	return _c
 }
 
+// Notify provides a mock function for the type MockRepository
+func (_mock *MockRepository) Notify(ctx context.Context, d notification.Draft) error {
+	ret := _mock.Called(ctx, d)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Notify")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, notification.Draft) error); ok {
+		r0 = returnFunc(ctx, d)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockRepository_Notify_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Notify'
+type MockRepository_Notify_Call struct {
+	*mock.Call
+}
+
+// Notify is a helper method to define mock.On call
+//   - ctx context.Context
+//   - d notification.Draft
+func (_e *MockRepository_Expecter) Notify(ctx any, d any) *MockRepository_Notify_Call {
+	return &MockRepository_Notify_Call{Call: _e.mock.On("Notify", ctx, d)}
+}
+
+func (_c *MockRepository_Notify_Call) Run(run func(ctx context.Context, d notification.Draft)) *MockRepository_Notify_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 notification.Draft
+		if args[1] != nil {
+			arg1 = args[1].(notification.Draft)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_Notify_Call) Return(err error) *MockRepository_Notify_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockRepository_Notify_Call) RunAndReturn(run func(ctx context.Context, d notification.Draft) error) *MockRepository_Notify_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SoftDelete provides a mock function for the type MockRepository
 func (_mock *MockRepository) SoftDelete(ctx context.Context, id uuid.UUID) error {
 	ret := _mock.Called(ctx, id)
@@ -1524,6 +2089,154 @@ func (_c *MockRepository_Transaction_Call) Return(err error) *MockRepository_Tra
 }
 
 func (_c *MockRepository_Transaction_Call) RunAndReturn(run func(ctx context.Context, fn func(tx Repository) error) error) *MockRepository_Transaction_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpcomingBookings provides a mock function for the type MockRepository
+func (_mock *MockRepository) UpcomingBookings(ctx context.Context, restaurantID uuid.UUID, now time.Time) ([]AffectedBooking, error) {
+	ret := _mock.Called(ctx, restaurantID, now)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpcomingBookings")
+	}
+
+	var r0 []AffectedBooking
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) ([]AffectedBooking, error)); ok {
+		return returnFunc(ctx, restaurantID, now)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) []AffectedBooking); ok {
+		r0 = returnFunc(ctx, restaurantID, now)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]AffectedBooking)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, time.Time) error); ok {
+		r1 = returnFunc(ctx, restaurantID, now)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_UpcomingBookings_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpcomingBookings'
+type MockRepository_UpcomingBookings_Call struct {
+	*mock.Call
+}
+
+// UpcomingBookings is a helper method to define mock.On call
+//   - ctx context.Context
+//   - restaurantID uuid.UUID
+//   - now time.Time
+func (_e *MockRepository_Expecter) UpcomingBookings(ctx any, restaurantID any, now any) *MockRepository_UpcomingBookings_Call {
+	return &MockRepository_UpcomingBookings_Call{Call: _e.mock.On("UpcomingBookings", ctx, restaurantID, now)}
+}
+
+func (_c *MockRepository_UpcomingBookings_Call) Run(run func(ctx context.Context, restaurantID uuid.UUID, now time.Time)) *MockRepository_UpcomingBookings_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 time.Time
+		if args[2] != nil {
+			arg2 = args[2].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_UpcomingBookings_Call) Return(affectedBookings []AffectedBooking, err error) *MockRepository_UpcomingBookings_Call {
+	_c.Call.Return(affectedBookings, err)
+	return _c
+}
+
+func (_c *MockRepository_UpcomingBookings_Call) RunAndReturn(run func(ctx context.Context, restaurantID uuid.UUID, now time.Time) ([]AffectedBooking, error)) *MockRepository_UpcomingBookings_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpcomingClosures provides a mock function for the type MockRepository
+func (_mock *MockRepository) UpcomingClosures(ctx context.Context, restaurantID uuid.UUID, now time.Time) ([]booking.Closure, error) {
+	ret := _mock.Called(ctx, restaurantID, now)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpcomingClosures")
+	}
+
+	var r0 []booking.Closure
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) ([]booking.Closure, error)); ok {
+		return returnFunc(ctx, restaurantID, now)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time) []booking.Closure); ok {
+		r0 = returnFunc(ctx, restaurantID, now)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]booking.Closure)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, time.Time) error); ok {
+		r1 = returnFunc(ctx, restaurantID, now)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_UpcomingClosures_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpcomingClosures'
+type MockRepository_UpcomingClosures_Call struct {
+	*mock.Call
+}
+
+// UpcomingClosures is a helper method to define mock.On call
+//   - ctx context.Context
+//   - restaurantID uuid.UUID
+//   - now time.Time
+func (_e *MockRepository_Expecter) UpcomingClosures(ctx any, restaurantID any, now any) *MockRepository_UpcomingClosures_Call {
+	return &MockRepository_UpcomingClosures_Call{Call: _e.mock.On("UpcomingClosures", ctx, restaurantID, now)}
+}
+
+func (_c *MockRepository_UpcomingClosures_Call) Run(run func(ctx context.Context, restaurantID uuid.UUID, now time.Time)) *MockRepository_UpcomingClosures_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 time.Time
+		if args[2] != nil {
+			arg2 = args[2].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_UpcomingClosures_Call) Return(closures []booking.Closure, err error) *MockRepository_UpcomingClosures_Call {
+	_c.Call.Return(closures, err)
+	return _c
+}
+
+func (_c *MockRepository_UpcomingClosures_Call) RunAndReturn(run func(ctx context.Context, restaurantID uuid.UUID, now time.Time) ([]booking.Closure, error)) *MockRepository_UpcomingClosures_Call {
 	_c.Call.Return(run)
 	return _c
 }

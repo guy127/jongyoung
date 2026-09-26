@@ -24,6 +24,9 @@ type Service interface {
 	List(ctx context.Context, q ListQuery) ([]ListItem, int64, error)
 	Availability(ctx context.Context, id uuid.UUID, date time.Time) (Restaurant, []booking.Slot, error)
 	NextAvailable(ctx context.Context, id uuid.UUID, date time.Time, minute, party int) (*NextAvailable, error)
+	CreateClosure(ctx context.Context, userID, id uuid.UUID, in ClosureInput) (booking.Closure, error)
+	ListClosures(ctx context.Context, id uuid.UUID) ([]booking.Closure, error)
+	DeleteClosure(ctx context.Context, userID, id, closureID uuid.UUID) error
 }
 
 type handler struct {
@@ -323,10 +326,103 @@ func (h *handler) NextAvailable(c *gin.Context) {
 	c.JSON(http.StatusOK, NextAvailableResponse{BusinessDate: next.Date.Format("2006-01-02"), Slots: newCardSlots(next.Slots)})
 }
 
+// CreateClosure godoc
+//
+//	@Summary	ปิดร้านชั่วคราว (บางช่วงของวัน หรือทั้งวัน/หลายวัน) — ทับการจองต้องยืนยันด้วย confirm_booking_ids
+//	@ID			createClosure
+//	@Tags		restaurants
+//	@Security	BearerAuth
+//	@Accept		json
+//	@Produce	json
+//	@Param		id		path		string			true	"restaurant id"
+//	@Param		request	body		ClosureRequest	true	"ช่วงปิด"
+//	@Success	201		{object}	ClosureResponse
+//	@Failure	400		{object}	httputil.ErrorResponse	"INVALID_CLOSURE"
+//	@Failure	403		{object}	httputil.ErrorResponse
+//	@Failure	409		{object}	httputil.ErrorResponse	"CLOSURE_AFFECTS_BOOKINGS"
+//	@Router		/restaurants/{id}/closures [post]
+func (h *handler) CreateClosure(c *gin.Context) {
+	id, ok := httputil.PathID(c, "id")
+	if !ok {
+		return
+	}
+	var req ClosureRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.fail(c, ErrInvalidClosure)
+		return
+	}
+	in, err := req.ToInput()
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	userID, _ := reqctx.UserID(c.Request.Context())
+	closure, err := h.service.CreateClosure(c.Request.Context(), userID, id, in)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, newClosure(closure))
+}
+
+// ListClosures godoc
+//
+//	@Summary	ช่วงปิดชั่วคราวที่ยังไม่จบ
+//	@ID			listClosures
+//	@Tags		restaurants
+//	@Produce	json
+//	@Param		id	path	string	true	"restaurant id"
+//	@Success	200	{array}	ClosureResponse
+//	@Router		/restaurants/{id}/closures [get]
+func (h *handler) ListClosures(c *gin.Context) {
+	id, ok := httputil.PathID(c, "id")
+	if !ok {
+		return
+	}
+	list, err := h.service.ListClosures(c.Request.Context(), id)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	out := make([]ClosureResponse, len(list))
+	for i, cl := range list {
+		out[i] = newClosure(cl)
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// DeleteClosure godoc
+//
+//	@Summary	เปิดร้านกลับ (ลบช่วงปิด) — การจองที่ยกเลิกไปแล้วไม่ฟื้น
+//	@ID			deleteClosure
+//	@Tags		restaurants
+//	@Security	BearerAuth
+//	@Param		id			path	string	true	"restaurant id"
+//	@Param		closureId	path	string	true	"closure id"
+//	@Success	204
+//	@Router		/restaurants/{id}/closures/{closureId} [delete]
+func (h *handler) DeleteClosure(c *gin.Context) {
+	id, ok := httputil.PathID(c, "id")
+	if !ok {
+		return
+	}
+	closureID, ok := httputil.PathID(c, "closureId")
+	if !ok {
+		return
+	}
+	userID, _ := reqctx.UserID(c.Request.Context())
+	if err := h.service.DeleteClosure(c.Request.Context(), userID, id, closureID); err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // fail แปลง error ของ domain เป็น HTTP status + code ตามตารางใน CLAUDE.md ข้อ 6
 func (h *handler) fail(c *gin.Context, err error) {
 	var seats *booking.SeatsBelowBookingsError
 	var hours *booking.HoursConflictError
+	var affects *AffectsBookingsError
 	switch {
 	case errors.Is(err, ErrNotFound):
 		httputil.NotFound(c, "ไม่พบร้าน")
@@ -336,6 +432,13 @@ func (h *handler) fail(c *gin.Context, err error) {
 		httputil.Forbidden(c, "NOT_OWNER", "เฉพาะเจ้าของร้านเท่านั้น")
 	case errors.Is(err, ErrImageRequired):
 		httputil.Abort(c, http.StatusBadRequest, "IMAGE_REQUIRED", "ร้านต้องมีรูปอย่างน้อย 1 รูป", nil)
+	case errors.Is(err, ErrInvalidClosure):
+		httputil.Abort(c, http.StatusBadRequest, "INVALID_CLOSURE", ErrInvalidClosure.Error(), nil)
+	case errors.Is(err, ErrClosureNotFound):
+		httputil.NotFound(c, "ไม่พบช่วงปิด")
+	case errors.As(err, &affects):
+		httputil.Abort(c, http.StatusConflict, "CLOSURE_AFFECTS_BOOKINGS", "มีการจองที่จะถูกยกเลิก ต้องยืนยันก่อน",
+			gin.H{"bookings": newAffected(affects.Bookings)})
 	case errors.As(err, &seats):
 		httputil.Abort(c, http.StatusConflict, "SEATS_BELOW_EXISTING_BOOKINGS",
 			"ลดที่นั่งไม่ได้ มีการจองที่ใช้ที่นั่งมากกว่านี้",

@@ -2,6 +2,7 @@ package restaurant
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -94,13 +95,12 @@ func TestRepositoryBookings(t *testing.T) {
 		assert.Equal(t, future, list[0].ID)
 	})
 
-	t.Run("CancelFutureBookings ยกเลิกเฉพาะที่ยังไม่เริ่ม", func(t *testing.T) {
-		n, err := repo.CancelFutureBookings(ctx, r.ID, now)
+	t.Run("UpcomingBookings เฉพาะที่ยังไม่เริ่ม", func(t *testing.T) {
+		list, err := repo.UpcomingBookings(ctx, r.ID, now)
 		require.NoError(t, err)
-		assert.EqualValues(t, 1, n)
-		var status string
-		require.NoError(t, db.Raw("SELECT status FROM bookings WHERE id = ?", past).Scan(&status).Error)
-		assert.Equal(t, booking.StatusActive, status, "การจองที่ผ่านไปแล้วต้องไม่ถูกยกเลิก (เก็บประวัติ)")
+		require.Len(t, list, 1)
+		assert.Equal(t, future, list[0].ID)
+		assert.NotEqual(t, past, list[0].ID, "การจองที่ผ่านไปแล้วต้องไม่ถูกยกเลิก (เก็บประวัติ)")
 	})
 
 	t.Run("AddImage ต่อท้าย sort_order", func(t *testing.T) {
@@ -147,4 +147,71 @@ func TestRepositoryUpdateBreak(t *testing.T) {
 	got, err = repo.FindByID(ctx, r.ID)
 	require.NoError(t, err)
 	assert.False(t, got.Hours().HasBreak(), "ลบช่วงพัก (0/0) ต้องบันทึกค่าศูนย์ได้ด้วย")
+}
+
+func TestClosures(t *testing.T) {
+	db := testdb.New(t)
+	repo := NewRepository(db)
+	ctx := context.Background()
+	owner, customer := createOwner(t, db), createOwner(t, db)
+	r := createRestaurant(t, repo, owner, "ร้านปิดชั่วคราว", 0, 0)
+	at := func(h int) time.Time { return time.Date(2026, 10, 10, h, 0, 0, 0, booking.Bangkok) }
+	insert := func(start, end time.Time) uuid.UUID {
+		var id uuid.UUID
+		require.NoError(t, db.Raw(`INSERT INTO bookings (restaurant_id, user_id, party_size, start_at, end_at) VALUES (?, ?, 2, ?, ?) RETURNING id`,
+			r.ID, customer, start, end).Row().Scan(&id))
+		return id
+	}
+	insert(at(14), at(16)) // เริ่มไปแล้วตอน 15:00 — ลูกค้านั่งอยู่ในร้าน
+	later := insert(at(18), at(19))
+	insert(at(20), at(21)) // ไม่ทับช่วงปิด 14:00–20:00
+	now := at(15)
+
+	t.Run("AffectedBookings ไม่รวมที่เริ่มแล้ว และไม่รวมที่ไม่ทับ", func(t *testing.T) {
+		list, err := repo.AffectedBookings(ctx, r.ID, at(14), at(20), now)
+		require.NoError(t, err)
+		require.Len(t, list, 1)
+		assert.Equal(t, later, list[0].ID)
+		assert.Equal(t, "owner", list[0].CustomerName)
+	})
+
+	t.Run("CRUD ช่วงปิด + ลบของร้านอื่นไม่ได้", func(t *testing.T) {
+		c := booking.Closure{RestaurantID: r.ID, StartAt: at(18), EndAt: at(20), Reason: "ไฟดับ"}
+		require.NoError(t, repo.CreateClosure(ctx, &c))
+		list, err := repo.ClosuresBetween(ctx, []uuid.UUID{r.ID}, at(19), at(21))
+		require.NoError(t, err)
+		require.Len(t, list, 1)
+		upcoming, err := repo.UpcomingClosures(ctx, r.ID, now)
+		require.NoError(t, err)
+		require.Len(t, upcoming, 1)
+		ok, err := repo.DeleteClosure(ctx, uuid.New(), c.ID)
+		require.NoError(t, err)
+		assert.False(t, ok, "id ร้านไม่ตรง → ลบไม่ได้")
+		ok, err = repo.DeleteClosure(ctx, r.ID, c.ID)
+		require.NoError(t, err)
+		assert.True(t, ok)
+	})
+
+	t.Run("service: ปิดร้าน → 409 → ยืนยัน → ช่วงปิด + ยกเลิก + แจ้งลูกค้า ในทรานแซกชันเดียว", func(t *testing.T) {
+		svc := NewService(repo, func() time.Time { return now })
+		in := ClosureInput{Partial: true, Date: at(0), StartMinute: 18 * 60, EndMinute: 20 * 60, Reason: "ไฟดับ"}
+		_, err := svc.CreateClosure(ctx, owner, r.ID, in)
+		var affects *AffectsBookingsError
+		require.True(t, errors.As(err, &affects), "err = %v", err)
+		require.Len(t, affects.Bookings, 1)
+
+		in.ConfirmBookingIDs = []uuid.UUID{affects.Bookings[0].ID}
+		_, err = svc.CreateClosure(ctx, owner, r.ID, in)
+		require.NoError(t, err)
+
+		var got booking.Booking
+		require.NoError(t, db.First(&got, "id = ?", later).Error)
+		assert.Equal(t, booking.StatusCancelled, got.Status)
+		require.NotNil(t, got.CancelledBy)
+		assert.Equal(t, booking.CancelledByRestaurant, *got.CancelledBy)
+		assert.Equal(t, "ไฟดับ", got.CancelReason)
+		var n int64
+		require.NoError(t, db.Table("notifications").Where("user_id = ? AND booking_id = ? AND kind = 'booking_cancelled_by_restaurant'", customer, later).Count(&n).Error)
+		assert.EqualValues(t, 1, n)
+	})
 }
