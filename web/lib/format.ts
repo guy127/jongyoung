@@ -88,6 +88,28 @@ export function contiguousFrom<T extends { start_at: string; end_at: string }>(s
   return out;
 }
 
+/** "ส. 10 ต.ค. 18:00–20:00" หรือ "จ. 20 ต.ค. 17:00 – พ. 22 ต.ค. 23:00" (ช่วงปิดร้านหลายวัน) */
+export function closureRangeLabel(c: { start_at: string; end_at: string }): string {
+  if (dateKey(c.start_at) === dateKey(c.end_at)) return `${fmtShortDate(c.start_at)} ${fmtTime(c.start_at)}–${fmtTime(c.end_at)}`;
+  return `${fmtShortDate(c.start_at)} ${fmtTime(c.start_at)} – ${fmtShortDate(c.end_at)} ${fmtTime(c.end_at)}`;
+}
+
+/** ป้ายของช่องว่างระหว่าง slot: ทับช่วงที่ร้านปิดชั่วคราว → "ร้านปิด … · เหตุผล" ไม่งั้นเป็นช่วงพักประจำ */
+export function gapLabel(from: string, to: string, closures: { start_at: string; end_at: string; reason: string }[]): string {
+  const a = new Date(from).getTime();
+  const b = new Date(to).getTime();
+  const c = closures.find((c) => new Date(c.start_at).getTime() < b && new Date(c.end_at).getTime() > a);
+  return c ? `ร้านปิด ${fmtTime(from)}–${fmtTime(to)} · ${c.reason}` : `พักร้าน ${fmtTime(from)}–${fmtTime(to)}`;
+}
+
+/** ป้ายสถานะการจอง — ร้านยกเลิกต้องบอกว่าร้านเป็นคนยกเลิกและเพราะอะไร ไม่ใช่ "ยกเลิกแล้ว" เฉย ๆ */
+export function bookingStatusLabel(b: { status: string; cancelled_by: string | null; cancel_reason: string }, past: boolean): string {
+  if (b.status === "cancelled") {
+    return b.cancelled_by === "restaurant" ? `✕ ร้านยกเลิก${b.cancel_reason ? ` · ${b.cancel_reason}` : ""}` : "✕ ยกเลิกแล้ว";
+  }
+  return past ? "ไปแล้ว" : "✓ ยืนยันแล้ว";
+}
+
 export type ChipState ="ok" | "low" | "full" | "closed";
 
 /**

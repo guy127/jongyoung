@@ -1,4 +1,4 @@
-import { fmtShortDate, fmtTime } from "./format";
+import { closureRangeLabel, fmtShortDate, fmtTime } from "./format";
 import type { ApiError } from "./types";
 
 // หน้าเว็บตัดสินใจจาก error.code เท่านั้น แล้วแปลเป็นข้อความไทยที่นี่ (ไม่พึ่ง message จาก API)
@@ -33,6 +33,9 @@ const messages: Record<string, string> = {
   NOT_FOUND: "ไม่พบข้อมูล",
   UNAUTHORIZED: "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่",
   RATE_LIMITED: "ทำรายการถี่เกินไป รอสักครู่แล้วลองใหม่",
+  RESTAURANT_CLOSED: "ร้านปิดในช่วงที่เลือก",
+  INVALID_CLOSURE: "ช่วงปิดไม่ถูกต้อง — ห้ามย้อนหลัง ยาวไม่เกิน 90 วัน และต้องมีเหตุผล",
+  CLOSURE_AFFECTS_BOOKINGS: "มีการจองที่จะถูกยกเลิก",
 };
 
 /** ข้อความไทยของ error พร้อมรายละเอียดที่ช่วยให้ผู้ใช้ตัดสินใจต่อได้ */
@@ -49,6 +52,8 @@ export function errorMessage(err: ApiError | null): string {
       return `${base} — ${fmtShortDate(String(d.at))} ${fmtTime(String(d.at))} มีคนในร้าน ${d.peak} คน`;
     case "TOO_LATE_TO_BOOK":
       return `${base} (เร็วสุด ${fmtTime(String(d.earliest_start_at))} น.)`;
+    case "RESTAURANT_CLOSED":
+      return `${base} (${closureRangeLabel({ start_at: String(d.start_at), end_at: String(d.end_at) })} · ${d.reason})`;
     default:
       return base;
   }

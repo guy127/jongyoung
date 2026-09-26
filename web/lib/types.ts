@@ -47,6 +47,8 @@ export type Booking = {
   business_date: string;
   status: "active" | "cancelled";
   cancelled_at?: string;
+  cancelled_by: "customer" | "restaurant" | null; // null = ข้อมูลเก่าก่อนมีคอลัมน์นี้
+  cancel_reason: string;
   cancel_until: string;
   can_change: boolean;
   created_at: string;
@@ -67,3 +69,28 @@ export type Review = { id: string; author_name?: string; score: number; body: st
 export type Me = { id: string; email: string; display_name: string; restaurants: { id: string; name: string }[] };
 
 export type ApiError = { code: string; message: string; details?: Record<string, unknown> };
+
+export type Closure = { id: string; start_at: string; end_at: string; reason: string };
+
+export type AffectedBooking = { id: string; code: string; customer_name: string; start_at: string; end_at: string; party_size: number };
+
+export type NotificationKind = "booking_created" | "booking_updated" | "booking_cancelled" | "booking_cancelled_by_restaurant";
+
+/** แจ้งเตือน — ข้อมูลการจองเป็น snapshot ตอนเกิดเหตุ, ข้อความประกอบที่ lib/notifications.ts */
+export type Notification = {
+  id: string;
+  kind: NotificationKind;
+  booking_id: string;
+  restaurant_id: string;
+  restaurant_name: string;
+  customer_name: string;
+  business_date: string;
+  start_at: string;
+  end_at: string;
+  party_size: number;
+  reason: string;
+  read_at: string | null;
+  created_at: string;
+};
+
+export type NotificationList = { items: Notification[]; unread_count: number };

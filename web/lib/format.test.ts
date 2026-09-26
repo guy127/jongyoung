@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chipState, closedDaysLabel, contiguousFrom, hoursLabel, isGap, dateKey, isClosedDay, defaultSearch, fmtTime, isGoogleMapsUrl, mapHref, nextDayLabel, ratingLabel, shiftDate } from "./format";
+import { bookingStatusLabel, chipState, closedDaysLabel, closureRangeLabel, contiguousFrom, gapLabel, hoursLabel, isGap, dateKey, isClosedDay, defaultSearch, fmtTime, isGoogleMapsUrl, mapHref, nextDayLabel, ratingLabel, shiftDate } from "./format";
 
 describe("chipState (ข้อ 9 เคส 27) — เทียบกับจำนวนคนที่เลือก ไม่ใช่ 1", () => {
   const seats = 10;
@@ -134,5 +134,41 @@ describe("ช่วงพักในลิสต์ slot", () => {
   });
   it("contiguousFrom: เลยท้ายลิสต์ → ได้เท่าที่มี", () => {
     expect(contiguousFrom(slots, 3, 2)).toEqual([slots[3]]);
+  });
+});
+
+describe("bookingStatusLabel — ร้านยกเลิกต้องบอกว่าใครยกเลิกและเพราะอะไร", () => {
+  const b = { status: "cancelled", cancelled_by: null, cancel_reason: "" } as const;
+  it("ร้านยกเลิก → เหตุผล", () => {
+    expect(bookingStatusLabel({ ...b, cancelled_by: "restaurant", cancel_reason: "ไฟดับ" }, false)).toBe("✕ ร้านยกเลิก · ไฟดับ");
+  });
+  it("ลูกค้ายกเลิกเอง / ข้อมูลเก่า", () => {
+    expect(bookingStatusLabel({ ...b, cancelled_by: "customer" }, false)).toBe("✕ ยกเลิกแล้ว");
+    expect(bookingStatusLabel(b, false)).toBe("✕ ยกเลิกแล้ว");
+  });
+  it("ยังไม่ยกเลิก", () => {
+    expect(bookingStatusLabel({ ...b, status: "active" }, false)).toBe("✓ ยืนยันแล้ว");
+    expect(bookingStatusLabel({ ...b, status: "active" }, true)).toBe("ไปแล้ว");
+  });
+});
+
+describe("gapLabel — ช่องว่างระหว่าง slot เป็นช่วงพักหรือร้านปิด", () => {
+  const closures = [{ id: "c1", start_at: "2026-10-10T18:00:00+07:00", end_at: "2026-10-10T20:00:00+07:00", reason: "ไฟดับ" }];
+  it("ทับช่วงปิด → ร้านปิด + เหตุผล", () => {
+    expect(gapLabel("2026-10-10T18:00:00+07:00", "2026-10-10T20:00:00+07:00", closures)).toBe("ร้านปิด 18:00–20:00 · ไฟดับ");
+  });
+  it("ไม่ทับ → พักร้าน", () => {
+    expect(gapLabel("2026-10-10T14:00:00+07:00", "2026-10-10T17:00:00+07:00", closures)).toBe("พักร้าน 14:00–17:00");
+  });
+});
+
+describe("closureRangeLabel", () => {
+  it("วันเดียวกัน → วันที่ครั้งเดียว", () => {
+    expect(closureRangeLabel({ start_at: "2026-10-10T18:00:00+07:00", end_at: "2026-10-10T20:00:00+07:00" })).toMatch(/10 ต\.ค\. 18:00–20:00$/);
+  });
+  it("คนละวัน → ใส่วันที่ทั้งสองฝั่ง", () => {
+    const label = closureRangeLabel({ start_at: "2026-10-20T17:00:00+07:00", end_at: "2026-10-22T23:00:00+07:00" });
+    expect(label).toContain("20 ต.ค. 17:00");
+    expect(label).toContain("22 ต.ค. 23:00");
   });
 });
