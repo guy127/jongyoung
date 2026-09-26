@@ -62,7 +62,7 @@ function BookingCard({ b, past }: { b: Booking; past: boolean }) {
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-surface">
       <div className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-5 p-5 sm:grid-cols-[auto_1fr_auto] sm:gap-x-5 sm:p-6">
-        <div className={`flex h-20 w-18 flex-col items-center justify-center rounded-xl text-center ${cancelled ? "bg-chip text-soft" : "bg-full-weak text-full"}`}>
+        <div className={`flex h-20 w-18 flex-col items-center justify-center rounded-xl text-center ${active ? "bg-chip text-text" : "bg-chip text-soft"}`}>
           <span className="text-[13px]">{fmtShortDate(date).split(" ")[0]}</span>
           <span className="text-2xl font-semibold leading-none tabular">{Number(b.business_date.slice(8))}</span>
           <span className="text-[13px]">{fmtShortDate(date).split(" ").slice(2).join(" ")}</span>

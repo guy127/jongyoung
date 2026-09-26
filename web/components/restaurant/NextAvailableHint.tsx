@@ -20,7 +20,7 @@ export default function NextAvailableHint({ restaurantId, date, time, party }: {
       <span className="text-[13px] text-muted">{sameDay ? "ช่วงที่ยังว่าง:" : `ว่างวันถัดไป ${fmtShortDate(keyToDate(data.business_date))}:`}</span>
       {data.slots.slice(0, 3).map((s) => (
         <Link key={s.start_at} href={`/restaurants/${restaurantId}?date=${data.business_date}&time=${fmtTime(s.start_at)}&party_size=${party}`}
-          className="chip-btn rounded-lg border-border-strong px-2.5 py-1.5 text-sm tabular">
+          className="time-chip rounded-lg border border-ok-line bg-ok-weak px-2.5 py-1.5 text-sm font-medium text-ok tabular">
           {fmtTime(s.start_at)} {nextDayLabel(s.start_at, data.business_date)}
         </Link>
       ))}

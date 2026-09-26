@@ -18,6 +18,7 @@
   --cta-to: #b3361a;
   --ok: #006e40;
   --ok-weak: #e6f5ec;
+  --ok-line: #a9d9bd;
   --warn: #8a5a00;
   --warn-weak: #fdf1dc;
   --warn-line: #efcf93;
@@ -51,6 +52,7 @@
   --cta-to: #c2410c;
   --ok: #27e88b;
   --ok-weak: rgba(39, 232, 139, 0.1);
+  --ok-line: rgba(39, 232, 139, 0.35);
   --warn: #ffb703;
   --warn-weak: rgba(255, 183, 3, 0.1);
   --warn-line: rgba(255, 183, 3, 0.35);
@@ -83,6 +85,7 @@
   --color-sel-text: var(--sel-text);
   --color-ok: var(--ok);
   --color-ok-weak: var(--ok-weak);
+  --color-ok-line: var(--ok-line);
   --color-warn: var(--warn);
   --color-warn-weak: var(--warn-weak);
   --color-warn-line: var(--warn-line);

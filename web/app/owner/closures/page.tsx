@@ -167,7 +167,7 @@ function Closures() {
         )}
 
         {error && <p role="alert" className="rounded-md border border-full-line bg-full-weak p-3 text-full">✕ {errorMessage(error.code === "NETWORK" ? null : error)} {error.code !== "NETWORK" && `(${error.code})`}</p>}
-        {done && <p role="status" className="rounded-md border border-ok/40 bg-ok-weak p-3 text-ok">✓ {done}</p>}
+        {done && <p role="status" className="rounded-md border border-ok-line bg-ok-weak p-3 text-ok">✓ {done}</p>}
       </form>
     </div>
   );

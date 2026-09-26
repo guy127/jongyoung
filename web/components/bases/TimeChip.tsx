@@ -2,12 +2,13 @@ import Link from "next/link";
 
 import type { ChipState } from "@/lib/format";
 
-// ปุ่มเวลา 3 สถานะ + "เลือกอยู่" (CLAUDE.md ข้อ 8.4) — สถานะมีสัญลักษณ์และข้อความเสมอ ไม่ใช่สีอย่างเดียว
+// ปุ่มเวลา 3 สถานะ + "เลือกอยู่" (CLAUDE.md ข้อ 8.4): ว่าง = เขียว, เหลือน้อย = อำพัน, เต็ม = แดง, ปิด = เทา
+// สถานะมีสัญลักษณ์และข้อความเสมอ ไม่ใช่สีอย่างเดียว
 const styles: Record<ChipState | "selected" | "inRange", string> = {
-  ok: "border border-border-strong bg-surface text-text",
+  ok: "border border-ok-line bg-ok-weak text-ok",
   low: "border border-warn-line bg-warn-weak text-warn",
-  full: "bg-chip text-soft line-through cursor-not-allowed",
-  closed: "bg-chip text-soft cursor-not-allowed",
+  full: "border border-full-line bg-full-weak text-full cursor-not-allowed",
+  closed: "border border-border bg-chip text-soft cursor-not-allowed",
   selected: "border-2 border-sel bg-sel text-sel-text",
   inRange: "border-2 border-dashed border-sel bg-sel-weak text-text",
 };
@@ -46,7 +47,8 @@ export default function TimeChip({ time, note, state, selected, inRange, dayLabe
   const label = `${time}${dayLabel ? " " + dayLabel : ""} ${note.replace(/^[✓!✕] /, "")}`;
   const content = (
     <>
-      <span className="text-[15px] font-semibold">{time}</span>
+      {/* ขีดฆ่าเฉพาะเวลา — ขีดทับข้อความไทยแล้วสระ/วรรณยุกต์อ่านยาก */}
+      <span className={`text-[15px] font-semibold ${state === "full" && !selected ? "line-through" : ""}`}>{time}</span>
       <span className="text-[13px] no-underline">{dayLabel ? dayLabel.replace(/[()]/g, "") : note}</span>
     </>
   );

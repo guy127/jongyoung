@@ -95,8 +95,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           </nav>
         )}
 
-        <p className="flex flex-wrap gap-4 text-[13px] text-muted">
-          <span>ปุ่มเวลา:</span><span>✓ ว่าง</span><span className="text-warn">! เหลือน้อย</span><span className="text-soft">✕ เต็มสำหรับจำนวนคนนี้</span>
+        {/* คำอธิบายสีปุ่มเวลา — ใช้สีเดียวกับ TimeChip */}
+        <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
+          <span className="mr-1">ปุ่มเวลา:</span>
+          <span className="rounded-full border border-ok-line bg-ok-weak px-2.5 text-ok">✓ ว่าง</span>
+          <span className="rounded-full border border-warn-line bg-warn-weak px-2.5 text-warn">! เหลือน้อย</span>
+          <span className="rounded-full border border-full-line bg-full-weak px-2.5 text-full">✕ เต็มสำหรับจำนวนคนนี้</span>
+          <span className="rounded-full border border-border bg-chip px-2.5 text-soft">ปิด</span>
         </p>
       </Section>
     </PageLayout>

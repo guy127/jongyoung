@@ -26,7 +26,7 @@ export function LinkButton({ href, variant = "outline", className = "", children
 
 type Tone = "ok" | "warn" | "full" | "info";
 const tones: Record<Tone, { cls: string; Icon: typeof Info }> = {
-  ok: { cls: "bg-ok-weak text-ok", Icon: CheckCircle2 },
+  ok: { cls: "bg-ok-weak text-ok border border-ok-line", Icon: CheckCircle2 },
   warn: { cls: "bg-warn-weak text-warn border border-warn-line", Icon: AlertTriangle },
   full: { cls: "bg-full-weak text-full border border-full-line", Icon: XCircle },
   info: { cls: "bg-sel-weak text-text border border-sel/40", Icon: Info }, // สีกลาง ใช้กับ DUPLICATE_BOOKING
