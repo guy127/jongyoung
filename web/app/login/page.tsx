@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Suspense, useEffect } from "react";
 
+import BrandMark from "@/components/bases/BrandMark";
 import { Button } from "@/components/bases/ui";
 
 /**
@@ -33,7 +34,9 @@ function Redirect() {
   return (
     <main className="grid min-h-screen place-items-center px-4">
       <div className="flex w-full max-w-sm flex-col items-center gap-5 rounded-3xl border border-border bg-surface p-8 text-center">
-        <span className="brand-mark grid size-12 place-items-center rounded-full font-display text-xl">จ</span>
+        <span className="brand-mark grid size-12 place-items-center rounded-[14px]">
+          <BrandMark size={36} />
+        </span>
         {error ? (
           <>
             <div className="flex flex-col gap-2">

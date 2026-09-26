@@ -89,10 +89,12 @@ body#keycloak-bg {
   place-items: center;
   width: 2.75rem;
   height: 2.75rem;
-  border-radius: 999px;
-  background: linear-gradient(135deg, var(--jy-cta-from), var(--jy-cta-to));
-  color: #fff;
-  font-size: 1.35rem;
+  border-radius: 14px;
+  /* โลโก้แบบ C (บับเบิล + จ) ไฟล์เดียวกับ web — ตัว "จ" ใน displayNameHtml ซ่อนด้วย font-size 0 */
+  background: url("../img/brand-mark.svg") center / 75% no-repeat,
+    linear-gradient(135deg, var(--jy-cta-from), var(--jy-cta-to));
+  color: transparent;
+  font-size: 0;
   box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--jy-cta-from) 60%, transparent);
 }
 #kc-header-wrapper {

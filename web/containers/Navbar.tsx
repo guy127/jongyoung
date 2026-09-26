@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 
+import BrandMark from "@/components/bases/BrandMark";
 import ThemeToggle from "@/components/bases/ThemeToggle";
 import { buttonClass } from "@/components/bases/ui";
 import { useMe } from "@/services/me";
@@ -34,7 +35,9 @@ export default function Navbar() {
     <header className="sticky top-3 z-20 mx-auto mt-3 w-[min(1120px,calc(100%-2rem))]">
       <nav aria-label="เมนูหลัก" className="glass flex items-center gap-1 rounded-full border border-border py-1.5 pl-2 pr-1.5 shadow-[0_16px_40px_rgba(120,36,36,.10)] sm:gap-2 sm:pl-3">
         <Link href="/" className="group mr-1 flex items-center gap-2 font-display text-xl">
-          <span className="brand-mark grid size-9 place-items-center rounded-full text-base transition-transform duration-300 group-hover:-rotate-8 motion-reduce:transition-none">จ</span>
+          <span className="brand-mark grid size-9 place-items-center rounded-[10px] transition-transform duration-300 group-hover:-rotate-8 motion-reduce:transition-none">
+            <BrandMark size={27} />
+          </span>
           <span className="hidden sm:inline">จองยัง</span>
         </Link>
         <div className="flex flex-1 items-center gap-1">

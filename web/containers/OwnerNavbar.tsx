@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import BrandMark from "@/components/bases/BrandMark";
 import ThemeToggle from "@/components/bases/ThemeToggle";
 import { useMe } from "@/services/me";
 
@@ -19,7 +20,11 @@ export default function OwnerNavbar() {
   return (
     <header className="bg-[var(--owner-bar)] text-white">
       <nav aria-label="เมนูเจ้าของร้าน" className="mx-auto flex h-14 max-w-[1216px] items-center gap-4 px-4 text-sm">
-        <Link href="/owner/restaurants" className="text-base font-semibold">จองยัง</Link>
+        {/* ฝั่ง owner ไม่มี gradient (ข้อ 8.5) — โลโก้เป็นเส้นขาวล้วนบนแถบทึบ */}
+        <Link href="/owner/restaurants" className="flex items-center gap-2 text-base font-semibold">
+          <BrandMark size={24} />
+          จองยัง
+        </Link>
         <span className="rounded-md bg-white/15 px-2 py-0.5 text-[13px]">โหมดเจ้าของร้าน</span>
         <div className="flex flex-1 gap-1">
           {item("/owner/restaurants", "ร้านของฉัน", pathname === "/owner/restaurants")}
