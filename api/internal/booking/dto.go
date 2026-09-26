@@ -64,6 +64,8 @@ type BookingResponse struct {
 	BusinessDate string            `json:"business_date"` // วันทำการของรอบที่ booking นี้อยู่ (ใช้ทำป้าย "(เช้าวันที่ n)")
 	Status       string            `json:"status" example:"active"`
 	CancelledAt  *time.Time        `json:"cancelled_at,omitempty"`
+	CancelledBy  *string           `json:"cancelled_by"`  // "customer" | "restaurant" | null
+	CancelReason string            `json:"cancel_reason"` // เหตุผลเมื่อร้านยกเลิก
 	CancelUntil  time.Time         `json:"cancel_until"`
 	CanChange    bool              `json:"can_change"` // แก้/ยกเลิกได้ตอนนี้ไหม (หน้าเว็บใช้ disable ปุ่มพร้อมเหตุผล)
 	CreatedAt    time.Time         `json:"created_at"`
@@ -100,6 +102,8 @@ func NewBookingResponse(v View, now time.Time) BookingResponse {
 		EndAt:        v.EndAt.In(Bangkok),
 		BusinessDate: BusinessDateOf(v.StartAt, h),
 		Status:       v.Status,
+		CancelledBy:  v.CancelledBy,
+		CancelReason: v.CancelReason,
 		CancelUntil:  until.In(Bangkok),
 		CanChange:    v.Status == StatusActive && v.StartAt.After(now) && CanCancel(v.StartAt, v.CancelBeforeMinutes, now),
 		CreatedAt:    v.CreatedAt,

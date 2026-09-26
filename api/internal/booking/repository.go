@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"jongyoung/internal/notification"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -149,10 +151,25 @@ func (r *repository) UpdateTime(ctx context.Context, b *Booking) error {
 	return r.db.WithContext(ctx).Model(b).Select("party_size", "start_at", "end_at", "updated_at").Updates(b).Error
 }
 
-// Cancel เปลี่ยนสถานะเป็น cancelled — ไม่ลบแถวจริง เพื่อเก็บประวัติ
+// Cancel เปลี่ยนสถานะเป็น cancelled โดยลูกค้า — ไม่ลบแถวจริง เพื่อเก็บประวัติ
 func (r *repository) Cancel(ctx context.Context, id uuid.UUID, now time.Time) error {
 	return r.db.WithContext(ctx).Model(&Booking{}).Where("id = ?", id).
-		Updates(map[string]any{"status": StatusCancelled, "cancelled_at": now, "updated_at": now}).Error
+		Updates(map[string]any{"status": StatusCancelled, "cancelled_at": now, "updated_at": now, "cancelled_by": CancelledByCustomer}).Error
+}
+
+// ClosuresBetween = ช่วงปิดชั่วคราวของร้านที่ทับ [from,to)
+func (r *repository) ClosuresBetween(ctx context.Context, restaurantID uuid.UUID, from, to time.Time) ([]Closure, error) {
+	var list []Closure
+	err := r.db.WithContext(ctx).
+		Where("restaurant_id = ? AND start_at < ? AND end_at > ?", restaurantID, to, from).
+		Order("start_at").
+		Find(&list).Error
+	return list, err
+}
+
+// Notify เขียนแจ้งเตือนด้วย db ของ repository นี้ — ใน Transaction คือ tx เดียวกับการเขียน booking
+func (r *repository) Notify(ctx context.Context, d notification.Draft) error {
+	return notification.Insert(ctx, r.db, d)
 }
 
 // viewQuery = booking + ร้าน + ชื่อลูกค้า (JOIN ครั้งเดียว ไม่ N+1)

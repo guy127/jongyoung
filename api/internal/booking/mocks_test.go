@@ -6,6 +6,7 @@ package booking
 
 import (
 	"context"
+	"jongyoung/internal/notification"
 	"time"
 
 	"github.com/google/uuid"
@@ -568,6 +569,86 @@ func (_c *MockRepository_Cancel_Call) Return(err error) *MockRepository_Cancel_C
 }
 
 func (_c *MockRepository_Cancel_Call) RunAndReturn(run func(ctx context.Context, id uuid.UUID, now time.Time) error) *MockRepository_Cancel_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ClosuresBetween provides a mock function for the type MockRepository
+func (_mock *MockRepository) ClosuresBetween(ctx context.Context, restaurantID uuid.UUID, from time.Time, to time.Time) ([]Closure, error) {
+	ret := _mock.Called(ctx, restaurantID, from, to)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClosuresBetween")
+	}
+
+	var r0 []Closure
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time, time.Time) ([]Closure, error)); ok {
+		return returnFunc(ctx, restaurantID, from, to)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uuid.UUID, time.Time, time.Time) []Closure); ok {
+		r0 = returnFunc(ctx, restaurantID, from, to)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]Closure)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uuid.UUID, time.Time, time.Time) error); ok {
+		r1 = returnFunc(ctx, restaurantID, from, to)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockRepository_ClosuresBetween_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClosuresBetween'
+type MockRepository_ClosuresBetween_Call struct {
+	*mock.Call
+}
+
+// ClosuresBetween is a helper method to define mock.On call
+//   - ctx context.Context
+//   - restaurantID uuid.UUID
+//   - from time.Time
+//   - to time.Time
+func (_e *MockRepository_Expecter) ClosuresBetween(ctx any, restaurantID any, from any, to any) *MockRepository_ClosuresBetween_Call {
+	return &MockRepository_ClosuresBetween_Call{Call: _e.mock.On("ClosuresBetween", ctx, restaurantID, from, to)}
+}
+
+func (_c *MockRepository_ClosuresBetween_Call) Run(run func(ctx context.Context, restaurantID uuid.UUID, from time.Time, to time.Time)) *MockRepository_ClosuresBetween_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 uuid.UUID
+		if args[1] != nil {
+			arg1 = args[1].(uuid.UUID)
+		}
+		var arg2 time.Time
+		if args[2] != nil {
+			arg2 = args[2].(time.Time)
+		}
+		var arg3 time.Time
+		if args[3] != nil {
+			arg3 = args[3].(time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_ClosuresBetween_Call) Return(closures []Closure, err error) *MockRepository_ClosuresBetween_Call {
+	_c.Call.Return(closures, err)
+	return _c
+}
+
+func (_c *MockRepository_ClosuresBetween_Call) RunAndReturn(run func(ctx context.Context, restaurantID uuid.UUID, from time.Time, to time.Time) ([]Closure, error)) *MockRepository_ClosuresBetween_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1213,6 +1294,63 @@ func (_c *MockRepository_LockRestaurant_Call) Return(restaurantInfo RestaurantIn
 }
 
 func (_c *MockRepository_LockRestaurant_Call) RunAndReturn(run func(ctx context.Context, id uuid.UUID) (RestaurantInfo, error)) *MockRepository_LockRestaurant_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// Notify provides a mock function for the type MockRepository
+func (_mock *MockRepository) Notify(ctx context.Context, d notification.Draft) error {
+	ret := _mock.Called(ctx, d)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Notify")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, notification.Draft) error); ok {
+		r0 = returnFunc(ctx, d)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockRepository_Notify_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Notify'
+type MockRepository_Notify_Call struct {
+	*mock.Call
+}
+
+// Notify is a helper method to define mock.On call
+//   - ctx context.Context
+//   - d notification.Draft
+func (_e *MockRepository_Expecter) Notify(ctx any, d any) *MockRepository_Notify_Call {
+	return &MockRepository_Notify_Call{Call: _e.mock.On("Notify", ctx, d)}
+}
+
+func (_c *MockRepository_Notify_Call) Run(run func(ctx context.Context, d notification.Draft)) *MockRepository_Notify_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 notification.Draft
+		if args[1] != nil {
+			arg1 = args[1].(notification.Draft)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockRepository_Notify_Call) Return(err error) *MockRepository_Notify_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockRepository_Notify_Call) RunAndReturn(run func(ctx context.Context, d notification.Draft) error) *MockRepository_Notify_Call {
 	_c.Call.Return(run)
 	return _c
 }

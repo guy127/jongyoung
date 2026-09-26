@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"jongyoung/internal/notification"
+
 	"github.com/google/uuid"
 )
 
@@ -21,6 +23,8 @@ type Repository interface {
 	FindView(ctx context.Context, id uuid.UUID) (View, error)
 	ListByUser(ctx context.Context, userID uuid.UUID, status string, now time.Time) ([]View, error)
 	ListForRestaurant(ctx context.Context, restaurantID uuid.UUID, from, to time.Time) ([]View, error)
+	ClosuresBetween(ctx context.Context, restaurantID uuid.UUID, from, to time.Time) ([]Closure, error)
+	Notify(ctx context.Context, d notification.Draft) error
 }
 
 // Slot ที่ผู้ใช้เลือก: วันทำการ + เวลาบนนาฬิกา (server แปลงเป็นเวลาจริงเอง รองรับร้านข้ามคืน)
@@ -61,7 +65,10 @@ func (s *service) Create(ctx context.Context, userID, restaurantID uuid.UUID, c 
 		}
 		created = Booking{RestaurantID: r.ID, UserID: userID, PartySize: req.PartySize,
 			StartAt: req.StartAt, EndAt: req.EndAt, Status: StatusActive}
-		return tx.Create(ctx, &created)
+		if err := tx.Create(ctx, &created); err != nil {
+			return err
+		}
+		return notifyOwner(ctx, tx, r, userID, notification.KindBookingCreated, created)
 	})
 	return created, err
 }
@@ -92,7 +99,10 @@ func (s *service) Update(ctx context.Context, userID, bookingID uuid.UUID, c Cho
 		}
 		b.PartySize, b.StartAt, b.EndAt = req.PartySize, req.StartAt, req.EndAt
 		updated = b
-		return tx.UpdateTime(ctx, &b)
+		if err := tx.UpdateTime(ctx, &b); err != nil {
+			return err
+		}
+		return notifyOwner(ctx, tx, r, userID, notification.KindBookingUpdated, b)
 	})
 	return updated, err
 }
@@ -111,7 +121,10 @@ func (s *service) Cancel(ctx context.Context, userID, bookingID uuid.UUID) error
 		if err := s.checkChangeable(b, userID, r.CancelBeforeMinutes); err != nil {
 			return err
 		}
-		return tx.Cancel(ctx, b.ID, s.now())
+		if err := tx.Cancel(ctx, b.ID, s.now()); err != nil {
+			return err
+		}
+		return notifyOwner(ctx, tx, r, userID, notification.KindBookingCancelled, b)
 	})
 }
 
@@ -160,8 +173,12 @@ func (s *service) Board(ctx context.Context, userID, restaurantID uuid.UUID, dat
 			active = append(active, v.Booking)
 		}
 	}
+	closures, err := s.repository.ClosuresBetween(ctx, restaurantID, opensAt, closesAt)
+	if err != nil {
+		return Board{}, err
+	}
 	// now = เวลาศูนย์ → ไม่ตัดช่วงที่ผ่านไปแล้วออก (เจ้าของต้องเห็นทั้งรอบ)
-	slots := Slots(r.Hours(), r.Seats, active, nil, date, time.Time{})
+	slots := Slots(r.Hours(), r.Seats, active, closures, date, time.Time{})
 	return Board{Restaurant: r, Closed: r.Hours().ClosedOn(date), OpensAt: opensAt, ClosesAt: closesAt, Bookings: views, Slots: slots}, nil
 }
 
@@ -169,6 +186,14 @@ func (s *service) Board(ctx context.Context, userID, restaurantID uuid.UUID, dat
 func (s *service) checkSlot(ctx context.Context, tx Repository, r RestaurantInfo, userID uuid.UUID, req Request, excludeID uuid.UUID) error {
 	if err := ValidateRequest(req, r.Hours(), r.Seats, s.now()); err != nil {
 		return err
+	}
+	// ช่วงปิดชั่วคราว — อ่านในล็อกเดียวกัน: เจ้าของร้านกดปิดพร้อมกับมีคนจอง ก็ต่อคิวที่ล็อกแถวร้านเดียวกัน
+	closures, err := tx.ClosuresBetween(ctx, r.ID, req.StartAt, req.EndAt)
+	if err != nil {
+		return err
+	}
+	if c := closureAt(closures, req.StartAt, req.EndAt); c != nil {
+		return &ClosedError{Closure: *c}
 	}
 	// กฎ 8 ก่อนกฎ 7: กดซ้ำแล้วคำขอแรกสำเร็จ → คำขอที่สองต้องได้ DUPLICATE_BOOKING ไม่ใช่ NOT_ENOUGH_SEATS
 	dup, err := tx.FindOverlappingOwn(ctx, r.ID, userID, req.StartAt, req.EndAt, excludeID)
@@ -199,4 +224,14 @@ func (s *service) checkChangeable(b Booking, userID uuid.UUID, cancelBefore int)
 		return &CancelWindowError{Until: CancelDeadline(b.StartAt, cancelBefore)}
 	}
 	return nil
+}
+
+// notifyOwner แจ้งเจ้าของร้านเมื่อลูกค้าจอง/แก้/ยกเลิก — เรียกใน tx เดียวกับงานนั้น
+// ไม่แจ้งถ้าเจ้าของร้านเป็นคนทำเอง (จองร้านตัวเองได้ — ดู README)
+func notifyOwner(ctx context.Context, tx Repository, r RestaurantInfo, actor uuid.UUID, kind string, b Booking) error {
+	if r.OwnerID == actor {
+		return nil
+	}
+	return tx.Notify(ctx, notification.Draft{Recipient: r.OwnerID, Kind: kind, BookingID: b.ID,
+		BusinessDate: BusinessDateOf(b.StartAt, r.Hours())})
 }

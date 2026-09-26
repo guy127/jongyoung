@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"jongyoung/internal/notification"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -36,11 +38,14 @@ func TestServiceCreate(t *testing.T) {
 		repo := NewMockRepository(t)
 		expectTx(repo)
 		repo.EXPECT().LockRestaurant(ctx, rid).Return(rest, nil)
+		repo.EXPECT().ClosuresBetween(ctx, rid, start, end).Return(nil, nil)
 		repo.EXPECT().FindOverlappingOwn(ctx, rid, user, start, end, uuid.Nil).Return(nil, nil)
 		repo.EXPECT().Overlapping(ctx, rid, start, end, uuid.Nil).Return(nil, nil)
 		repo.EXPECT().Create(ctx, mock.MatchedBy(func(b *Booking) bool {
 			return b.StartAt.Equal(start) && b.EndAt.Equal(end) && b.UserID == user && b.Status == StatusActive
 		})).Return(nil)
+		repo.EXPECT().Notify(ctx, notification.Draft{Recipient: uuid.Nil, Kind: notification.KindBookingCreated,
+			BookingID: uuid.Nil, BusinessDate: "2026-10-10"}).Return(nil)
 		_, err := newSvc(repo).Create(ctx, user, rid, choice)
 		assert.NoError(t, err)
 	})
@@ -50,6 +55,7 @@ func TestServiceCreate(t *testing.T) {
 		repo := NewMockRepository(t)
 		expectTx(repo)
 		repo.EXPECT().LockRestaurant(ctx, rid).Return(rest, nil)
+		repo.EXPECT().ClosuresBetween(ctx, rid, start, end).Return(nil, nil)
 		repo.EXPECT().FindOverlappingOwn(ctx, rid, user, start, end, uuid.Nil).Return(&Booking{ID: existingID}, nil)
 		_, err := newSvc(repo).Create(ctx, user, rid, choice)
 		var dup *DuplicateBookingError
@@ -61,6 +67,7 @@ func TestServiceCreate(t *testing.T) {
 		repo := NewMockRepository(t)
 		expectTx(repo)
 		repo.EXPECT().LockRestaurant(ctx, rid).Return(rest, nil)
+		repo.EXPECT().ClosuresBetween(ctx, rid, start, end).Return(nil, nil)
 		repo.EXPECT().FindOverlappingOwn(ctx, rid, user, start, end, uuid.Nil).Return(nil, nil)
 		repo.EXPECT().Overlapping(ctx, rid, start, end, uuid.Nil).Return([]Booking{bk(9, start, end)}, nil)
 		_, err := newSvc(repo).Create(ctx, user, rid, choice)
@@ -102,6 +109,7 @@ func TestServiceUpdateAndCancel(t *testing.T) {
 		expectTx(repo)
 		repo.EXPECT().LockRestaurant(ctx, rid).Return(rest, nil)
 		repo.EXPECT().LockByID(ctx, bid).Return(mine, nil)
+		repo.EXPECT().ClosuresBetween(ctx, rid, mine.StartAt, mine.EndAt).Return(nil, nil)
 		repo.EXPECT().FindOverlappingOwn(ctx, rid, user, mine.StartAt, mine.EndAt, bid).Return(nil, nil)
 		repo.EXPECT().Overlapping(ctx, rid, mine.StartAt, mine.EndAt, bid).Return([]Booking{bk(3, mine.StartAt, mine.EndAt)}, nil)
 		_, err := newSvc(repo).Update(ctx, user, bid, Choice{Date: date, StartMinute: 19 * 60, EndMinute: 20 * 60, PartySize: 8})
@@ -151,6 +159,8 @@ func TestServiceUpdateAndCancel(t *testing.T) {
 		repo.EXPECT().FindRestaurant(ctx, rid, true).Return(rest, nil)
 		deadline := bkk(2026, 10, 10, 18, 30)
 		repo.EXPECT().Cancel(ctx, bid, deadline).Return(nil)
+		repo.EXPECT().Notify(ctx, notification.Draft{Recipient: uuid.Nil, Kind: notification.KindBookingCancelled,
+			BookingID: bid, BusinessDate: "2026-10-10"}).Return(nil)
 		assert.NoError(t, NewService(repo, func() time.Time { return deadline }).Cancel(ctx, user, bid))
 	})
 }
@@ -175,6 +185,7 @@ func TestServiceGetAndBoard(t *testing.T) {
 		rest := RestaurantInfo{ID: rid, OwnerID: owner, Seats: 10, OpenMinute: 18 * 60, CloseMinute: 2 * 60}
 		repo := NewMockRepository(t)
 		repo.EXPECT().FindRestaurant(ctx, rid, false).Return(rest, nil)
+		repo.EXPECT().ClosuresBetween(ctx, rid, bkk(2026, 10, 10, 18, 0), bkk(2026, 10, 11, 2, 0)).Return(nil, nil)
 		repo.EXPECT().ListForRestaurant(ctx, rid, bkk(2026, 10, 10, 18, 0), bkk(2026, 10, 11, 2, 0)).Return([]View{
 			{Booking: bk(4, bkk(2026, 10, 11, 1, 0), bkk(2026, 10, 11, 2, 0))},
 		}, nil)
@@ -201,4 +212,51 @@ func TestBusinessDateLabel(t *testing.T) {
 
 func TestCode(t *testing.T) {
 	assert.Equal(t, "JY-3FA85F", Code(uuid.MustParse("3fa85f64-5717-4562-b3fc-2c963f66afa6")))
+}
+
+func TestServiceClosuresAndNotify(t *testing.T) {
+	ctx := context.Background()
+	user, owner, rid := uuid.New(), uuid.New(), uuid.New()
+	rest := RestaurantInfo{ID: rid, OwnerID: owner, Seats: 10, OpenMinute: 11 * 60, CloseMinute: 22 * 60, CancelBeforeMinutes: 30}
+	choice := Choice{Date: bkk(2026, 10, 10, 0, 0), StartMinute: 19 * 60, EndMinute: 20 * 60, PartySize: 2}
+	start, end := bkk(2026, 10, 10, 19, 0), bkk(2026, 10, 10, 20, 0)
+
+	t.Run("ทับช่วงปิด → ClosedError พร้อมเหตุผล และไม่ตรวจกฎ 8/7 ต่อ", func(t *testing.T) {
+		repo := NewMockRepository(t)
+		expectTx(repo)
+		repo.EXPECT().LockRestaurant(ctx, rid).Return(rest, nil)
+		repo.EXPECT().ClosuresBetween(ctx, rid, start, end).Return([]Closure{
+			{Reason: "ไฟดับ", StartAt: bkk(2026, 10, 10, 18, 0), EndAt: bkk(2026, 10, 10, 22, 0)},
+		}, nil)
+		_, err := newSvc(repo).Create(ctx, user, rid, choice)
+		var closed *ClosedError
+		require.True(t, errors.As(err, &closed))
+		assert.Equal(t, "ไฟดับ", closed.Closure.Reason)
+	})
+
+	t.Run("จองสำเร็จ → แจ้งเจ้าของร้าน", func(t *testing.T) {
+		repo := NewMockRepository(t)
+		expectTx(repo)
+		repo.EXPECT().LockRestaurant(ctx, rid).Return(rest, nil)
+		repo.EXPECT().ClosuresBetween(ctx, rid, start, end).Return(nil, nil)
+		repo.EXPECT().FindOverlappingOwn(ctx, rid, user, start, end, uuid.Nil).Return(nil, nil)
+		repo.EXPECT().Overlapping(ctx, rid, start, end, uuid.Nil).Return(nil, nil)
+		repo.EXPECT().Create(ctx, mock.Anything).Return(nil)
+		repo.EXPECT().Notify(ctx, notification.Draft{Recipient: owner, Kind: notification.KindBookingCreated,
+			BookingID: uuid.Nil, BusinessDate: "2026-10-10"}).Return(nil)
+		_, err := newSvc(repo).Create(ctx, user, rid, choice)
+		assert.NoError(t, err)
+	})
+
+	t.Run("เจ้าของร้านจองร้านตัวเอง → ไม่แจ้งตัวเอง (ไม่มี EXPECT Notify — ถ้าเรียก mock จะ fail)", func(t *testing.T) {
+		repo := NewMockRepository(t)
+		expectTx(repo)
+		repo.EXPECT().LockRestaurant(ctx, rid).Return(rest, nil)
+		repo.EXPECT().ClosuresBetween(ctx, rid, start, end).Return(nil, nil)
+		repo.EXPECT().FindOverlappingOwn(ctx, rid, owner, start, end, uuid.Nil).Return(nil, nil)
+		repo.EXPECT().Overlapping(ctx, rid, start, end, uuid.Nil).Return(nil, nil)
+		repo.EXPECT().Create(ctx, mock.Anything).Return(nil)
+		_, err := newSvc(repo).Create(ctx, owner, rid, choice)
+		assert.NoError(t, err)
+	})
 }

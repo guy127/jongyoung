@@ -162,3 +162,27 @@ func TestBookingInBreakRejected(t *testing.T) {
 	_, err = svc.Create(ctx, insertUser(t, db), rid, afterBreak)
 	assert.NoError(t, err)
 }
+
+// ช่วงปิดชั่วคราวต้องถูกตรวจในล็อกเดียวกับการจอง และจองสำเร็จต้องมีแจ้งเตือนถึงเจ้าของร้านในทรานแซกชันเดียวกัน
+func TestBookingClosureAndNotify(t *testing.T) {
+	db := testdb.New(t)
+	ctx := context.Background()
+	now := func() time.Time { return bkk(2026, 10, 1, 12, 0) }
+	svc := NewService(NewRepository(db), now)
+	owner := insertUser(t, db)
+	rid := insertRestaurant(t, db, owner, 10) // 11:00–22:00
+	require.NoError(t, db.Exec(`INSERT INTO restaurant_closures (restaurant_id, start_at, end_at, reason) VALUES (?, ?, ?, 'ไฟดับ')`,
+		rid, bkk(2026, 10, 10, 18, 0), bkk(2026, 10, 10, 20, 0)).Error)
+	date := bkk(2026, 10, 10, 0, 0)
+
+	_, err := svc.Create(ctx, insertUser(t, db), rid, Choice{Date: date, StartMinute: 19 * 60, EndMinute: 20 * 60, PartySize: 2})
+	var closed *ClosedError
+	require.True(t, errors.As(err, &closed), "err = %v", err)
+	assert.Equal(t, "ไฟดับ", closed.Closure.Reason)
+
+	b, err := svc.Create(ctx, insertUser(t, db), rid, Choice{Date: date, StartMinute: 20 * 60, EndMinute: 21 * 60, PartySize: 2})
+	require.NoError(t, err)
+	var n int64
+	require.NoError(t, db.Table("notifications").Where("user_id = ? AND booking_id = ? AND kind = 'booking_created'", owner, b.ID).Count(&n).Error)
+	assert.EqualValues(t, 1, n)
+}

@@ -66,3 +66,10 @@ type NotEnoughSeatsError struct {
 func (e *NotEnoughSeatsError) Error() string {
 	return fmt.Sprintf("NOT_ENOUGH_SEATS: %d seats available at %s", e.Available, e.At.Format(time.RFC3339))
 }
+
+// ClosedError → 400 RESTAURANT_CLOSED: ช่วงที่ขอทับช่วงที่ร้านปิดชั่วคราว (หน้าเว็บบอกเหตุผลและช่วงปิดได้)
+type ClosedError struct {
+	Closure Closure
+}
+
+func (e *ClosedError) Error() string { return "RESTAURANT_CLOSED: " + e.Closure.Reason }

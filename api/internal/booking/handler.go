@@ -236,6 +236,7 @@ func (h *handler) fail(c *gin.Context, err error) {
 	var seats *NotEnoughSeatsError
 	var dup *DuplicateBookingError
 	var window *CancelWindowError
+	var closed *ClosedError
 	switch {
 	case errors.As(err, &rule):
 		details := any(nil)
@@ -252,6 +253,9 @@ func (h *handler) fail(c *gin.Context, err error) {
 	case errors.As(err, &window):
 		httputil.Abort(c, http.StatusForbidden, "CANCEL_WINDOW_PASSED", "เลยเวลาที่แก้ไข/ยกเลิกได้แล้ว",
 			gin.H{"cancel_until": window.Until.In(Bangkok)})
+	case errors.As(err, &closed):
+		httputil.Abort(c, http.StatusBadRequest, "RESTAURANT_CLOSED", "ร้านปิดในช่วงที่เลือก",
+			gin.H{"reason": closed.Closure.Reason, "start_at": closed.Closure.StartAt.In(Bangkok), "end_at": closed.Closure.EndAt.In(Bangkok)})
 	case errors.Is(err, ErrRestaurantNotFound):
 		httputil.NotFound(c, "ไม่พบร้าน")
 	case errors.Is(err, ErrBookingNotFound):

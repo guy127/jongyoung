@@ -11,6 +11,12 @@ const (
 	StatusCancelled = "cancelled"
 )
 
+// ใครเป็นคนยกเลิก (คอลัมน์ cancelled_by) — ลูกค้าต้องรู้ว่าร้านยกเลิกให้ ไม่ใช่ตัวเองกดพลาด
+const (
+	CancelledByCustomer   = "customer"
+	CancelledByRestaurant = "restaurant"
+)
+
 // Booking คือการจองหนึ่งรายการ (ตาราง bookings)
 type Booking struct {
 	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
@@ -21,6 +27,8 @@ type Booking struct {
 	EndAt        time.Time `gorm:"not null"`
 	Status       string    `gorm:"not null;default:active"`
 	CancelledAt  *time.Time
+	CancelledBy  *string // nil = ยังไม่ยกเลิก (หรือข้อมูลเก่าก่อนมีคอลัมน์นี้)
+	CancelReason string  // เหตุผลจากร้าน
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
