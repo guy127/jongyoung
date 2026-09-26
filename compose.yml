@@ -37,7 +37,9 @@ services:
 
   migrate:
     build: ./api
-    entrypoint: ["/app/migrate", "up"]
+    # แยก entrypoint/command ให้สั่ง `docker compose run --rm migrate down` หรือ `status` ได้
+    entrypoint: ["/app/migrate"]
+    command: ["up"]
     environment:
       POSTGRES_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
     depends_on:

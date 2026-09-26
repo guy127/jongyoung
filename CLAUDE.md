@@ -26,7 +26,7 @@
 | **Auth** | **Keycloak (OIDC)** | แยกเรื่อง identity ออกจาก business logic ไม่ต้องเก็บรหัสผ่านเอง ได้ refresh token/logout/social login ฟรี |
 | Token verify (Go) | coreos/go-oidc | discovery + JWKS + cache + rotate key ให้หมด |
 | API docs | swaggo (Swagger) | สร้างจาก comment ใน handler |
-| Styling | Tailwind + shadcn/ui | |
+| Styling | Tailwind (token ใน `globals.css`) + component เขียนเองใน `components/bases/` | ไม่ใช้ shadcn — ชิ้นส่วนน้อย เขียนเองอธิบายได้ทุกบรรทัด |
 | Test | testify + mockery + httptest + testcontainers (Go), Vitest + Testing Library (web) | repository test รันกับ Postgres จริงใน container |
 | Local infra | Docker Compose (postgres, keycloak, api, web, caddy) | ผู้ตรวจรัน `docker compose up` คำสั่งเดียวได้ทั้งระบบ |
 | Reverse proxy | Caddy (`*.jongyoung.localhost`) | browser และ container เห็น Keycloak ด้วยชื่อเดียวกัน → issuer ตรงกัน (ดู 2.3) |
@@ -524,14 +524,16 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 | GET | `/restaurants/:id/next-available` | – | `?date=&time=&party_size=` → วันทำการถัดไป (ไม่เกิน 14 วัน) ที่มีช่วงว่างพอ + ช่วงเหล่านั้น; ไม่เจอ → `null` |
 | POST | `/restaurants` | ✓ | |
 | PUT / DELETE | `/restaurants/:id` | ✓ owner | |
-| POST / DELETE | `/restaurants/:id/images` | ✓ owner | รับ URL |
+| POST | `/restaurants/:id/images` | ✓ owner | รับ `{ url }` |
+| DELETE | `/restaurants/:id/images/:imageId` | ✓ owner | ลบรูปสุดท้ายไม่ได้ (400 `IMAGE_REQUIRED`) |
 | GET | `/restaurants/:id/bookings` | ✓ owner | `?date=` (**วันทำการ เหมือนกัน**) — แขกตอนตี 1 ของคืนวันเสาร์ต้องอยู่ในวันเสาร์ |
-| POST | `/bookings` | ✓ | 409 `NOT_ENOUGH_SEATS` หรือ `DUPLICATE_BOOKING` |
+| POST | `/bookings` | ✓ | body `{ restaurant_id, date, start_time, end_time, party_size }` (`date` = วันทำการ, เวลาเป็น `HH:MM` แล้ว server แปลงด้วย `businessday.go`) → 409 `NOT_ENOUGH_SEATS` หรือ `DUPLICATE_BOOKING` |
 | GET | `/me/bookings` | ✓ | `?status=upcoming\|past\|cancelled` |
 | GET | `/bookings/:id` | ✓ เจ้าของ booking หรือ owner ร้าน | ใช้เป็นหน้ายืนยันการจอง |
 | PUT | `/bookings/:id` | ✓ เจ้าของ booking | แก้จำนวนคน/วัน/เวลา |
 | DELETE | `/bookings/:id` | ✓ เจ้าของ booking | ยกเลิก → `status=cancelled` (ไม่ลบจริง เก็บประวัติ) |
 | GET | `/restaurants/:id/reviews` | – | `?page=&limit=` |
+| GET | `/restaurants/:id/reviews/mine` | ✓ | รีวิวของฉันในร้านนี้ (ยังไม่มี → 404) ใช้ตัดสินว่าฟอร์มเป็น POST หรือ PUT |
 | POST | `/restaurants/:id/reviews` | ✓ | สร้าง; มีอยู่แล้ว → 409; เจ้าของร้าน → 403 |
 | PUT | `/restaurants/:id/reviews` | ✓ | แก้ของตัวเอง; ยังไม่มี → 404 |
 | DELETE | `/restaurants/:id/reviews` | ✓ | ลบของตัวเอง |
@@ -593,7 +595,7 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 | `/bookings/[id]` | **หน้ายืนยันการจอง** — เลขที่จอง, ร้าน + ที่อยู่ + แผนที่, เวลา, "ยกเลิกได้ถึง …", เพิ่มลงปฏิทิน | client |
 | `/me/bookings` | การจองของฉัน (tab กำลังจะถึง/ผ่านมาแล้ว/ยกเลิกแล้ว) แก้-ยกเลิกในหน้านี้ | client |
 | `/owner/restaurants` | ร้านของฉัน (ตาราง + สร้าง/แก้/ลบ) | client |
-| `/owner/restaurants/[id]/bookings` | ตารางการจองรายวันทำการ + แถบที่นั่งต่อช่วง | client |
+| `/owner/bookings?restaurant=&date=` | ตารางการจองรายวันทำการ + แถบที่นั่งต่อช่วง (เลือกร้านจาก dropdown) | client |
 | `/api/auth/[...nextauth]`, `/api/auth/logout` | next-auth + logout | – |
 
 **Flow การจอง = 2 แท็ป:** กดปุ่มเวลาบนการ์ดร้าน → หน้าร้านเปิดพร้อมเวลาที่เลือกไว้ในแผงจอง → "ยืนยันการจอง" → `/bookings/[id]`
@@ -831,7 +833,7 @@ web (Vitest + Testing Library)
 ## 10. สิ่งที่ต้องส่ง (11 ต.ค. — ไม่มีเลื่อน)
 
 1. **Git repo** — Next.js + Go พร้อม README ที่มี:
-   - วิธีรันทีละคำสั่ง (`cp .env.example .env` → `docker compose up` → migrate → seed → เปิด http://jongyoung.localhost)
+   - วิธีรันทีละคำสั่ง (`cp .env.example .env` → `docker compose up -d --build` — migrate + seed รันอัตโนมัติใน compose → เปิด http://jongyoung.localhost)
    - บัญชีทดสอบของ Keycloak (owner 2 คน, ลูกค้า 1 คน)
    - seed data ที่เปิดมาแล้ว **เห็นร้านหลายร้าน + การจอง + รีวิวทันที** (ข้อ 4.1)
    - เหตุผลที่เลือก DB / auth / library แต่ละตัว + เปรียบเทียบ Bayesian กับเกณฑ์ ≥ 5 รีวิว

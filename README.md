@@ -1,93 +1,198 @@
-# jongyoung
+# จองยัง (jongyoung)
 
+ระบบจองโต๊ะร้านอาหาร + รีวิวร้าน — งานสอบปลายภาค PEA DevPool 2026
 
+- **Frontend:** Next.js 16 (App Router) + TypeScript + TanStack Query + next-auth
+- **Backend:** Go + Gin + GORM + PostgreSQL
+- **Auth:** Keycloak (OIDC)
+- **รันทั้งระบบด้วย** Docker Compose คำสั่งเดียว
 
-## Getting started
+---
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## 1. วิธีรัน
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+ต้องมี Docker (Docker Desktop / Rancher Desktop) และพอร์ต **80** ว่าง
 
-## Add your files
-
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.com/guy127/jongyoung.git
-git branch -M main
-git push -uf origin main
+```bash
+cp .env.example .env
+docker compose up -d --build
 ```
 
-## Integrate with your tools
+compose จะทำให้ครบตามลำดับ: `postgres` → `migrate` (goose up) → `seed` (ข้อมูลตัวอย่าง) → `api`, `keycloak` (import realm) → `web` → `caddy`
+รอ Keycloak พร้อมประมาณ 30–60 วินาที แล้วเปิด:
 
-* [Set up project integrations](https://gitlab.com/guy127/jongyoung/-/settings/integrations)
+| URL | คืออะไร |
+|---|---|
+| http://jongyoung.localhost | หน้าเว็บ |
+| http://api.jongyoung.localhost/swagger/index.html | Swagger ของ API |
+| http://api.jongyoung.localhost/healthz | health check |
+| http://keycloak.jongyoung.localhost/admin | Keycloak admin (`admin` / `admin`) |
 
-## Collaborate with your team
+> `*.localhost` ชี้มาที่เครื่องตัวเองอัตโนมัติ (RFC 6761) ใน Chrome / Firefox / Edge ไม่ต้องแก้อะไร
+> ถ้า browser หรือโปรแกรมไหนหาชื่อไม่เจอ ให้เพิ่มบรรทัดนี้ใน `/etc/hosts` (Windows: `C:\Windows\System32\drivers\etc\hosts`)
+> ```
+> 127.0.0.1 jongyoung.localhost api.jongyoung.localhost keycloak.jongyoung.localhost
+> ```
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+คำสั่งที่ใช้บ่อย
+```bash
+docker compose run --rm seed --reset   # ล้างข้อมูลแล้วใส่ข้อมูลตัวอย่างใหม่ (เวลาในข้อมูลจะอิงจากวันนี้)
+docker compose run --rm migrate status # ดูว่ารัน migration ไหนไปแล้ว (down = ย้อนทีละขั้น)
+docker compose logs -f api web         # ดู log
+docker compose down -v                 # ปิดและลบข้อมูลทั้งหมด
+```
 
-## Test and Deploy
+ต่อฐานข้อมูลด้วย TablePlus / DBeaver / psql: `127.0.0.1:5433` user `jongyoung` password `jongyoung-dev-password` db `jongyoung`
 
-Use the built-in continuous integration in GitLab.
+### บัญชีทดสอบ (Keycloak)
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+| username | password | ชื่อ | บทบาทในข้อมูลตัวอย่าง |
+|---|---|---|---|
+| `owner1` | `owner1-pass` | สมศรี ใจงาม | เจ้าของร้าน ครัวป้าแดง, บ้านชาบู, โจ๊กสามย่าน |
+| `owner2` | `owner2-pass` | วีระ ทองดี | เจ้าของร้าน ซูชิ ทาคุมิ, ท่าเรือซีฟู้ดบาร์, ครัวบ้านสวน |
+| `customer1` | `customer1-pass` | มะลิ วงศ์ดี | ลูกค้า มีการจองอยู่แล้ว 4 รายการ |
 
-***
+สมัครบัญชีใหม่ได้จากหน้า login ของ Keycloak (เปิด self-registration ไว้)
+ทุกบัญชีเป็นได้ทั้งลูกค้าและเจ้าของร้าน ("หนึ่งบัญชี สองบทบาท") — สร้างร้านแรกแล้วตัวสลับ `ลูกค้า | เจ้าของร้าน` จะขึ้นที่ navbar
 
-# Editing this README
+> ⚠️ **secret ทั้งหมดใน repo นี้เป็นค่าสำหรับ dev เท่านั้น** — `.env.example` และ client secret ใน
+> `keycloak/import/jongyoung-realm.json` (`dev-only-jongyoung-web-secret`) ต้องตรงกัน ห้ามนำไปใช้จริง
+> วิธี export realm ใหม่ดูที่ [keycloak/README.md](keycloak/README.md)
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+### ข้อมูลตัวอย่าง (seed)
 
-## Suggestions for a good README
+| ร้าน | เวลา | สิ่งที่โชว์ |
+|---|---|---|
+| ครัวป้าแดง ตามสั่ง | 10:00–21:00 | เคสปกติ + พรุ่งนี้ 18:00–19:30 เหลือ 2 ที่ (ปุ่มเวลา "เหลือน้อย") |
+| ซูชิ ทาคุมิ | 11:00–22:00 | 46 รีวิว ★4.8, ยกเลิกได้ก่อน 60 นาที |
+| บ้านชาบู บุฟเฟ่ต์ | 17:00–23:00 | เปิดเฉพาะเย็น + รีวิวเดียว ★5.0 → ป้าย "รีวิวน้อย (1)" และไม่แซงร้าน ★4.8 |
+| ท่าเรือซีฟู้ดบาร์ | 18:00–02:00 | **ข้ามเที่ยงคืน** + ป้าย "(เช้าวันที่ n)" |
+| โจ๊กสามย่าน 24 ชม. | 00:00–00:00 | **เปิด 24 ชม.** + ยังไม่มีรีวิว (อยู่ท้ายสุดของ "คะแนนสูงสุด") |
+| ครัวบ้านสวน | 11:00–22:00 | **เต็มทั้งรอบพรุ่งนี้** → กล่อง "เต็มทั้งรอบ · ว่างวันถัดไป" |
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+การจองของ `customer1`: กำลังจะถึง 2 รายการ (หนึ่งรายการคร่อมเที่ยงคืนที่ร้านซีฟู้ด), ผ่านมาแล้ว 1, ยกเลิกแล้ว 1
 
-## Name
-Choose a self-explaining name for your project.
+---
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+## 2. โครงสร้าง
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```
+compose.yml            postgres, keycloak, migrate, seed, api, web, caddy
+caddy/Caddyfile        *.jongyoung.localhost → web / api / keycloak
+keycloak/import/       realm + client + user ทดสอบ (import ตอนเริ่ม)
+api/                   Go — handler → service → repository ต่อ domain
+  internal/booking/    ⭐ businessday.go (วันทำการ), availability.go (sweep line), rules.go, service.go
+  internal/restaurant/ CRUD, ลดที่นั่ง/ย่นเวลา, ค้นหา + Bayesian, ปุ่มเวลาบนการ์ด
+  internal/review/     รีวิว + คะแนนรวมแบบ atomic
+  internal/middleware/ ตรวจ token (go-oidc) + สร้าง user ครั้งแรกที่เห็น (JIT)
+  migrations/          goose (Up/Down)     cmd/seed/  ข้อมูลตัวอย่าง
+web/                   Next.js
+  app/(customer)/      หน้าแรก, หน้าร้าน, หน้ายืนยันการจอง, การจองของฉัน
+  app/owner/           ร้านของฉัน, บอร์ดการจองรายวันทำการ
+  services/            hook TanStack Query ต่อ resource     lib/  axios, auth, format เวลาไทย, .ics
+.gitlab-ci.yml         lint → test → build → image (main)
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+กติกาธุรกิจทุกข้อบังคับที่ Go เสมอ หน้าเว็บตรวจซ้ำเพื่อ UX เท่านั้น — รายละเอียดทั้งหมดอยู่ใน [CLAUDE.md](CLAUDE.md)
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+---
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+## 3. จุดสำคัญของโจทย์
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### ที่นั่งไม่เกินในทุกวินาที — sweep line ไม่ใช่ SUM
+ร้าน 10 ที่: A จอง 7 คน 12:00–12:30, B จอง 7 คน 12:30–13:00, C ขอ 3 คน 12:00–13:00
+`SUM` ของทุกการจองที่ทับช่วงของ C = 17 → ปฏิเสธ **แต่ที่ถูกคือต้องจองได้** เพราะ A กับ B ไม่ได้อยู่พร้อมกัน
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+`maxConcurrent()` ใน [availability.go](api/internal/booking/availability.go) นับคนในร้านเฉพาะ "จุดที่มีคนเข้าร้าน"
+(จำนวนคนเพิ่มขึ้นได้เฉพาะตอนมีคนเริ่ม ระหว่างสองจุดค่าคงที่) — ฟังก์ชันเดียวนี้ใช้ทั้งตอนจอง แก้ไข ลดที่นั่ง และคำนวณเวลาว่าง
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+### สองคนกดพร้อมกัน — ล็อกแถวร้าน
+ทุกการจอง/แก้ไขทำในทรานแซกชันเดียว: `SELECT ... FOR UPDATE` แถวร้าน → ตรวจ "จองซ้อนตัวเอง" → ตรวจที่นั่ง → เขียน
+คำขอที่สองรอที่บรรทัดล็อกจนคนแรกเสร็จ จึงเห็นข้อมูลล่าสุดเสมอ → สำเร็จคนเดียว อีกคนได้ `409 NOT_ENOUGH_SEATS`
+(มี integration test ยิงสอง goroutine ใส่ Postgres จริง)
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+กดจองซ้ำ/เน็ตกระตุก: กฎ "ผู้ใช้คนเดิมจองร้านเดิมซ้อนเวลาไม่ได้" ถูกตรวจในล็อกเดียวกัน **ก่อน** นับที่นั่ง
+→ คำขอที่สองได้ `409 DUPLICATE_BOOKING` พร้อมลิงก์ไปรายการเดิม (ไม่ใช่ "ร้านเต็ม")
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+### ร้านเปิดข้ามเที่ยงคืน และ "วันทำการ"
+เก็บเวลาเปิด–ปิดเป็นนาทีจากเที่ยงคืน: `close < open` = ข้ามวัน, `open == close` = 24 ชม.
+`date` ทุกที่ในระบบหมายถึง **รอบที่เปิดในวันนั้น** — ร้าน 18:00–02:00 วันที่ 10 = 18:00 วันที่ 10 ถึง 02:00 วันที่ 11
+API ส่ง timestamp เต็มพร้อม offset เสมอ หน้าเว็บจึงไม่ต้องเดาวัน และติดป้าย "(เช้าวันที่ 11)" ให้เวลาหลังเที่ยงคืน
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+---
 
-## License
-For open source projects, say how it is licensed.
+## 4. เหตุผลที่เลือกเครื่องมือ
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+| เลือก | เพราะ |
+|---|---|
+| **PostgreSQL** | ต้องใช้ทรานแซกชัน + row lock (`FOR UPDATE`) กันจองชน, `timestamptz`, partial index, และ `ON CONFLICT` สำหรับ upsert ผู้ใช้ |
+| **Keycloak (OIDC)** | แยกเรื่องตัวตนออกจาก business logic — ไม่ต้องเก็บรหัสผ่านเอง ได้ refresh token / logout / สมัครสมาชิกมาเลย |
+| **go-oidc** | ตรวจ signature (JWKS + หมุน key) + `exp` + `iss` + `aud` ให้ครบในที่เดียว |
+| **next-auth** | จัดการ authorization code flow + state + PKCE + session cookie ไม่ต้องเขียน flow เอง |
+| **Caddy + `*.jongyoung.localhost`** | browser และ container เรียก Keycloak ด้วยชื่อเดียวกัน → `iss` ใน token ตรงกันทั้งสองฝั่ง |
+| **GORM + raw SQL** | CRUD ธรรมดาใช้ GORM; query ที่ต้องคุมเอง (Bayesian, upsert, อัปเดตคะแนนแบบ atomic) เขียน SQL ตรง |
+| **goose** | migration มีเวอร์ชัน มีทั้ง Up/Down และ embed ลง binary |
+| **TanStack Query + axios** | cache / refetch / loading อยู่ที่เดียว; interceptor แนบ Bearer token |
+| **testcontainers** | repository test รันกับ Postgres จริง — ทดสอบ lock และ SQL ได้จริง ไม่ใช่ mock |
+
+**ไม่ใช้ Redis** — Go ไม่มี login flow ที่ต้องเก็บ state (next-auth จัดการ) และไม่มีอะไรที่ต้อง cache ข้ามคำขอ
+
+owner/customer **ไม่ใช่ role ใน Keycloak** — ความเป็นเจ้าของผูกกับร้านแต่ละร้าน (`restaurants.owner_id`) เป็นข้อมูล ไม่ใช่สิทธิ์ระดับบัญชี
+ตาราง `users` ของเราผูกกับ Keycloak ด้วย `sub` (ไม่ใช่ email เพราะเปลี่ยนได้) และ upsert ทุกครั้งที่เห็น token → ชื่อ/อีเมลตามทัน Keycloak เสมอ
+
+---
+
+## 5. การเรียง "คะแนนสูงสุด": Bayesian average vs เกณฑ์ขั้นต่ำ ≥ 5 รีวิว
+
+ปัญหา: ร้าน ★5.0 จาก 1 รีวิว ไม่ควรอยู่เหนือร้าน ★4.8 จาก 46 รีวิว
+
+```
+score = (C·m + rating_sum) / (C + rating_count)     C = 5, m = ค่าเฉลี่ยทุกรีวิวในระบบ
+```
+
+| | Bayesian average (ที่เลือก) | ตัดร้านที่รีวิว < 5 ออก / ไปไว้ท้าย |
+|---|---|---|
+| วิธีคิด | เหมือนทุกร้านมี "รีวิวสมมติ" C ใบที่ได้คะแนนเฉลี่ยของระบบ รีวิวจริงยิ่งเยอะ ยิ่งดึงคะแนนออกจากค่ากลางได้ | ร้านที่รีวิวไม่ถึงเกณฑ์ไม่ถูกจัดอันดับด้วยคะแนน |
+| ร้านรีวิว 4 ใบ vs 5 ใบ | ต่างกันนิดเดียว (ต่อเนื่อง) | ต่างกันสุดขั้ว (เส้นตัดแข็ง) |
+| ร้านใหม่ที่ดีจริง | ค่อย ๆ ไต่ขึ้นเมื่อมีรีวิวเพิ่ม | ไม่มีทางขึ้นจนกว่าจะครบ 5 |
+| อธิบายให้ผู้ใช้ | ยากกว่าเล็กน้อย | ง่าย |
+
+ตัวอย่างจาก seed (รีวิวทั้งระบบ 364 คะแนน / 78 รีวิว → m ≈ 4.67):
+บุฟเฟ่ต์ ★5.0 จาก 1 → (5·4.67 + 5)/6 ≈ **4.72** · ซูชิ ★4.8 จาก 46 → (5·4.67 + 221)/51 ≈ **4.79** → ซูชิอยู่เหนือ
+
+เพิ่มเติม:
+- `score` คำนวณใน query (ไม่ใช่คอลัมน์) และใช้ `::float` กันหารจำนวนเต็ม
+- ร้านที่ยังไม่มีรีวิวอยู่ท้ายสุดเสมอ ไม่งั้นจะได้คะแนน = m พอดีแล้วแซงร้านที่มีรีวิวจริงแต่ต่ำกว่าค่าเฉลี่ย
+- UI ใช้เหตุผลเดียวกัน: รีวิว < 5 แสดงป้าย "รีวิวน้อย (n)" แทนดาวเด่น
+- ค่าเฉลี่ยไม่ต้อง `AVG()` ทุกครั้ง: เก็บ `rating_sum` / `rating_count` ที่ร้าน และอัปเดตแบบ atomic
+  (`rating_sum = rating_sum + ?`) ในทรานแซกชันเดียวกับรีวิว
+
+---
+
+## 6. Test
+
+```bash
+cd api && go test ./...          # ต้องมี Docker (integration test ใช้ testcontainers) — ข้ามได้ด้วย -short
+cd web && npm test               # Vitest
+```
+
+- `api/internal/booking` — กติกาที่นั่ง (รวมเคส A/B/C), lead time, ข้ามเที่ยงคืน, 24 ชม., วันทำการ, cancel window, แก้ไขโดยไม่นับตัวเอง, จองพร้อมกัน / กดซ้ำ (Postgres จริง)
+- `api/internal/restaurant` — ลดที่นั่ง/ย่นเวลาชนการจองที่มีอยู่, Bayesian sort, ปุ่มเวลาบนการ์ด (query เดียวต่อหน้า), วันถัดไปที่ว่าง
+- `api/internal/review` — รีวิวร้านตัวเอง 403, รีวิวซ้ำ 409, คะแนนรวมถูกต้องเมื่อรีวิวพร้อมกัน
+- `api/internal/middleware`, `user` — 401, สร้าง/อัปเดตผู้ใช้จาก token
+- `web` — สถานะปุ่มเวลา, ป้ายคะแนน, ป้าย "(เช้าวันที่ n)", 409 `DUPLICATE_BOOKING` ไม่บอกว่าร้านเต็ม, ไฟล์ .ics
+
+CI (`.gitlab-ci.yml`): lint + test + build ทุก push, build และ push image `api`/`web` ขึ้น GitLab Container Registry เมื่อเข้า `main`
+(job `api:test` ใช้ Docker-in-Docker — runner ต้องเปิด privileged)
+
+---
+
+## 7. พัฒนานอก Docker (ไม่บังคับ)
+
+```bash
+docker compose up -d postgres keycloak caddy migrate seed
+cd api && POSTGRES_DSN="postgres://jongyoung:jongyoung-dev-password@127.0.0.1:5433/jongyoung?sslmode=disable" go run ./cmd/api
+cd web && npm install && npm run dev
+```
+Node/Go บางเครื่อง (เช่น WSL) resolve `*.localhost` เองไม่ได้ ให้เพิ่ม `/etc/hosts` ตามข้อ 1 ก่อน
+และถ้ารัน web นอก compose ต้องแก้ Caddyfile ให้ `jongyoung.localhost` ชี้ `host.docker.internal:3000`
