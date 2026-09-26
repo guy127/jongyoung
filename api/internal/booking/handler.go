@@ -34,6 +34,7 @@ func NewHandler(service Service, now func() time.Time) *handler {
 // Create godoc
 //
 //	@Summary		จองโต๊ะ
+//	@ID				createBooking
 //	@Description	409 NOT_ENOUGH_SEATS = ที่นั่งไม่พอ (details.available, details.at); 409 DUPLICATE_BOOKING = มีการจองที่ทับช่วงนี้อยู่แล้ว (details.booking_id)
 //	@Tags			bookings
 //	@Security		BearerAuth
@@ -68,6 +69,7 @@ func (h *handler) Create(c *gin.Context) {
 // Update godoc
 //
 //	@Summary	แก้ไขการจอง (จำนวนคน/วัน/เวลา) — ต้องยังไม่เลยเส้นตายของเวลาเดิม
+//	@ID			updateBooking
 //	@Tags		bookings
 //	@Security	BearerAuth
 //	@Accept		json
@@ -104,6 +106,7 @@ func (h *handler) Update(c *gin.Context) {
 // Cancel godoc
 //
 //	@Summary	ยกเลิกการจอง (เปลี่ยนสถานะเป็น cancelled ไม่ลบจริง)
+//	@ID			cancelBooking
 //	@Tags		bookings
 //	@Security	BearerAuth
 //	@Param		id	path	string	true	"booking id"
@@ -127,6 +130,7 @@ func (h *handler) Cancel(c *gin.Context) {
 // Get godoc
 //
 //	@Summary	รายละเอียดการจอง (หน้ายืนยัน) — เจ้าของการจองหรือเจ้าของร้านเท่านั้น
+//	@ID			getBooking
 //	@Tags		bookings
 //	@Security	BearerAuth
 //	@Produce	json
@@ -147,6 +151,7 @@ func (h *handler) Get(c *gin.Context) {
 // ListMine godoc
 //
 //	@Summary	การจองของฉัน
+//	@ID			listMyBookings
 //	@Tags		me
 //	@Security	BearerAuth
 //	@Produce	json
@@ -177,6 +182,7 @@ func (h *handler) ListMine(c *gin.Context) {
 // Board godoc
 //
 //	@Summary	บอร์ดการจองรายวันทำการของร้าน (เจ้าของร้านเท่านั้น) + คนในร้านต่อช่วง 30 นาที
+//	@ID			getBookingBoard
 //	@Tags		restaurants
 //	@Security	BearerAuth
 //	@Produce	json

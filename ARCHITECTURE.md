@@ -29,7 +29,7 @@ jongyoung/
 │   │   ├── booking/           # ⭐ businessday.go, availability.go, rules.go, changes.go + จอง/แก้/ยกเลิก/บอร์ด
 │   │   └── review/            # รีวิว + คะแนนรวมแบบ atomic
 │   ├── migrations/            # goose SQL (Up + Down) — ห้ามมี seed data
-│   ├── docs/                  # Swagger ที่ generate จาก comment (swaggo)
+│   ├── docs/                  # Swagger 2 + OpenAPI 3 ที่ generate จาก comment (./dev.sh docs)
 │   └── Dockerfile
 ├── web/                       # Frontend — Next.js 16 (App Router)
 │   ├── app/

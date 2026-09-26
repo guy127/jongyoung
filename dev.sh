@@ -21,6 +21,13 @@ case "${1:-help}" in
     docker compose run --rm seed --reset
     docker compose --profile e2e run --rm -e E2E_ARGS="$*" e2e
     ;;
+  docs)                                                       # สร้าง Swagger 2 (swaggo) จาก comment ใน handler แล้วแปลงเป็น OpenAPI 3
+    (cd api && swag init -g cmd/api/main.go -o docs --parseInternal)
+    npx -y swagger2openapi@7 --yaml -o api/docs/openapi.yaml api/docs/swagger.yaml
+    # Swagger 2 ไม่มีชนิด bearer (swaggo จึงใช้ apiKey) — OpenAPI 3 มี จึงเปลี่ยนให้ถูกชนิด
+    sed -i '/^    BearerAuth:/,/^      type: apiKey/c\    BearerAuth:\n      description: access token จาก Keycloak (realm jongyoung, aud = jongyoung-api)\n      type: http\n      scheme: bearer\n      bearerFormat: JWT' api/docs/openapi.yaml
+    sed -i '1i # สร้างด้วย ./dev.sh docs จาก comment ใน handler — ห้ามแก้ไฟล์นี้ด้วยมือ' api/docs/openapi.yaml
+    ;;
   check) "$0" lint && "$0" test && "$0" e2e ;;                 # ตรวจครบทุกอย่างก่อนส่งงาน
   *)
     cat <<'HELP'
@@ -32,6 +39,7 @@ case "${1:-help}" in
   lint    go vet + gofmt + eslint + tsc
   test    unit/integration test ของ Go และ web
   e2e     E2E test (Playwright) กับระบบที่รันอยู่ — ส่งต่ออาร์กิวเมนต์ได้ เช่น ./dev.sh e2e --project=mobile
+  docs    สร้าง api/docs/swagger.yaml + openapi.yaml ใหม่จาก comment ใน handler
   check   lint + test + e2e
 HELP
     ;;

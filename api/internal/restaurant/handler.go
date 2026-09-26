@@ -37,6 +37,7 @@ func NewHandler(service Service) *handler {
 // List godoc
 //
 //	@Summary	ค้นหาร้าน (+ ปุ่มเวลาว่าง 5 ช่วงเมื่อส่ง date, time, party_size มาครบ)
+//	@ID			listRestaurants
 //	@Tags		restaurants
 //	@Produce	json
 //	@Param		q			query		string	false	"ชื่อร้าน/เมนู"
@@ -91,6 +92,7 @@ func (h *handler) List(c *gin.Context) {
 // Get godoc
 //
 //	@Summary	รายละเอียดร้าน
+//	@ID			getRestaurant
 //	@Tags		restaurants
 //	@Produce	json
 //	@Param		id	path		string	true	"restaurant id"
@@ -113,6 +115,7 @@ func (h *handler) Get(c *gin.Context) {
 // Create godoc
 //
 //	@Summary	สร้างร้าน (ผู้สร้างเป็นเจ้าของ)
+//	@ID			createRestaurant
 //	@Tags		restaurants
 //	@Security	BearerAuth
 //	@Accept		json
@@ -138,6 +141,7 @@ func (h *handler) Create(c *gin.Context) {
 // Update godoc
 //
 //	@Summary		แก้ไขร้าน (เฉพาะเจ้าของ)
+//	@ID				updateRestaurant
 //	@Description	ลดที่นั่งต่ำกว่าคนสูงสุดของการจองที่จะถึง หรือย่นเวลาจนการจองตกนอกเวลา → 409
 //	@Tags			restaurants
 //	@Security		BearerAuth
@@ -169,6 +173,7 @@ func (h *handler) Update(c *gin.Context) {
 // Delete godoc
 //
 //	@Summary	ลบร้าน (soft delete) และยกเลิกการจองที่ยังไม่เริ่มทั้งหมด
+//	@ID			deleteRestaurant
 //	@Tags		restaurants
 //	@Security	BearerAuth
 //	@Param		id	path	string	true	"restaurant id"
@@ -191,6 +196,7 @@ func (h *handler) Delete(c *gin.Context) {
 // AddImage godoc
 //
 //	@Summary	เพิ่มรูปร้าน (URL)
+//	@ID			addRestaurantImage
 //	@Tags		restaurants
 //	@Security	BearerAuth
 //	@Accept		json
@@ -221,6 +227,7 @@ func (h *handler) AddImage(c *gin.Context) {
 // DeleteImage godoc
 //
 //	@Summary	ลบรูปร้าน (ห้ามลบรูปสุดท้าย)
+//	@ID			deleteRestaurantImage
 //	@Tags		restaurants
 //	@Security	BearerAuth
 //	@Param		id		path	string	true	"restaurant id"
@@ -248,6 +255,7 @@ func (h *handler) DeleteImage(c *gin.Context) {
 // Availability godoc
 //
 //	@Summary	ที่ว่างทุกช่วง 30 นาทีของรอบวันทำการ
+//	@ID			getAvailability
 //	@Tags		restaurants
 //	@Produce	json
 //	@Param		id		path		string	true	"restaurant id"
@@ -279,6 +287,7 @@ func (h *handler) Availability(c *gin.Context) {
 // NextAvailable godoc
 //
 //	@Summary	วันทำการถัดไป (ไม่เกิน 14 วัน) ที่มีช่วงรอบเวลาที่ค้นว่างพอ — ไม่เจอคืน null
+//	@ID			getNextAvailable
 //	@Tags		restaurants
 //	@Produce	json
 //	@Param		id			path		string	true	"restaurant id"

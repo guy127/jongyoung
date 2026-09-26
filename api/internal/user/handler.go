@@ -34,6 +34,7 @@ type MeResponse struct {
 // Me godoc
 //
 //	@Summary	โปรไฟล์ของผู้ใช้ปัจจุบัน + ร้านที่เป็นเจ้าของ
+//	@ID			getMe
 //	@Tags		me
 //	@Security	BearerAuth
 //	@Produce	json

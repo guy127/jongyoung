@@ -57,6 +57,7 @@ func newResponse(rv Review, author string) ReviewResponse {
 // List godoc
 //
 //	@Summary	รีวิวของร้าน (ใหม่สุดก่อน)
+//	@ID			listReviews
 //	@Tags		reviews
 //	@Produce	json
 //	@Param		id		path		string	true	"restaurant id"
@@ -85,6 +86,7 @@ func (h *handler) List(c *gin.Context) {
 // Mine godoc
 //
 //	@Summary	รีวิวของฉันในร้านนี้ (ไม่มี → 404)
+//	@ID			getMyReview
 //	@Tags		reviews
 //	@Security	BearerAuth
 //	@Produce	json
@@ -109,6 +111,7 @@ func (h *handler) Mine(c *gin.Context) {
 // Create godoc
 //
 //	@Summary	เขียนรีวิว (มีอยู่แล้ว → 409 REVIEW_EXISTS, ร้านตัวเอง → 403 OWN_RESTAURANT)
+//	@ID			createReview
 //	@Tags		reviews
 //	@Security	BearerAuth
 //	@Accept		json
@@ -126,6 +129,7 @@ func (h *handler) Create(c *gin.Context) {
 // Update godoc
 //
 //	@Summary	แก้รีวิวของตัวเอง (ยังไม่เคยรีวิว → 404)
+//	@ID			updateReview
 //	@Tags		reviews
 //	@Security	BearerAuth
 //	@Accept		json
@@ -142,6 +146,7 @@ func (h *handler) Update(c *gin.Context) {
 // Delete godoc
 //
 //	@Summary	ลบรีวิวของตัวเอง
+//	@ID			deleteReview
 //	@Tags		reviews
 //	@Security	BearerAuth
 //	@Param		id	path	string	true	"restaurant id"

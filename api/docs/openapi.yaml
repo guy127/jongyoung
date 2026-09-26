@@ -1,9 +1,4 @@
-# OpenAPI 3 ของ jongyoung API — แปลงมาจาก swagger.yaml (Swagger 2.0 ที่ swaggo สร้างจาก comment ใน handler)
-# สร้างใหม่หลังแก้ comment ใน handler:
-#   cd api && swag init -g cmd/api/main.go -o docs
-#   npx swagger2openapi@7 --yaml docs/swagger.yaml -o docs/openapi.yaml
-#   แล้วตัด prefix internal_ ออก + เปลี่ยน BearerAuth เป็น type: http / scheme: bearer
-
+# สร้างด้วย ./dev.sh docs จาก comment ใน handler — ห้ามแก้ไฟล์นี้ด้วยมือ
 openapi: 3.0.0
 info:
   contact: {}
@@ -17,6 +12,7 @@ paths:
       description: 409 NOT_ENOUGH_SEATS = ที่นั่งไม่พอ (details.available,
         details.at); 409 DUPLICATE_BOOKING = มีการจองที่ทับช่วงนี้อยู่แล้ว
         (details.booking_id)
+      operationId: createBooking
       requestBody:
         content:
           application/json:
@@ -36,19 +32,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
         "404":
           description: Not Found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
         "409":
           description: Conflict
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       security:
         - BearerAuth: []
       summary: จองโต๊ะ
@@ -56,6 +52,7 @@ paths:
         - bookings
   "/bookings/{id}":
     delete:
+      operationId: cancelBooking
       parameters:
         - description: booking id
           in: path
@@ -71,19 +68,20 @@ paths:
           content:
             "*/*":
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
         "409":
           description: Conflict
           content:
             "*/*":
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       security:
         - BearerAuth: []
       summary: ยกเลิกการจอง (เปลี่ยนสถานะเป็น cancelled ไม่ลบจริง)
       tags:
         - bookings
     get:
+      operationId: getBooking
       parameters:
         - description: booking id
           in: path
@@ -103,19 +101,20 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
         "404":
           description: Not Found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       security:
         - BearerAuth: []
       summary: รายละเอียดการจอง (หน้ายืนยัน) — เจ้าของการจองหรือเจ้าของร้านเท่านั้น
       tags:
         - bookings
     put:
+      operationId: updateBooking
       parameters:
         - description: booking id
           in: path
@@ -142,13 +141,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
         "409":
           description: Conflict
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       security:
         - BearerAuth: []
       summary: แก้ไขการจอง (จำนวนคน/วัน/เวลา) — ต้องยังไม่เลยเส้นตายของเวลาเดิม
@@ -156,6 +155,7 @@ paths:
         - bookings
   /me:
     get:
+      operationId: getMe
       responses:
         "200":
           description: OK
@@ -168,7 +168,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       security:
         - BearerAuth: []
       summary: โปรไฟล์ของผู้ใช้ปัจจุบัน + ร้านที่เป็นเจ้าของ
@@ -176,6 +176,7 @@ paths:
         - me
   /me/bookings:
     get:
+      operationId: listMyBookings
       parameters:
         - description: upcoming (ค่าเริ่มต้น) | past | cancelled
           in: query
@@ -198,6 +199,7 @@ paths:
         - me
   /restaurants:
     get:
+      operationId: listRestaurants
       parameters:
         - description: ชื่อร้าน/เมนู
           in: query
@@ -251,11 +253,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       summary: ค้นหาร้าน (+ ปุ่มเวลาว่าง 5 ช่วงเมื่อส่ง date, time, party_size มาครบ)
       tags:
         - restaurants
     post:
+      operationId: createRestaurant
       requestBody:
         content:
           application/json:
@@ -275,13 +278,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
         "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       security:
         - BearerAuth: []
       summary: สร้างร้าน (ผู้สร้างเป็นเจ้าของ)
@@ -289,6 +292,7 @@ paths:
         - restaurants
   "/restaurants/{id}":
     delete:
+      operationId: deleteRestaurant
       parameters:
         - description: restaurant id
           in: path
@@ -304,13 +308,14 @@ paths:
           content:
             "*/*":
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       security:
         - BearerAuth: []
       summary: ลบร้าน (soft delete) และยกเลิกการจองที่ยังไม่เริ่มทั้งหมด
       tags:
         - restaurants
     get:
+      operationId: getRestaurant
       parameters:
         - description: restaurant id
           in: path
@@ -330,13 +335,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       summary: รายละเอียดร้าน
       tags:
         - restaurants
     put:
       description: ลดที่นั่งต่ำกว่าคนสูงสุดของการจองที่จะถึง
         หรือย่นเวลาจนการจองตกนอกเวลา → 409
+      operationId: updateRestaurant
       parameters:
         - description: restaurant id
           in: path
@@ -363,13 +369,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
         "409":
           description: Conflict
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       security:
         - BearerAuth: []
       summary: แก้ไขร้าน (เฉพาะเจ้าของ)
@@ -377,6 +383,7 @@ paths:
         - restaurants
   "/restaurants/{id}/availability":
     get:
+      operationId: getAvailability
       parameters:
         - description: restaurant id
           in: path
@@ -402,6 +409,7 @@ paths:
         - restaurants
   "/restaurants/{id}/bookings":
     get:
+      operationId: getBookingBoard
       parameters:
         - description: restaurant id
           in: path
@@ -427,7 +435,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       security:
         - BearerAuth: []
       summary: บอร์ดการจองรายวันทำการของร้าน (เจ้าของร้านเท่านั้น) + คนในร้านต่อช่วง
@@ -436,6 +444,7 @@ paths:
         - restaurants
   "/restaurants/{id}/images":
     post:
+      operationId: addRestaurantImage
       parameters:
         - description: restaurant id
           in: path
@@ -464,6 +473,7 @@ paths:
         - restaurants
   "/restaurants/{id}/images/{imageId}":
     delete:
+      operationId: deleteRestaurantImage
       parameters:
         - description: restaurant id
           in: path
@@ -485,7 +495,7 @@ paths:
           content:
             "*/*":
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       security:
         - BearerAuth: []
       summary: ลบรูปร้าน (ห้ามลบรูปสุดท้าย)
@@ -493,6 +503,7 @@ paths:
         - restaurants
   "/restaurants/{id}/next-available":
     get:
+      operationId: getNextAvailable
       parameters:
         - description: restaurant id
           in: path
@@ -531,6 +542,7 @@ paths:
         - restaurants
   "/restaurants/{id}/reviews":
     delete:
+      operationId: deleteReview
       parameters:
         - description: restaurant id
           in: path
@@ -546,13 +558,14 @@ paths:
           content:
             "*/*":
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       security:
         - BearerAuth: []
       summary: ลบรีวิวของตัวเอง
       tags:
         - reviews
     get:
+      operationId: listReviews
       parameters:
         - description: restaurant id
           in: path
@@ -581,6 +594,7 @@ paths:
       tags:
         - reviews
     post:
+      operationId: createReview
       parameters:
         - description: restaurant id
           in: path
@@ -602,13 +616,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
         "409":
           description: Conflict
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       security:
         - BearerAuth: []
       summary: เขียนรีวิว (มีอยู่แล้ว → 409 REVIEW_EXISTS, ร้านตัวเอง → 403
@@ -616,6 +630,7 @@ paths:
       tags:
         - reviews
     put:
+      operationId: updateReview
       parameters:
         - description: restaurant id
           in: path
@@ -637,7 +652,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       security:
         - BearerAuth: []
       summary: แก้รีวิวของตัวเอง (ยังไม่เคยรีวิว → 404)
@@ -645,6 +660,7 @@ paths:
         - reviews
   "/restaurants/{id}/reviews/mine":
     get:
+      operationId: getMyReview
       parameters:
         - description: restaurant id
           in: path
@@ -664,7 +680,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/jongyoung_httputil.ErrorResponse"
+                $ref: "#/components/schemas/httputil.ErrorResponse"
       security:
         - BearerAuth: []
       summary: รีวิวของฉันในร้านนี้ (ไม่มี → 404)
@@ -789,6 +805,21 @@ components:
           type: string
         overnight:
           type: boolean
+      type: object
+    httputil.ErrorBody:
+      properties:
+        code:
+          example: NOT_ENOUGH_SEATS
+          type: string
+        details: {}
+        message:
+          example: ที่นั่งไม่พอ
+          type: string
+      type: object
+    httputil.ErrorResponse:
+      properties:
+        error:
+          $ref: "#/components/schemas/httputil.ErrorBody"
       type: object
     restaurant.AvailabilityResponse:
       properties:
@@ -1079,19 +1110,4 @@ components:
           type: string
         name:
           type: string
-      type: object
-    jongyoung_httputil.ErrorBody:
-      properties:
-        code:
-          example: NOT_ENOUGH_SEATS
-          type: string
-        details: {}
-        message:
-          example: ที่นั่งไม่พอ
-          type: string
-      type: object
-    jongyoung_httputil.ErrorResponse:
-      properties:
-        error:
-          $ref: "#/components/schemas/jongyoung_httputil.ErrorBody"
       type: object

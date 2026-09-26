@@ -33,6 +33,7 @@ const docTemplate = `{
                     "bookings"
                 ],
                 "summary": "จองโต๊ะ",
+                "operationId": "createBooking",
                 "parameters": [
                     {
                         "description": "วันทำการ + เวลา + จำนวนคน",
@@ -40,7 +41,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_booking.BookingRequest"
+                            "$ref": "#/definitions/booking.BookingRequest"
                         }
                     }
                 ],
@@ -48,25 +49,25 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_booking.BookingResponse"
+                            "$ref": "#/definitions/booking.BookingResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -86,6 +87,7 @@ const docTemplate = `{
                     "bookings"
                 ],
                 "summary": "รายละเอียดการจอง (หน้ายืนยัน) — เจ้าของการจองหรือเจ้าของร้านเท่านั้น",
+                "operationId": "getBooking",
                 "parameters": [
                     {
                         "type": "string",
@@ -99,19 +101,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_booking.BookingResponse"
+                            "$ref": "#/definitions/booking.BookingResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -132,6 +134,7 @@ const docTemplate = `{
                     "bookings"
                 ],
                 "summary": "แก้ไขการจอง (จำนวนคน/วัน/เวลา) — ต้องยังไม่เลยเส้นตายของเวลาเดิม",
+                "operationId": "updateBooking",
                 "parameters": [
                     {
                         "type": "string",
@@ -146,7 +149,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_booking.BookingRequest"
+                            "$ref": "#/definitions/booking.BookingRequest"
                         }
                     }
                 ],
@@ -154,19 +157,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_booking.BookingResponse"
+                            "$ref": "#/definitions/booking.BookingResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -181,6 +184,7 @@ const docTemplate = `{
                     "bookings"
                 ],
                 "summary": "ยกเลิกการจอง (เปลี่ยนสถานะเป็น cancelled ไม่ลบจริง)",
+                "operationId": "cancelBooking",
                 "parameters": [
                     {
                         "type": "string",
@@ -197,13 +201,13 @@ const docTemplate = `{
                     "403": {
                         "description": "CANCEL_WINDOW_PASSED (details.cancel_until) หรือไม่ใช่การจองของตัวเอง",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -223,17 +227,18 @@ const docTemplate = `{
                     "me"
                 ],
                 "summary": "โปรไฟล์ของผู้ใช้ปัจจุบัน + ร้านที่เป็นเจ้าของ",
+                "operationId": "getMe",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_user.MeResponse"
+                            "$ref": "#/definitions/user.MeResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -253,6 +258,7 @@ const docTemplate = `{
                     "me"
                 ],
                 "summary": "การจองของฉัน",
+                "operationId": "listMyBookings",
                 "parameters": [
                     {
                         "type": "string",
@@ -267,7 +273,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/internal_booking.BookingResponse"
+                                "$ref": "#/definitions/booking.BookingResponse"
                             }
                         }
                     }
@@ -283,6 +289,7 @@ const docTemplate = `{
                     "restaurants"
                 ],
                 "summary": "ค้นหาร้าน (+ ปุ่มเวลาว่าง 5 ช่วงเมื่อส่ง date, time, party_size มาครบ)",
+                "operationId": "listRestaurants",
                 "parameters": [
                     {
                         "type": "string",
@@ -337,13 +344,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_restaurant.ListResponse"
+                            "$ref": "#/definitions/restaurant.ListResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -364,6 +371,7 @@ const docTemplate = `{
                     "restaurants"
                 ],
                 "summary": "สร้างร้าน (ผู้สร้างเป็นเจ้าของ)",
+                "operationId": "createRestaurant",
                 "parameters": [
                     {
                         "description": "ข้อมูลร้าน (ต้องมี image_urls อย่างน้อย 1)",
@@ -371,7 +379,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_restaurant.RestaurantRequest"
+                            "$ref": "#/definitions/restaurant.RestaurantRequest"
                         }
                     }
                 ],
@@ -379,19 +387,19 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_restaurant.RestaurantResponse"
+                            "$ref": "#/definitions/restaurant.RestaurantResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -406,6 +414,7 @@ const docTemplate = `{
                     "restaurants"
                 ],
                 "summary": "รายละเอียดร้าน",
+                "operationId": "getRestaurant",
                 "parameters": [
                     {
                         "type": "string",
@@ -419,13 +428,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_restaurant.RestaurantResponse"
+                            "$ref": "#/definitions/restaurant.RestaurantResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -447,6 +456,7 @@ const docTemplate = `{
                     "restaurants"
                 ],
                 "summary": "แก้ไขร้าน (เฉพาะเจ้าของ)",
+                "operationId": "updateRestaurant",
                 "parameters": [
                     {
                         "type": "string",
@@ -461,7 +471,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_restaurant.RestaurantRequest"
+                            "$ref": "#/definitions/restaurant.RestaurantRequest"
                         }
                     }
                 ],
@@ -469,19 +479,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_restaurant.RestaurantResponse"
+                            "$ref": "#/definitions/restaurant.RestaurantResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -496,6 +506,7 @@ const docTemplate = `{
                     "restaurants"
                 ],
                 "summary": "ลบร้าน (soft delete) และยกเลิกการจองที่ยังไม่เริ่มทั้งหมด",
+                "operationId": "deleteRestaurant",
                 "parameters": [
                     {
                         "type": "string",
@@ -512,7 +523,7 @@ const docTemplate = `{
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -527,6 +538,7 @@ const docTemplate = `{
                     "restaurants"
                 ],
                 "summary": "ที่ว่างทุกช่วง 30 นาทีของรอบวันทำการ",
+                "operationId": "getAvailability",
                 "parameters": [
                     {
                         "type": "string",
@@ -547,7 +559,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_restaurant.AvailabilityResponse"
+                            "$ref": "#/definitions/restaurant.AvailabilityResponse"
                         }
                     }
                 }
@@ -567,6 +579,7 @@ const docTemplate = `{
                     "restaurants"
                 ],
                 "summary": "บอร์ดการจองรายวันทำการของร้าน (เจ้าของร้านเท่านั้น) + คนในร้านต่อช่วง 30 นาที",
+                "operationId": "getBookingBoard",
                 "parameters": [
                     {
                         "type": "string",
@@ -587,13 +600,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_booking.BoardResponse"
+                            "$ref": "#/definitions/booking.BoardResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -616,6 +629,7 @@ const docTemplate = `{
                     "restaurants"
                 ],
                 "summary": "เพิ่มรูปร้าน (URL)",
+                "operationId": "addRestaurantImage",
                 "parameters": [
                     {
                         "type": "string",
@@ -630,7 +644,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_restaurant.ImageRequest"
+                            "$ref": "#/definitions/restaurant.ImageRequest"
                         }
                     }
                 ],
@@ -638,7 +652,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_restaurant.ImageResponse"
+                            "$ref": "#/definitions/restaurant.ImageResponse"
                         }
                     }
                 }
@@ -655,6 +669,7 @@ const docTemplate = `{
                     "restaurants"
                 ],
                 "summary": "ลบรูปร้าน (ห้ามลบรูปสุดท้าย)",
+                "operationId": "deleteRestaurantImage",
                 "parameters": [
                     {
                         "type": "string",
@@ -678,7 +693,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -693,6 +708,7 @@ const docTemplate = `{
                     "restaurants"
                 ],
                 "summary": "วันทำการถัดไป (ไม่เกิน 14 วัน) ที่มีช่วงรอบเวลาที่ค้นว่างพอ — ไม่เจอคืน null",
+                "operationId": "getNextAvailable",
                 "parameters": [
                     {
                         "type": "string",
@@ -727,7 +743,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_restaurant.NextAvailableResponse"
+                            "$ref": "#/definitions/restaurant.NextAvailableResponse"
                         }
                     }
                 }
@@ -742,6 +758,7 @@ const docTemplate = `{
                     "reviews"
                 ],
                 "summary": "รีวิวของร้าน (ใหม่สุดก่อน)",
+                "operationId": "listReviews",
                 "parameters": [
                     {
                         "type": "string",
@@ -767,7 +784,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_review.ListResponse"
+                            "$ref": "#/definitions/review.ListResponse"
                         }
                     }
                 }
@@ -788,6 +805,7 @@ const docTemplate = `{
                     "reviews"
                 ],
                 "summary": "แก้รีวิวของตัวเอง (ยังไม่เคยรีวิว → 404)",
+                "operationId": "updateReview",
                 "parameters": [
                     {
                         "type": "string",
@@ -802,7 +820,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_review.ReviewRequest"
+                            "$ref": "#/definitions/review.ReviewRequest"
                         }
                     }
                 ],
@@ -810,13 +828,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_review.ReviewResponse"
+                            "$ref": "#/definitions/review.ReviewResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -837,6 +855,7 @@ const docTemplate = `{
                     "reviews"
                 ],
                 "summary": "เขียนรีวิว (มีอยู่แล้ว → 409 REVIEW_EXISTS, ร้านตัวเอง → 403 OWN_RESTAURANT)",
+                "operationId": "createReview",
                 "parameters": [
                     {
                         "type": "string",
@@ -851,7 +870,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_review.ReviewRequest"
+                            "$ref": "#/definitions/review.ReviewRequest"
                         }
                     }
                 ],
@@ -859,19 +878,19 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_review.ReviewResponse"
+                            "$ref": "#/definitions/review.ReviewResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -886,6 +905,7 @@ const docTemplate = `{
                     "reviews"
                 ],
                 "summary": "ลบรีวิวของตัวเอง",
+                "operationId": "deleteReview",
                 "parameters": [
                     {
                         "type": "string",
@@ -902,7 +922,7 @@ const docTemplate = `{
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -922,6 +942,7 @@ const docTemplate = `{
                     "reviews"
                 ],
                 "summary": "รีวิวของฉันในร้านนี้ (ไม่มี → 404)",
+                "operationId": "getMyReview",
                 "parameters": [
                     {
                         "type": "string",
@@ -935,13 +956,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_review.ReviewResponse"
+                            "$ref": "#/definitions/review.ReviewResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/jongyoung_internal_httputil.ErrorResponse"
+                            "$ref": "#/definitions/httputil.ErrorResponse"
                         }
                     }
                 }
@@ -949,13 +970,13 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "internal_booking.BoardResponse": {
+        "booking.BoardResponse": {
             "type": "object",
             "properties": {
                 "bookings": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_booking.BookingResponse"
+                        "$ref": "#/definitions/booking.BookingResponse"
                     }
                 },
                 "business_date": {
@@ -977,12 +998,12 @@ const docTemplate = `{
                 "slots": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_booking.BoardSlot"
+                        "$ref": "#/definitions/booking.BoardSlot"
                     }
                 }
             }
         },
-        "internal_booking.BoardSlot": {
+        "booking.BoardSlot": {
             "type": "object",
             "properties": {
                 "booked": {
@@ -997,7 +1018,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_booking.BookingRequest": {
+        "booking.BookingRequest": {
             "type": "object",
             "required": [
                 "date",
@@ -1028,7 +1049,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_booking.BookingResponse": {
+        "booking.BookingResponse": {
             "type": "object",
             "properties": {
                 "business_date": {
@@ -1065,7 +1086,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "restaurant": {
-                    "$ref": "#/definitions/internal_booking.RestaurantSummary"
+                    "$ref": "#/definitions/booking.RestaurantSummary"
                 },
                 "start_at": {
                     "type": "string"
@@ -1076,7 +1097,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_booking.RestaurantSummary": {
+        "booking.RestaurantSummary": {
             "type": "object",
             "properties": {
                 "address": {
@@ -1097,7 +1118,29 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_restaurant.AvailabilityResponse": {
+        "httputil.ErrorBody": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "NOT_ENOUGH_SEATS"
+                },
+                "details": {},
+                "message": {
+                    "type": "string",
+                    "example": "ที่นั่งไม่พอ"
+                }
+            }
+        },
+        "httputil.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/httputil.ErrorBody"
+                }
+            }
+        },
+        "restaurant.AvailabilityResponse": {
             "type": "object",
             "properties": {
                 "business_date": {
@@ -1120,12 +1163,12 @@ const docTemplate = `{
                 "slots": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_restaurant.SlotResponse"
+                        "$ref": "#/definitions/restaurant.SlotResponse"
                     }
                 }
             }
         },
-        "internal_restaurant.ImageRequest": {
+        "restaurant.ImageRequest": {
             "type": "object",
             "required": [
                 "url"
@@ -1136,7 +1179,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_restaurant.ImageResponse": {
+        "restaurant.ImageResponse": {
             "type": "object",
             "properties": {
                 "id": {
@@ -1150,7 +1193,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_restaurant.ListItemResponse": {
+        "restaurant.ListItemResponse": {
             "type": "object",
             "properties": {
                 "address": {
@@ -1185,7 +1228,7 @@ const docTemplate = `{
                 "images": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_restaurant.ImageResponse"
+                        "$ref": "#/definitions/restaurant.ImageResponse"
                     }
                 },
                 "map_url": {
@@ -1210,7 +1253,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "rating": {
-                    "$ref": "#/definitions/internal_restaurant.RatingResponse"
+                    "$ref": "#/definitions/restaurant.RatingResponse"
                 },
                 "seats": {
                     "type": "integer"
@@ -1218,18 +1261,18 @@ const docTemplate = `{
                 "slots": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_restaurant.SlotResponse"
+                        "$ref": "#/definitions/restaurant.SlotResponse"
                     }
                 }
             }
         },
-        "internal_restaurant.ListResponse": {
+        "restaurant.ListResponse": {
             "type": "object",
             "properties": {
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_restaurant.ListItemResponse"
+                        "$ref": "#/definitions/restaurant.ListItemResponse"
                     }
                 },
                 "limit": {
@@ -1243,7 +1286,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_restaurant.NextAvailableResponse": {
+        "restaurant.NextAvailableResponse": {
             "type": "object",
             "properties": {
                 "business_date": {
@@ -1252,12 +1295,12 @@ const docTemplate = `{
                 "slots": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_restaurant.SlotResponse"
+                        "$ref": "#/definitions/restaurant.SlotResponse"
                     }
                 }
             }
         },
-        "internal_restaurant.RatingResponse": {
+        "restaurant.RatingResponse": {
             "type": "object",
             "properties": {
                 "average": {
@@ -1269,7 +1312,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_restaurant.RestaurantRequest": {
+        "restaurant.RestaurantRequest": {
             "type": "object",
             "required": [
                 "address",
@@ -1342,7 +1385,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_restaurant.RestaurantResponse": {
+        "restaurant.RestaurantResponse": {
             "type": "object",
             "properties": {
                 "address": {
@@ -1377,7 +1420,7 @@ const docTemplate = `{
                 "images": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_restaurant.ImageResponse"
+                        "$ref": "#/definitions/restaurant.ImageResponse"
                     }
                 },
                 "map_url": {
@@ -1402,14 +1445,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "rating": {
-                    "$ref": "#/definitions/internal_restaurant.RatingResponse"
+                    "$ref": "#/definitions/restaurant.RatingResponse"
                 },
                 "seats": {
                     "type": "integer"
                 }
             }
         },
-        "internal_restaurant.SlotResponse": {
+        "restaurant.SlotResponse": {
             "type": "object",
             "properties": {
                 "available": {
@@ -1426,13 +1469,13 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_review.ListResponse": {
+        "review.ListResponse": {
             "type": "object",
             "properties": {
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_review.ReviewResponse"
+                        "$ref": "#/definitions/review.ReviewResponse"
                     }
                 },
                 "limit": {
@@ -1446,7 +1489,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_review.ReviewRequest": {
+        "review.ReviewRequest": {
             "type": "object",
             "required": [
                 "score"
@@ -1465,7 +1508,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_review.ReviewResponse": {
+        "review.ReviewResponse": {
             "type": "object",
             "properties": {
                 "author_name": {
@@ -1488,7 +1531,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_user.MeResponse": {
+        "user.MeResponse": {
             "type": "object",
             "properties": {
                 "display_name": {
@@ -1503,12 +1546,12 @@ const docTemplate = `{
                 "restaurants": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_user.OwnedRestaurant"
+                        "$ref": "#/definitions/user.OwnedRestaurant"
                     }
                 }
             }
         },
-        "internal_user.OwnedRestaurant": {
+        "user.OwnedRestaurant": {
             "type": "object",
             "properties": {
                 "id": {
@@ -1516,28 +1559,6 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
-                }
-            }
-        },
-        "jongyoung_internal_httputil.ErrorBody": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string",
-                    "example": "NOT_ENOUGH_SEATS"
-                },
-                "details": {},
-                "message": {
-                    "type": "string",
-                    "example": "ที่นั่งไม่พอ"
-                }
-            }
-        },
-        "jongyoung_internal_httputil.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "$ref": "#/definitions/jongyoung_internal_httputil.ErrorBody"
                 }
             }
         }
