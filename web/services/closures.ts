@@ -24,7 +24,7 @@ export const useClosures = (restaurantId: string | undefined) =>
 
 // ปิด/เปิดร้านกระทบเวลาว่าง บอร์ด และการจอง → โหลดใหม่หมด
 const refreshAfterChange = (qc: ReturnType<typeof useQueryClient>) =>
-  Promise.all(["closures", "availability", "board", "restaurants"].map((key) => qc.invalidateQueries({ queryKey: [key] })));
+  Promise.all(["closures", "availability", "next-available", "board"].map((key) => qc.invalidateQueries({ queryKey: [key] })));
 
 export function useCreateClosure(restaurantId: string | undefined) {
   const qc = useQueryClient();
