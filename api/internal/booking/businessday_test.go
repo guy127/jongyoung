@@ -54,6 +54,42 @@ func TestWindow(t *testing.T) {
 	}
 }
 
+// ข้อ 14: รอบของวันที่ 11 เริ่ม 18:00 วันที่ 11 — ช่วงตี 0–2 เช้าวันที่ 11 เป็นของรอบวันที่ 10 ไปแล้ว
+func TestWindowExcludesPreviousNightTail(t *testing.T) {
+	opensAt, closesAt := overnight.Window(bkk(2026, 10, 11, 0, 0))
+	assert.True(t, opensAt.Equal(bkk(2026, 10, 11, 18, 0)), "opensAt = %s", opensAt)
+	assert.True(t, closesAt.Equal(bkk(2026, 10, 12, 2, 0)), "closesAt = %s", closesAt)
+
+	oneAM := bkk(2026, 10, 11, 1, 0)
+	assert.True(t, oneAM.Before(opensAt), "ตี 1 เช้าวันที่ 11 ต้องไม่อยู่ในรอบวันที่ 11")
+}
+
+func TestBusinessDate(t *testing.T) {
+	cases := []struct {
+		name   string
+		h      Hours
+		t      time.Time
+		want   time.Time
+		wantOK bool
+	}{
+		{"ร้านปกติ เที่ยงวัน = วันเดียวกัน", normal, bkk(2026, 10, 10, 12, 0), bkk(2026, 10, 10, 0, 0), true},
+		{"ร้านปกติ ก่อนเปิด = นอกเวลา", normal, bkk(2026, 10, 10, 10, 30), time.Time{}, false},
+		{"ข้ามคืน 19:00 วันเสาร์ = รอบวันเสาร์", overnight, bkk(2026, 10, 10, 19, 0), bkk(2026, 10, 10, 0, 0), true},
+		{"ข้ามคืน ตี 1 เช้าวันอาทิตย์ = รอบวันเสาร์ (บอร์ด owner)", overnight, bkk(2026, 10, 11, 1, 0), bkk(2026, 10, 10, 0, 0), true},
+		{"ข้ามคืน 02:00 พอดี = ปิดแล้ว", overnight, bkk(2026, 10, 11, 2, 0), time.Time{}, false},
+		{"24 ชม. เที่ยงคืนพอดี = รอบวันใหม่", allDay, bkk(2026, 10, 11, 0, 0), bkk(2026, 10, 11, 0, 0), true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, ok := c.h.BusinessDate(c.t)
+			assert.Equal(t, c.wantOK, ok)
+			if c.wantOK {
+				assert.True(t, got.Equal(c.want), "date = %s", got)
+			}
+		})
+	}
+}
+
 func TestOpenAtMinute(t *testing.T) {
 	assert.False(t, normal.OpenAtMinute(10*60+30), "10:30 ร้าน 11:00–22:00 ยังไม่เปิด")
 	assert.True(t, normal.OpenAtMinute(11*60))
