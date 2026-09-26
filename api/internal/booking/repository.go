@@ -60,6 +60,8 @@ const restaurantColumns = "id, owner_id, name, address, seats, open_minute, clos
 // LockRestaurant = SELECT ... FOR UPDATE บนแถวร้าน — คำขอจองร้านเดียวกันพร้อมกันจะต่อคิวที่บรรทัดนี้
 func (r *repository) LockRestaurant(ctx context.Context, id uuid.UUID) (RestaurantInfo, error) {
 	var info RestaurantInfo
+	// อ่าน/ล็อกตาราง restaurants ตรง ๆ โดยตั้งใจ — import restaurant จะเกิด import cycle
+	// และการล็อกต้องอยู่ในทรานแซกชันเดียวกับการเขียน booking (CLAUDE.md 5.3)
 	res := r.db.WithContext(ctx).Table("restaurants").Select(restaurantColumns).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Clauses(clause.Locking{Strength: "UPDATE"}).

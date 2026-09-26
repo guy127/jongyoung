@@ -28,6 +28,8 @@ func (r *repository) Transaction(ctx context.Context, fn func(tx Repository) err
 // RestaurantOwner คืน owner_id ของร้านที่ยังไม่ถูกลบ (ใช้ตรวจว่ารีวิวร้านตัวเองไหม)
 func (r *repository) RestaurantOwner(ctx context.Context, restaurantID uuid.UUID) (uuid.UUID, error) {
 	var owner uuid.UUID
+	// อ่านตาราง restaurants ตรง ๆ โดยตั้งใจ — ถูกเรียกในทรานแซกชันเดียวกับการเขียนรีวิว
+	// ถ้าเรียกผ่าน package restaurant ต้องส่ง *gorm.DB ของทรานแซกชันข้ามแพ็กเกจ (ดู ARCHITECTURE.md)
 	err := r.db.WithContext(ctx).Table("restaurants").Select("owner_id").
 		Where("id = ? AND deleted_at IS NULL", restaurantID).Row().Scan(&owner)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -68,6 +70,8 @@ func (r *repository) Delete(ctx context.Context, id uuid.UUID) error {
 // AdjustRating ปรับผลรวมคะแนนแบบ atomic ในคำสั่งเดียว
 // ห้ามอ่านค่ามาบวกใน Go แล้วเขียนกลับ — สองคนรีวิวพร้อมกันค่าจะหาย (lost update)
 func (r *repository) AdjustRating(ctx context.Context, restaurantID uuid.UUID, sumDelta, countDelta int) error {
+	// อัปเดตตาราง restaurants ตรง ๆ โดยตั้งใจ — ต้องอยู่ในทรานแซกชันเดียวกับการเพิ่ม/แก้/ลบรีวิว (CLAUDE.md 5.6)
+	// ถ้าเรียกผ่าน package restaurant ต้องส่ง *gorm.DB ของทรานแซกชันข้ามแพ็กเกจ
 	return r.db.WithContext(ctx).Exec(`
 		UPDATE restaurants
 		SET rating_sum = rating_sum + ?, rating_count = rating_count + ?

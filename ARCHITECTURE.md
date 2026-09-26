@@ -122,6 +122,11 @@ react-hook-form + zod, Tailwind v4, lucide-react
 - middleware: Recovery → RequestLog (`X-Request-ID` + log JSON ต่อคำขอ) → CORS (`http://jongyoung.localhost` เท่านั้น)
   → RateLimit (POST/PUT/DELETE 30 ครั้ง/นาที/IP → 429 `RATE_LIMITED`) → JWT (เฉพาะ route ที่ต้อง login)
 - Swagger ที่ `/swagger/index.html`, health check ที่ `/healthz`
+- **แตะตาราง `restaurants` ข้ามโดเมนโดยตั้งใจ:** `booking` ล็อกแถวร้าน (`LockRestaurant`) และ `review` อ่าน `owner_id` + ปรับ `rating_sum/rating_count` ด้วย SQL ของตัวเอง
+  เพราะงานเหล่านี้ต้องอยู่ในทรานแซกชันเดียวกับการเขียน booking/review — ถ้าเรียกผ่าน package `restaurant` ต้องส่ง `*gorm.DB` ของทรานแซกชันข้ามแพ็กเกจ
+  ทำให้ขอบเขตทรานแซกชันรั่วออกนอก service (และ `booking` import `restaurant` ไม่ได้อยู่แล้ว เพราะ `restaurant` import `booking` → import cycle)
+  คอลัมน์ที่แตะมีแค่ `id, owner_id, name, address, map_url, seats, open_minute, close_minute, closed_weekdays, cancel_before_minutes, rating_sum, rating_count`
+  — ถ้าเปลี่ยน schema ส่วนนี้ต้องแก้ทั้งสามแพ็กเกจ
 
 **Technologies:** Go 1.26, Gin, GORM (pgx) + raw SQL, goose, coreos/go-oidc, caarlos0/env + validator, swaggo, log/slog
 
