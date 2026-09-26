@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import BrandMark from "@/components/bases/BrandMark";
 import ThemeToggle from "@/components/bases/ThemeToggle";
 import { useMe } from "@/services/me";
+import NotificationBell from "@/containers/NotificationBell";
 
 /** navbar โหมดเจ้าของร้าน — แถบทึบสีเข้ม คนละภาษาการออกแบบกับฝั่งลูกค้า ให้รู้ทันทีว่าอยู่โหมดไหน */
 export default function OwnerNavbar() {
@@ -37,6 +38,7 @@ export default function OwnerNavbar() {
           <Link href="/" className="px-3 py-1.5 text-white/85 transition-colors hover:bg-white/10 hover:text-white">ลูกค้า</Link>
           <span aria-current="true" className="bg-white px-3 py-1.5 font-semibold text-[var(--owner-bar)]">เจ้าของร้าน</span>
         </div>
+        <NotificationBell tone="dark" />
         <ThemeToggle className="border-white/30 text-white transition-colors hover:bg-white/10" />
         <span className="hidden md:inline">{me?.display_name}</span>
         {/* <a> ธรรมดาโดยตั้งใจ — <Link> จะ prefetch route handler logout (ดู Navbar) */}

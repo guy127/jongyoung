@@ -9,6 +9,7 @@ import BrandMark from "@/components/bases/BrandMark";
 import ThemeToggle from "@/components/bases/ThemeToggle";
 import { buttonClass } from "@/components/bases/ui";
 import { useMe } from "@/services/me";
+import NotificationBell from "@/containers/NotificationBell";
 
 /**
  * navbar ฝั่งลูกค้า — กระจกลอย (1 ใน 3 ที่ที่ใช้ glass) + ตัวสลับโหมดเมื่อผู้ใช้มีร้าน / ลิงก์ "เปิดร้านของคุณ" เมื่อยังไม่มี
@@ -65,6 +66,7 @@ export default function Navbar() {
             </Link>
           )
         )}
+        {status === "authenticated" && <NotificationBell />}
         <ThemeToggle className="nav-link border-border" />
         {status === "authenticated" ? (
           // ใช้ <a> ธรรมดาโดยตั้งใจ: <Link> จะ prefetch route handler นี้ = อาจ logout ตั้งแต่ render ลิงก์
