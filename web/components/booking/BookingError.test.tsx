@@ -21,4 +21,12 @@ describe("BookingError", () => {
     expect(screen.getByText(/ที่นั่งไม่พอ/)).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
+
+  it("RESTAURANT_CLOSED → กล่องสีกลางบอกช่วงปิดและเหตุผล ไม่บอกว่าเต็ม", () => {
+    render(<BookingError error={{ code: "RESTAURANT_CLOSED", message: "", details: { reason: "ไฟดับ", start_at: "2026-10-10T18:00:00+07:00", end_at: "2026-10-10T20:00:00+07:00" } }} />);
+    const box = screen.getByRole("status");
+    expect(box).toHaveTextContent("ร้านปิดในช่วงที่เลือก");
+    expect(box).toHaveTextContent("ไฟดับ");
+    expect(box).not.toHaveTextContent("เต็ม");
+  });
 });

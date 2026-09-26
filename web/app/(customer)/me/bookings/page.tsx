@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/bases/layout";
 import { Alert, Button, EmptyState, LinkButton, LoadError, Skeleton } from "@/components/bases/ui";
 import { apiError } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
-import { fmtRange, fmtShortDate, fmtTime, keyToDate } from "@/lib/format";
+import { bookingStatusLabel, fmtRange, fmtShortDate, fmtTime, keyToDate } from "@/lib/format";
 import type { Booking } from "@/lib/types";
 import { useCancelBooking, useMyBookings } from "@/services/bookings";
 
@@ -71,7 +71,7 @@ function BookingCard({ b, past }: { b: Booking; past: boolean }) {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <Link href={`/bookings/${b.id}`} className="text-[19px] font-semibold">{b.restaurant.name}</Link>
             <span className={`rounded-full px-2.5 text-[13px] font-medium ${cancelled ? "bg-full-weak text-full" : past ? "bg-chip text-muted" : "bg-ok-weak text-ok"}`}>
-              {cancelled ? "✕ ยกเลิกแล้ว" : past ? "ไปแล้ว" : "✓ ยืนยันแล้ว"}
+              {bookingStatusLabel(b, past)}
             </span>
           </div>
           <span className="tabular">{fmtRange(b.start_at, b.end_at, b.business_date)} · {b.party_size} คน</span>

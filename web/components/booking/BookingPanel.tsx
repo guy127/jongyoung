@@ -11,9 +11,10 @@ import TimeChip, { chipNote } from "@/components/bases/TimeChip";
 import { Alert, Button, Skeleton } from "@/components/bases/ui";
 import BookingError from "@/components/booking/BookingError";
 import { apiError } from "@/lib/api";
-import { chipState, closedDaysLabel, contiguousFrom, fmtRange, fmtShortDate, fmtTime, isGap, keyToDate, nextDayLabel, shiftDate, todayKey } from "@/lib/format";
+import { chipState, closedDaysLabel, contiguousFrom, fmtRange, fmtShortDate, fmtTime, gapLabel, isGap, keyToDate, nextDayLabel, shiftDate, todayKey } from "@/lib/format";
 import type { ApiError, Booking, Restaurant, Slot } from "@/lib/types";
 import { useSaveBooking } from "@/services/bookings";
+import { useClosures } from "@/services/closures";
 import { useAvailability } from "@/services/restaurants";
 
 const durations = [
@@ -41,6 +42,7 @@ export default function BookingPanel({ restaurant: r, initialDate, initialTime, 
   const [duration, setDuration] = useState(editing ? durationOf(editing) : 2);
   const [error, setError] = useState<ApiError | null>(null);
   const availability = useAvailability(r.id, date);
+  const closures = useClosures(r.id);
   const save = useSaveBooking();
 
   // ตอนแก้ไข: ที่นั่งของการจองเดิมคืนกลับมาให้ตัวเองใช้ได้ (server ก็ไม่นับตัวเองเหมือนกัน — excludeID)
@@ -85,8 +87,8 @@ export default function BookingPanel({ restaurant: r, initialDate, initialTime, 
     } catch (err) {
       const e = apiError(err);
       setError(e ?? { code: "NETWORK", message: "" });
-      // ที่นั่งเปลี่ยนไปแล้ว → โหลดเวลาว่างล่าสุดให้เห็นของจริง
-      if (e?.code === "NOT_ENOUGH_SEATS") void availability.refetch();
+      // ที่นั่งเปลี่ยนไปแล้ว หรือร้านเพิ่งปิดชั่วคราว → โหลดเวลาว่างล่าสุดให้เห็นของจริง
+      if (e?.code === "NOT_ENOUGH_SEATS" || e?.code === "RESTAURANT_CLOSED") void availability.refetch();
     }
   };
 
@@ -129,7 +131,7 @@ export default function BookingPanel({ restaurant: r, initialDate, initialTime, 
                 <Fragment key={s.start_at}>
                   {isGap(slots[i - 1], s) && (
                     <p className="col-span-4 border-t border-dashed border-border-strong pt-2 text-[13px] text-muted tabular">
-                      พักร้าน {fmtTime(slots[i - 1].end_at)}–{fmtTime(s.start_at)}
+                      {gapLabel(slots[i - 1].end_at, s.start_at, closures.data ?? [])}
                     </p>
                   )}
                   <TimeChip time={fmtTime(s.start_at)} state={state} note={chipNote(state, s.available)}
@@ -155,7 +157,7 @@ export default function BookingPanel({ restaurant: r, initialDate, initialTime, 
 
       {start && startIndex < 0 && availability.data && <Alert tone="warn" title={`${start} จองไม่ได้แล้ว`}>เลือกเวลาอื่นจากด้านบน</Alert>}
       {beyondClose && <Alert tone="warn" title="เลยเวลาปิดร้าน">ลดระยะเวลา หรือเลือกเวลาเริ่มให้เร็วขึ้น</Alert>}
-      {hitsBreak && <Alert tone="warn" title="ชนช่วงพักร้าน">ลดระยะเวลา หรือเลือกเวลาเริ่มหลังช่วงพัก</Alert>}
+      {hitsBreak && <Alert tone="warn" title="ชนช่วงพักหรือช่วงที่ร้านปิด">ลดระยะเวลา หรือเลือกเวลาเริ่มหลังช่วงพัก</Alert>}
       {short && !cut && (
         <Alert tone="warn" title={`ช่วง ${fmtTime(short.start_at)} เหลือ ${short.available} ที่`}>ไม่พอสำหรับ {party} คน — ลดจำนวนคนหรือเลือกเวลาอื่น</Alert>
       )}

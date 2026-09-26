@@ -36,7 +36,10 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
         <span className={`grid size-16 place-items-center rounded-full ${cancelled ? "bg-full-weak text-full" : "bg-ok-weak text-ok"}`}>
           <CheckCircle2 size={32} aria-hidden />
         </span>
-        <h1 id="ok-h" className="font-display text-[28px] text-balance sm:text-[32px]">{cancelled ? "การจองนี้ถูกยกเลิกแล้ว" : "จองสำเร็จแล้ว"}</h1>
+        <h1 id="ok-h" className="font-display text-[28px] text-balance sm:text-[32px]">
+          {cancelled ? (b.cancelled_by === "restaurant" ? "ร้านยกเลิกการจองนี้" : "การจองนี้ถูกยกเลิกแล้ว") : "จองสำเร็จแล้ว"}
+        </h1>
+        {cancelled && b.cancelled_by === "restaurant" && <p className="text-muted">เหตุผลจากร้าน: {b.cancel_reason}</p>}
         {!cancelled && <p className="text-muted">แสดงเลขที่จองนี้ที่ร้านเมื่อไปถึง ดูย้อนหลังได้ที่หน้าการจองของฉัน</p>}
         <div className="mt-2 flex flex-col items-center gap-1 rounded-2xl bg-chip px-8 py-3">
           <span className="text-[13px] text-muted">เลขที่จอง</span>

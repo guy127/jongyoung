@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import Rating from "@/components/bases/Rating";
 import BookingPanel from "@/components/booking/BookingPanel";
 import EditBookingLoader from "@/components/booking/EditBookingLoader";
+import ClosureBanner from "@/components/restaurant/ClosureBanner";
 import ReviewsSection from "@/components/review/ReviewsSection";
 import { serverGet } from "@/lib/api";
 import { closedDaysLabel, defaultSearch, hoursLabel, mapHref } from "@/lib/format";
@@ -45,6 +46,8 @@ export default async function RestaurantPage({ params, searchParams }: { params:
           </p>
         </div>
       </header>
+
+      <ClosureBanner restaurantId={restaurant.id} />
 
       <div className="grid gap-10 lg:grid-cols-[1fr_400px] lg:items-start lg:gap-12">
         <div className="order-2 flex flex-col gap-12 lg:order-1">

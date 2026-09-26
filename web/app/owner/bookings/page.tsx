@@ -4,8 +4,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Fragment, Suspense } from "react";
 
-import { fmtLongDate, fmtRange, fmtTime, isGap, keyToDate, nextDayLabel, shiftDate, todayKey } from "@/lib/format";
+import { bookingStatusLabel, fmtLongDate, fmtRange, fmtTime, gapLabel, isGap, keyToDate, nextDayLabel, shiftDate, todayKey } from "@/lib/format";
 import { useBoard } from "@/services/bookings";
+import { useClosures } from "@/services/closures";
 import { useMe } from "@/services/me";
 
 export default function OwnerBookingsPage() {
@@ -24,6 +25,7 @@ function Board() {
   const restaurantId = params.get("restaurant") ?? me.data?.restaurants[0]?.id;
   const date = params.get("date") ?? todayKey();
   const board = useBoard(restaurantId, date);
+  const closures = useClosures(restaurantId);
   const go = (patch: Record<string, string>) =>
     router.replace(`/owner/bookings?${new URLSearchParams({ restaurant: restaurantId ?? "", date, ...patch })}`);
 
@@ -94,7 +96,7 @@ function Board() {
                     <Fragment key={s.start_at}>
                       {isGap(all[i - 1], s) && (
                         <li className="grid h-6 grid-cols-[92px_1fr] items-center gap-2.5 text-muted tabular">
-                          <span>{fmtTime(all[i - 1].end_at)}–{fmtTime(s.start_at)}</span><span>พักร้าน</span>
+                          <span>{fmtTime(all[i - 1].end_at)}–{fmtTime(s.start_at)}</span><span>{gapLabel(all[i - 1].end_at, s.start_at, closures.data ?? []).split(" ")[0]}</span>
                         </li>
                       )}
                       <li className="grid h-6 grid-cols-[92px_1fr_48px] items-center gap-2.5 tabular">
@@ -127,7 +129,7 @@ function Board() {
                         <td className="px-2">{b.customer_name}</td>
                         <td className="px-2">{b.party_size}</td>
                         <td className="px-2 text-muted">{b.code}</td>
-                        <td className={`px-3.5 ${b.status === "cancelled" ? "text-full" : "text-ok"}`}>{b.status === "cancelled" ? "✕ ยกเลิกแล้ว" : "✓ ยืนยัน"}</td>
+                        <td className={`px-3.5 ${b.status === "cancelled" ? "text-full" : "text-ok"}`}>{b.status === "cancelled" ? bookingStatusLabel(b, false) : "✓ ยืนยัน"}</td>
                       </tr>
                     ))}
                   </tbody>
