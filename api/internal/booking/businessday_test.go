@@ -180,3 +180,81 @@ func TestClosedWeekdays(t *testing.T) {
 		})
 	}
 }
+
+// ช่วงพักร้าน: 11:00–22:00 พัก 14:00–17:00 / ข้ามคืน 18:00–02:00 พัก 23:00–00:00 / 24 ชม. พัก 03:00–05:00
+var (
+	lunchDinner    = Hours{OpenMinute: 11 * 60, CloseMinute: 22 * 60, BreakStartMinute: 14 * 60, BreakEndMinute: 17 * 60}
+	overnightBreak = Hours{OpenMinute: 18 * 60, CloseMinute: 2 * 60, BreakStartMinute: 23 * 60, BreakEndMinute: 0}
+	allDayBreak    = Hours{OpenMinute: 0, CloseMinute: 0, BreakStartMinute: 3 * 60, BreakEndMinute: 5 * 60}
+)
+
+func TestValidBreak(t *testing.T) {
+	withBreak := func(h Hours, start, end int) Hours { h.BreakStartMinute, h.BreakEndMinute = start, end; return h }
+	cases := []struct {
+		name string
+		h    Hours
+		want bool
+	}{
+		{"ไม่มีช่วงพัก", normal, true},
+		{"พักกลางรอบ", lunchDinner, true},
+		{"ข้ามคืน พัก 23:00–00:00", overnightBreak, true},
+		{"24 ชม. พัก 03:00–05:00", allDayBreak, true},
+		{"เริ่มพักพร้อมเวลาเปิด = แค่เปิดช้าลง", withBreak(normal, 11*60, 12*60), false},
+		{"พักจนถึงเวลาปิด = แค่ปิดเร็วขึ้น", withBreak(normal, 21*60, 22*60), false},
+		{"พักนอกเวลาเปิด", withBreak(normal, 8*60, 9*60), false},
+		{"เวลาจบพักมาก่อนเวลาเริ่มพัก", withBreak(normal, 17*60, 14*60), false},
+		{"ข้ามคืน พักหลังตีสอง (นอกรอบ)", withBreak(overnight, 3*60, 4*60), false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.want, c.h.ValidBreak())
+		})
+	}
+}
+
+func TestBreak(t *testing.T) {
+	_, _, ok := normal.Break(bkk(2026, 10, 10, 0, 0))
+	assert.False(t, ok, "ไม่มีช่วงพัก")
+
+	start, end, ok := overnightBreak.Break(bkk(2026, 10, 10, 0, 0))
+	require.True(t, ok)
+	assert.True(t, start.Equal(bkk(2026, 10, 10, 23, 0)), "start = %s", start)
+	assert.True(t, end.Equal(bkk(2026, 10, 11, 0, 0)), "end = %s — จบพักเที่ยงคืนของวันถัดไป", end)
+}
+
+func TestFitsWithBreak(t *testing.T) {
+	cases := []struct {
+		name       string
+		h          Hours
+		start, end time.Time
+		want       bool
+	}{
+		{"จบพอดีตอนเริ่มพัก", lunchDinner, bkk(2026, 10, 10, 13, 0), bkk(2026, 10, 10, 14, 0), true},
+		{"คร่อมเข้าช่วงพัก", lunchDinner, bkk(2026, 10, 10, 13, 30), bkk(2026, 10, 10, 14, 30), false},
+		{"อยู่ในช่วงพัก", lunchDinner, bkk(2026, 10, 10, 14, 30), bkk(2026, 10, 10, 15, 0), false},
+		{"ครอบทั้งช่วงพัก", lunchDinner, bkk(2026, 10, 10, 13, 0), bkk(2026, 10, 10, 18, 0), false},
+		{"เริ่มพอดีตอนจบพัก", lunchDinner, bkk(2026, 10, 10, 17, 0), bkk(2026, 10, 10, 18, 0), true},
+		{"ข้ามคืน ก่อนพัก", overnightBreak, bkk(2026, 10, 10, 22, 0), bkk(2026, 10, 10, 23, 0), true},
+		{"ข้ามคืน คร่อมพัก 23:30–00:30", overnightBreak, bkk(2026, 10, 10, 23, 30), bkk(2026, 10, 11, 0, 30), false},
+		{"ข้ามคืน หลังพัก 00:00–01:00", overnightBreak, bkk(2026, 10, 11, 0, 0), bkk(2026, 10, 11, 1, 0), true},
+		{"24 ชม. อยู่ในช่วงพัก", allDayBreak, bkk(2026, 10, 10, 4, 0), bkk(2026, 10, 10, 4, 30), false},
+		{"24 ชม. คร่อมเที่ยงคืน จบพอดีตอนรอบถัดไปเริ่มพัก", allDayBreak, bkk(2026, 10, 10, 23, 0), bkk(2026, 10, 11, 3, 0), true},
+		{"24 ชม. คร่อมเที่ยงคืน เข้าช่วงพักของรอบถัดไป", allDayBreak, bkk(2026, 10, 10, 23, 0), bkk(2026, 10, 11, 3, 30), false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.want, c.h.Fits(c.start, c.end))
+		})
+	}
+}
+
+// NextAvailable ใช้ OpenAtMinute ตัดสินว่า "ร้านเปิดตอนเวลาที่ค้นไหม" — ค้นตอนพักต้องได้ false
+// ไม่งั้นจะไปหาช่วงรอบเวลาพักของวันถัด ๆ ไป (ปิดหมด) แล้วตอบว่าเต็ม 14 วัน
+func TestOpenAtMinuteBreak(t *testing.T) {
+	assert.True(t, lunchDinner.OpenAtMinute(13*60+30))
+	assert.False(t, lunchDinner.OpenAtMinute(14*60), "เริ่มพัก")
+	assert.False(t, lunchDinner.OpenAtMinute(15*60+30))
+	assert.True(t, lunchDinner.OpenAtMinute(17*60), "จบพักแล้ว")
+	assert.False(t, overnightBreak.OpenAtMinute(23*60+30))
+	assert.True(t, overnightBreak.OpenAtMinute(0))
+}

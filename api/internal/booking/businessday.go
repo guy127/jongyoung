@@ -26,6 +26,10 @@ type Hours struct {
 	// ClosedWeekdays = วันปิดประจำสัปดาห์ เก็บเป็น 7 บิตในเลขตัวเดียว: บิตที่ n = ปิดทุก time.Weekday(n)
 	// (0 = อาทิตย์ … 6 = เสาร์) — เลือกเลขตัวเดียวแทน slice เพื่อให้ Hours ยังเทียบด้วย != ได้ และเก็บใน DB เป็น int ธรรมดา
 	ClosedWeekdays int
+	// ช่วงพักภายในรอบ (นาทีจากเที่ยงคืนเวลาไทย) เช่น 11:00–22:00 พัก 14:00–17:00
+	// start == end แปลว่าไม่มีช่วงพัก — ใช้ 0/0 เป็นค่าเริ่มต้น ไม่ต้องใช้ pointer และ Hours ยังเทียบด้วย != ได้
+	BreakStartMinute int
+	BreakEndMinute   int
 }
 
 // WeekdayMask แปลงรายชื่อวันเป็นบิต เช่น จันทร์ + เสาร์ = 0b1000010
@@ -79,11 +83,47 @@ func (h Hours) Window(date time.Time) (opensAt, closesAt time.Time) {
 	return opensAt, closesAt
 }
 
-// OpenAtMinute บอกว่าเวลาบนนาฬิกานี้ร้านเปิดอยู่ไหม (อยู่ในรอบ ไม่ว่าจะก่อนหรือหลังเที่ยงคืน)
-// นับนาทีจากเวลาเปิดวนรอบ 24 ชม. แล้วเทียบกับความยาวรอบ — วิธีเดียวกับ Fits
+// offset นับนาทีจากเวลาเปิดวนรอบ 24 ชม. — ใช้เทียบทุกอย่างในรอบ (เวลาเปิด, ช่วงพัก) ด้วยวิธีเดียวกัน
+// ร้าน 18:00–02:00: 23:00 → 300, 01:00 → 420
+func (h Hours) offset(minuteOfDay int) int {
+	return (minuteOfDay - h.OpenMinute + minutesPerDay) % minutesPerDay
+}
+
+func (h Hours) HasBreak() bool { return h.BreakStartMinute != h.BreakEndMinute }
+
+// ValidBreak: ช่วงพักต้องอยู่ข้างในรอบจริง ๆ — ติดขอบเวลาเปิดหรือปิด = แค่ย่นเวลาเปิด ให้ไปแก้เวลาเปิด–ปิดแทน
+func (h Hours) ValidBreak() bool {
+	if !h.HasBreak() {
+		return true
+	}
+	start, end := h.offset(h.BreakStartMinute), h.offset(h.BreakEndMinute)
+	return 0 < start && start < end && end < h.DurationMinutes()
+}
+
+// Break คืนช่วงพักจริงของรอบวันทำการ date — ok=false ถ้าร้านไม่มีช่วงพัก
+func (h Hours) Break(date time.Time) (start, end time.Time, ok bool) {
+	if !h.HasBreak() {
+		return time.Time{}, time.Time{}, false
+	}
+	opensAt, _ := h.Window(date)
+	start = opensAt.Add(time.Duration(h.offset(h.BreakStartMinute)) * time.Minute)
+	end = opensAt.Add(time.Duration(h.offset(h.BreakEndMinute)) * time.Minute)
+	return start, end, true
+}
+
+// overlapsBreak บอกว่าช่วง [start,end) ทับช่วงพักของรอบวันทำการ date ไหม (จบตอนเริ่มพักพอดี = ไม่ทับ)
+func (h Hours) overlapsBreak(date, start, end time.Time) bool {
+	breakStart, breakEnd, ok := h.Break(date)
+	return ok && start.Before(breakEnd) && end.After(breakStart)
+}
+
+// OpenAtMinute บอกว่าเวลาบนนาฬิกานี้ร้านเปิดอยู่ไหม (อยู่ในรอบ ไม่ว่าจะก่อนหรือหลังเที่ยงคืน และไม่ใช่ช่วงพัก)
 func (h Hours) OpenAtMinute(minuteOfDay int) bool {
-	offset := (minuteOfDay - h.OpenMinute + 24*60) % (24 * 60)
-	return offset < h.DurationMinutes()
+	o := h.offset(minuteOfDay)
+	if o >= h.DurationMinutes() {
+		return false
+	}
+	return !h.HasBreak() || o < h.offset(h.BreakStartMinute) || o >= h.offset(h.BreakEndMinute)
 }
 
 // At แปลงเวลาบนนาฬิกา (นาทีจากเที่ยงคืน) ที่ผู้ใช้เลือกในวันทำการ date เป็นเวลาจริง
@@ -113,11 +153,11 @@ func (h Hours) BusinessDate(t time.Time) (date time.Time, ok bool) {
 	return time.Time{}, false
 }
 
-// Fits บอกว่าช่วง [start,end) อยู่ในเวลาเปิดของร้านไหม: start ต้องอยู่ในรอบที่ไม่ใช่วันปิด และจบไม่เกินรอบนั้น
-// ยกเว้นร้าน 24 ชม. ที่รอบถัดไปเริ่มทันทีที่รอบนี้จบ → คร่อมได้ถ้ารอบถัดไปไม่ใช่วันปิด
+// Fits บอกว่าช่วง [start,end) อยู่ในเวลาเปิดของร้านไหม: start ต้องอยู่ในรอบที่ไม่ใช่วันปิด ไม่ทับช่วงพัก และจบไม่เกินรอบนั้น
+// ยกเว้นร้าน 24 ชม. ที่รอบถัดไปเริ่มทันทีที่รอบนี้จบ → คร่อมได้ถ้ารอบถัดไปไม่ใช่วันปิดและไม่ทับช่วงพักของรอบถัดไป
 func (h Hours) Fits(start, end time.Time) bool {
 	date, ok := h.BusinessDate(start)
-	if !ok || h.ClosedOn(date) {
+	if !ok || h.ClosedOn(date) || h.overlapsBreak(date, start, end) {
 		return false
 	}
 	_, closesAt := h.Window(date)
@@ -125,5 +165,5 @@ func (h Hours) Fits(start, end time.Time) bool {
 		return true
 	}
 	next := date.AddDate(0, 0, 1)
-	return h.Is24h() && !h.ClosedOn(next) && !end.After(closesAt.Add(24*time.Hour))
+	return h.Is24h() && !h.ClosedOn(next) && !h.overlapsBreak(next, start, end) && !end.After(closesAt.Add(24*time.Hour))
 }
