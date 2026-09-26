@@ -307,6 +307,53 @@ func TestCreateClosure(t *testing.T) {
 		assert.ErrorIs(t, err, ErrInvalidClosure)
 	})
 
+	t.Run("บางช่วง: ร้านข้ามเที่ยงคืน 18:00–02:00 เริ่มก่อนเวลาเปิด → ErrInvalidClosure", func(t *testing.T) {
+		// 17:30 ยังไม่เปิด (เปิด 18:00) — ถ้าไม่เช็ค Window, Span จะพาไปตีความเป็น "หลังเที่ยงคืนของพรุ่งนี้" เงียบ ๆ
+		overnight := Restaurant{ID: id, OwnerID: owner, Seats: 10, OpenMinute: 18 * 60, CloseMinute: 2 * 60}
+		repo := NewMockRepository(t)
+		expectTx(repo)
+		repo.EXPECT().LockByID(ctx, id).Return(overnight, nil)
+		bad := ClosureInput{Partial: true, Date: bkk(0, 0), StartMinute: 17*60 + 30, EndMinute: 2 * 60, Reason: "ไฟดับ"}
+		_, err := newServiceWith(repo).CreateClosure(ctx, owner, id, bad)
+		assert.ErrorIs(t, err, ErrInvalidClosure)
+	})
+
+	t.Run("บางช่วง: end ก่อน start ใน 11:00–22:00 → ErrInvalidClosure (ห้าม wrap ไปวันถัดไป)", func(t *testing.T) {
+		repo := NewMockRepository(t)
+		expectTx(repo)
+		repo.EXPECT().LockByID(ctx, id).Return(rest, nil)
+		bad := ClosureInput{Partial: true, Date: bkk(0, 0), StartMinute: 20 * 60, EndMinute: 18 * 60, Reason: "พิมพ์ผิด"}
+		_, err := newServiceWith(repo).CreateClosure(ctx, owner, id, bad)
+		assert.ErrorIs(t, err, ErrInvalidClosure)
+	})
+
+	t.Run("ทั้งวัน: ร้านเปิดไปแล้ว → เริ่มปิดจากตอนนี้แทนที่จะนับว่าย้อนหลัง", func(t *testing.T) {
+		now := time.Date(2026, 10, 10, 12, 10, 0, 0, booking.Bangkok) // เที่ยงกว่า ๆ ของร้าน 11:00–22:00
+		wantStart, wantEnd := bkk(12, 0), bkk(22, 0)
+		repo := NewMockRepository(t)
+		expectTx(repo)
+		repo.EXPECT().LockByID(ctx, id).Return(rest, nil)
+		repo.EXPECT().AffectedBookings(ctx, id, wantStart, wantEnd, now).Return(nil, nil)
+		isToday := mock.MatchedBy(func(c *booking.Closure) bool {
+			return c.RestaurantID == id && c.StartAt.Equal(wantStart) && c.EndAt.Equal(wantEnd)
+		})
+		repo.EXPECT().CreateClosure(ctx, isToday).Return(nil)
+		days := ClosureInput{FromDate: bkk(0, 0), ToDate: bkk(0, 0), Reason: "ไฟดับ"}
+		svc := NewService(repo, func() time.Time { return now })
+		_, err := svc.CreateClosure(ctx, owner, id, days)
+		assert.NoError(t, err)
+	})
+
+	t.Run("ทั้งวัน: รอบของวันที่เลือกจบไปแล้ว → ErrInvalidClosure", func(t *testing.T) {
+		repo := NewMockRepository(t)
+		expectTx(repo)
+		repo.EXPECT().LockByID(ctx, id).Return(rest, nil)
+		yesterday := bkk(0, 0).AddDate(0, 0, -1)
+		days := ClosureInput{FromDate: yesterday, ToDate: yesterday, Reason: "ไฟดับ"}
+		_, err := newServiceWith(repo).CreateClosure(ctx, owner, id, days)
+		assert.ErrorIs(t, err, ErrInvalidClosure)
+	})
+
 	t.Run("ไม่ใช่เจ้าของ → ErrNotOwner", func(t *testing.T) {
 		repo := NewMockRepository(t)
 		expectTx(repo)

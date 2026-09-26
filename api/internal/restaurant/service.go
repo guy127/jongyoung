@@ -316,9 +316,22 @@ func (s *service) CreateClosure(ctx context.Context, userID, id uuid.UUID, in Cl
 			return ErrNotOwner
 		}
 		now := s.now()
-		start, end := closureRange(rest.Hours(), in)
+		h := rest.Hours()
+		start, end := closureRange(h, in)
+		if in.Partial {
+			// บางช่วงต้องอยู่ในรอบเปิดของวันทำการนั้นจริง ๆ ไม่งั้น Span จะพาเวลาก่อนเปิดข้ามไปเป็นวันถัดไปเงียบ ๆ
+			// (ร้านข้ามเที่ยงคืน) หรือพาเวลาสิ้นสุดที่พิมพ์ผิด/เลยเที่ยงคืนข้ามไปเป็นวันถัดไป (ร้านปกติ)
+			if opensAt, closesAt := h.Window(in.Date); start.Before(opensAt) || end.After(closesAt) {
+				return ErrInvalidClosure
+			}
+		} else if earliest := now.Truncate(30 * time.Minute); start.Before(earliest) {
+			// ปิดทั้งวัน/หลายวัน: ถ้ารอบของวันเริ่มเปิดไปแล้ว ให้เริ่มปิดจากตอนนี้แทนที่จะนับว่าย้อนหลัง
+			// (เช่นไฟดับตอนเที่ยงของร้าน 11:00–22:00 กด "ปิดทั้งวัน" ของวันนี้ต้องปิดได้ทันที)
+			start = earliest
+		}
 		// ปัดตอนนี้ลงเป็น :00/:30 — "ปิดตอนนี้" ตอน 15:10 เริ่มได้ที่ 15:00 (เวลาไทยต่างจาก UTC เป็นชั่วโมงเต็ม จึงปัดตรงกัน)
-		if !end.After(start) || end.Sub(start) > maxClosure || start.Before(now.Truncate(30*time.Minute)) {
+		// ห้ามย้อนหลังใช้เฉพาะโหมดบางช่วง — โหมดวันใช้การ clamp ด้านบนแทน แล้วให้ !end.After(start) จับรอบที่จบไปแล้วทั้งรอบ
+		if !end.After(start) || end.Sub(start) > maxClosure || (in.Partial && start.Before(now.Truncate(30*time.Minute))) {
 			return ErrInvalidClosure
 		}
 		affected, err := tx.AffectedBookings(ctx, id, start, end, now)

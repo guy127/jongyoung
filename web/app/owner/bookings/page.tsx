@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Fragment, Suspense } from "react";
 
-import { bookingStatusLabel, clockToMinutes, fmtLongDate, fmtRange, fmtTime, gapLabel, isGap, keyToDate, minutesToClock, nextDayLabel, shiftDate, todayKey } from "@/lib/format";
+import { bookingStatusLabel, fmtLongDate, fmtRange, gapLabel, isGap, keyToDate, nextDayLabel, shiftDate, fmtTime, todayKey } from "@/lib/format";
 import { useBoard } from "@/services/bookings";
 import { useClosures } from "@/services/closures";
 import { useMe } from "@/services/me";
@@ -36,6 +36,16 @@ function Board() {
   const peak = board.data?.slots.reduce((best, s) => (s.booked > best.booked ? s : best), { booked: 0, start_at: "", end_at: "" });
   const seats = board.data?.seats ?? 0;
 
+  // "ปิดร้านตอนนี้" โผล่เมื่อรอบที่กำลังดูยังไม่จบ และเป็นรอบวันนี้ หรือรอบที่กำลังเปิดอยู่แล้ว
+  // (ร้านข้ามเที่ยงคืน เช่น 18:00–02:00 ดูบอร์ดของเมื่อวานตอนตี 1 ก็ยังนับว่า "กำลังเปิด")
+  const nowMs = new Date().getTime();
+  const opensMs = board.data ? new Date(board.data.opens_at).getTime() : 0;
+  const closesMs = board.data ? new Date(board.data.closes_at).getTime() : 0;
+  const canCloseNow = !!board.data && !board.data.closed && nowMs < closesMs && (date === todayKey() || nowMs >= opensMs);
+  // เริ่มปิดจาก "ตอนนี้ปัดลง :00/:30" หรือเวลาเปิด แล้วแต่อันไหนช้ากว่า (กันเริ่มปิดก่อนร้านเปิด)
+  const roundedNowMs = Math.floor(nowMs / (30 * 60 * 1000)) * 30 * 60 * 1000;
+  const closeNowStart = fmtTime(new Date(Math.max(roundedNowMs, opensMs)));
+
   if (me.data && me.data.restaurants.length === 0) {
     return <p className="rounded-md border border-dashed border-border-strong bg-surface p-6 text-center">ยังไม่มีร้าน — เพิ่มร้านที่หน้า “ร้านของฉัน” ก่อน</p>;
   }
@@ -62,11 +72,11 @@ function Board() {
               : <>{fmtTime(board.data.opens_at)}–{fmtTime(board.data.closes_at)} {nextDayLabel(board.data.closes_at, date)}</>} · {seats} ที่นั่ง
           </span>
         )}
-        {board.data && date === todayKey() && !board.data.closed && (
-          // ปิดกะทันหัน: กรอกวันนี้ + เวลาปัจจุบันปัดลง :00/:30 ถึงเวลาปิดร้านไว้ให้
+        {canCloseNow && (
+          // ปิดกะทันหัน: กรอกวันทำการที่กำลังดู + เวลาเริ่มปิดถึงเวลาปิดร้านไว้ให้
           <Link className="obtn obtn-sm ml-auto"
             href={`/owner/closures?${new URLSearchParams({ restaurant: restaurantId ?? "", date,
-              start: minutesToClock(Math.floor(clockToMinutes(fmtTime(new Date())) / 30) * 30), end: fmtTime(board.data.closes_at) })}`}>
+              start: closeNowStart, end: fmtTime(board.data!.closes_at) })}`}>
             ปิดร้านตอนนี้
           </Link>
         )}
