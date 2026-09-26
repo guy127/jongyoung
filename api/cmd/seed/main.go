@@ -60,7 +60,7 @@ func run(reset bool) error {
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
 		if reset {
-			if err := tx.Exec("TRUNCATE reviews, bookings, restaurant_images, restaurants").Error; err != nil {
+			if err := tx.Exec("TRUNCATE notifications, restaurant_closures, reviews, bookings, restaurant_images, restaurants").Error; err != nil {
 				return err
 			}
 		}
@@ -127,7 +127,7 @@ func seed(tx *gorm.DB, now time.Time) error {
 	s.book(buffet, customer1, 2, s.at(s.today.AddDate(0, 0, 5), 18, 0), s.at(s.today.AddDate(0, 0, 5), 19, 30), booking.StatusCancelled)
 
 	// ร้านตามสั่ง: พรุ่งนี้ 18:00–19:30 เกือบเต็ม (เหลือ 2 จาก 10) → ปุ่มเวลา "เหลือน้อย"
-	s.book(tamsang, reviewers[40], 4, s.at(tomorrow, 18, 0), s.at(tomorrow, 19, 30), booking.StatusActive)
+	tamsangEvening := s.book(tamsang, reviewers[40], 4, s.at(tomorrow, 18, 0), s.at(tomorrow, 19, 30), booking.StatusActive)
 	s.book(tamsang, reviewers[41], 4, s.at(tomorrow, 18, 30), s.at(tomorrow, 19, 30), booking.StatusActive)
 	// ครัวบ้านสวน: เต็มทั้งรอบพรุ่งนี้ 11:00–22:00
 	s.book(baansuan, reviewers[42], 8, s.at(tomorrow, 11, 0), s.at(tomorrow, 15, 0), booking.StatusActive)
@@ -149,6 +149,7 @@ func seed(tx *gorm.DB, now time.Time) error {
 	// เจ้าของร้านได้รับแจ้งการจองใหม่ (ยังไม่อ่าน)
 	s.notify(owner2, notification.KindBookingCreated, sushiDay3, tomorrow.AddDate(0, 0, 2), "")
 	s.notify(owner2, notification.KindBookingCreated, seaMidnight, tomorrow, "")
+	s.notify(owner1, notification.KindBookingCreated, tamsangEvening, tomorrow, "")
 
 	// บุฟเฟ่ต์ปิดปรับปรุงทั้งวัน 5 วันข้างหน้า (ร้านนี้ไม่มีการจอง active จึงไม่มีการจองถูกยกเลิก)
 	day5 := s.today.AddDate(0, 0, 5)
