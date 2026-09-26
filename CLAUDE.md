@@ -218,6 +218,9 @@ restaurants
   close_minute          int  not null check (close_minute between 0 and 1439)
   closed_weekdays       smallint not null default 0 check (closed_weekdays between 0 and 126)
                                                 -- วันปิดประจำสัปดาห์: บิตที่ n = ปิดทุก time.Weekday(n) (0 = อาทิตย์); 127 = ปิดทั้งสัปดาห์ ไม่อนุญาต
+  break_start_minute    int  not null default 0 check (break_start_minute between 0 and 1439)
+  break_end_minute      int  not null default 0 check (break_end_minute between 0 and 1439)
+                                                -- ช่วงพักภายในรอบ; เท่ากัน = ไม่มีช่วงพัก; ต้องอยู่ข้างในรอบ ไม่ติดขอบ (Hours.ValidBreak)
   cancel_before_minutes int  not null default 30 check (cancel_before_minutes >= 30)
   rating_sum            int  not null default 0
   rating_count          int  not null default 0
@@ -266,7 +269,7 @@ reviews
 | ร้าน | เวลา | open/close_minute | โชว์อะไร |
 |---|---|---|---|
 | ร้านอาหารตามสั่ง | 10:00–21:00 | 600 / 1260 | เคสปกติ + มีช่วงเกือบเต็มคืนนี้ (โชว์ "เหลือน้อย") |
-| ร้านในห้าง | 11:00–22:00 | 660 / 1320 | เคสปกติ + รีวิวเยอะ (46 รีวิว ★4.8) |
+| ร้านในห้าง | 11:00–22:00 | 660 / 1320 | เคสปกติ + รีวิวเยอะ (46 รีวิว ★4.8) + ช่วงพัก 15:00–17:00 |
 | ร้านบุฟเฟ่ต์ | 17:00–23:00 | 1020 / 1380 | เปิดเฉพาะเย็น + มีรีวิวเดียว ★5.0 (ทดสอบ Bayesian + ป้าย "รีวิวน้อย") |
 | ร้านซีฟู้ด/บาร์ | 18:00–02:00 | 1080 / 120 | **ข้ามเที่ยงคืน** |
 | ร้านโจ๊ก 24 ชม. | 00:00–00:00 | 0 / 0 | **เปิด 24 ชม.** |
@@ -291,6 +294,7 @@ reviews
 | `map_url` (ไม่บังคับ) ต้องเป็นลิงก์ Google Maps แบบ https (`maps.app.goo.gl`, `google.com/maps`, …) — ลิงก์นี้ไปอยู่ใน `<a href>` ที่ลูกค้ากด ห้ามรับ URL อะไรก็ได้ | ผิด → 400 `INVALID_MAP_URL` |
 | `seats > 0` | |
 | `cancel_before_minutes >= 30` | ตั้งต่ำกว่า → 400 |
+| ช่วงพัก (ไม่บังคับ) ส่งคู่ `break_start`/`break_end` และต้องอยู่ข้างในเวลาเปิด–ปิด ไม่ติดขอบ | ผิด → 400 `INVALID_BREAK` |
 | **ลดจำนวนที่นั่งต่ำกว่าที่มีคนจองไว้แล้ว** | ปฏิเสธ **409** `SEATS_BELOW_EXISTING_BOOKINGS` พร้อม `details: { at, peak }` |
 | **แก้เวลาเปิด–ปิดให้แคบกว่า booking ที่มีอยู่** | ปฏิเสธ 409 `HOURS_CONFLICT_EXISTING_BOOKINGS` พร้อม booking ที่ตกนอกเวลา |
 | **ลบร้านที่ยังมี booking ในอนาคต** | soft delete ได้ แต่ต้องยกเลิก booking ในอนาคตทั้งหมดในทรานแซกชันเดียวกัน (อธิบายเหตุผลได้ว่าทำไมเลือกแบบนี้ ไม่ใช่ block การลบ) |
@@ -298,7 +302,7 @@ reviews
 
 การตรวจลดที่นั่ง/ย่นเวลาต้องล็อกแถวร้าน (`FOR UPDATE`) เหมือนตอนจอง — ไม่งั้นมีคนจองแทรกระหว่างตรวจ
 - ลดที่นั่ง: `peak, at := maxConcurrent(bookingในอนาคต, now, ไกลสุด)` → `peak > newSeats` → 409 (ใช้ **`maxConcurrent()` ตัวเดียวกับการจอง** ดู 5.3)
-- ย่นเวลา: booking ในอนาคตทุกตัวต้องยังผ่าน `fitsOpeningHours` (5.4) ด้วยเวลาใหม่
+- ย่นเวลา (รวมถึงการเพิ่ม/ขยายช่วงพัก): booking ในอนาคตทุกตัวต้องยังผ่าน `fitsOpeningHours` (5.4) ด้วยเวลาใหม่
 ห้ามเขียน logic นับที่นั่งหรือเช็คเวลาเปิดขึ้นใหม่ที่นี่
 
 ### 5.2 การจอง — เงื่อนไขครบทุกข้อ
@@ -458,6 +462,12 @@ closes_at = opens_at + duration
   ตั้งวันปิดทับวันที่มี booking ในอนาคต → 409 `HOURS_CONFLICT_EXISTING_BOOKINGS` (ผ่าน `Fits` ตัวเดียวกับย่นเวลา)
 - รอบของ "วันนี้" ต้องตัดช่วงที่เลยไปแล้วและช่วงที่เหลือน้อยกว่า lead time 30 นาทีออก
 
+**ช่วงพัก (ร้านเปิด 2 ช่วง):** ร้านมีรอบเดียว + ช่วงพักได้ 1 ช่วง เช่น 11:00–22:00 พัก 14:00–17:00
+- วันทำการ/`Window`/`At` ไม่เปลี่ยน — ช่วงพักเป็นแค่ "รูในรอบ"
+- `Fits` ปฏิเสธช่วงจองที่ทับช่วงพัก (จบตอนเริ่มพักพอดีได้); ร้าน 24 ชม. ที่คร่อมเข้ารอบถัดไปตรวจช่วงพักของรอบถัดไปด้วย
+- `Slots` ข้ามช่วงพัก; `OpenAtMinute` ตอบ false ในช่วงพัก (ใช้ใน next-available)
+- หน้าเว็บรู้ว่าตรงไหนเป็นช่วงพักจาก slot ที่ต่อกันไม่สนิท (`isGap`/`contiguousFrom`) — API ไม่ต้องส่งช่วงพักแยก
+
 **ตัวแปลงวันทำการ ↔ เวลาจริง ต้องเป็นฟังก์ชันเดียวใน `businessday.go`** ที่ availability, list, POST /bookings,
 PUT /bookings และหน้า owner เรียกใช้ร่วมกัน — ห้ามเขียนซ้ำในแต่ละที่
 
@@ -583,6 +593,7 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 |---|---|---|
 | `TOO_LATE_TO_BOOK` | 400 | `earliest_start_at` |
 | `CLOSED_WEEKDAY` | 400 | – |
+| `INVALID_BREAK` | 400 | – |
 | `NOT_ENOUGH_SEATS` | 409 | `available`, `at` |
 | `DUPLICATE_BOOKING` | 409 | `booking_id` |
 | `BOOKING_CANCELLED` / `BOOKING_ALREADY_STARTED` | 409 | – |
@@ -815,6 +826,7 @@ Mockup ใน Claude Design ต้องมี **ไม่ใช่แค่ hap
 14. ร้าน 18:00–02:00 `date=11` → **ไม่มี** ช่วงตี 0–2 ของเช้าวันที่ 11 (เป็นของรอบวันที่ 10)
 15. เลือกวันทำการ 10 + เวลา 00:30 → แปลงเป็น `2026-10-11T00:30+07:00`
 16. ร้านปกติ วันทำการ = วันปฏิทิน
+16b. ช่วงพัก: จบตอนเริ่มพักผ่าน / คร่อมหรืออยู่ในพักไม่ผ่าน / ข้ามคืน / 24 ชม. คร่อมเข้าพักของรอบถัดไป / `ValidBreak` ติดขอบไม่ผ่าน
 
 service test (mock repository ด้วย mockery `mocks_test.go`)
 17. **กฎข้อ 8**: ผู้ใช้เดิมจองร้านเดิมซ้อนเวลา → `DUPLICATE_BOOKING` พร้อม `booking_id` (ไม่ใช่ `NOT_ENOUGH_SEATS`); คนละร้าน/ไม่ทับ → ผ่าน; ตอนแก้ไขไม่นับตัวเอง

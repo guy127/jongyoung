@@ -117,6 +117,7 @@ react-hook-form + zod, Tailwind v4, lucide-react
 - สร้างผู้ใช้ในตาราง `users` ตอนเห็น `sub` ครั้งแรก (JIT) และอัปเดต email/ชื่อเมื่อ claims เปลี่ยน
 - หัวใจอยู่ที่ `internal/booking`:
   - `businessday.go` — แปลง "วันทำการ" (รอบที่เปิดในวันนั้น รองรับข้ามเที่ยงคืนและ 24 ชม.) ↔ เวลาจริง ใช้ร่วมกันทุกที่
+    `Hours` มีช่วงพักได้ 1 ช่วงภายในรอบ — `Fits`/`Slots`/`OpenAtMinute` ไม่นับช่วงพักเป็นเวลาเปิด ทุกที่ที่เรียกฟังก์ชันเหล่านี้ได้กติกาเดียวกัน
   - `availability.go` — `maxConcurrent()` sweep line ใช้ทั้งตอนจอง แก้ไข ลดที่นั่ง และคำนวณช่วงว่าง
 - ปุ่มเวลาบนการ์ดร้าน: query booking ครั้งเดียวต่อหน้า (`restaurant_id IN (...)`) แล้วคำนวณใน Go — ไม่มี N+1
 - middleware: Recovery → RequestLog (`X-Request-ID` + log JSON ต่อคำขอ) → CORS (`http://jongyoung.localhost` เท่านั้น)
@@ -125,7 +126,7 @@ react-hook-form + zod, Tailwind v4, lucide-react
 - **แตะตาราง `restaurants` ข้ามโดเมนโดยตั้งใจ:** `booking` ล็อกแถวร้าน (`LockRestaurant`) และ `review` อ่าน `owner_id` + ปรับ `rating_sum/rating_count` ด้วย SQL ของตัวเอง
   เพราะงานเหล่านี้ต้องอยู่ในทรานแซกชันเดียวกับการเขียน booking/review — ถ้าเรียกผ่าน package `restaurant` ต้องส่ง `*gorm.DB` ของทรานแซกชันข้ามแพ็กเกจ
   ทำให้ขอบเขตทรานแซกชันรั่วออกนอก service (และ `booking` import `restaurant` ไม่ได้อยู่แล้ว เพราะ `restaurant` import `booking` → import cycle)
-  คอลัมน์ที่แตะมีแค่ `id, owner_id, name, address, map_url, seats, open_minute, close_minute, closed_weekdays, cancel_before_minutes, rating_sum, rating_count`
+  คอลัมน์ที่แตะมีแค่ `id, owner_id, name, address, map_url, seats, open_minute, close_minute, closed_weekdays, break_start_minute, break_end_minute, cancel_before_minutes, rating_sum, rating_count`
   — ถ้าเปลี่ยน schema ส่วนนี้ต้องแก้ทั้งสามแพ็กเกจ
 
 **Technologies:** Go 1.26, Gin, GORM (pgx) + raw SQL, goose, coreos/go-oidc, caarlos0/env + validator, swaggo, log/slog
