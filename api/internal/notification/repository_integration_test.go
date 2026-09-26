@@ -69,3 +69,36 @@ func TestInsertMissingBooking(t *testing.T) {
 	require.NoError(t, db.Model(&Notification{}).Count(&count).Error)
 	assert.Equal(t, int64(0), count, "ไม่ควรมีแจ้งเตือนในฐานข้อมูล")
 }
+
+func TestRepositoryReadState(t *testing.T) {
+	db := testdb.New(t)
+	ctx := context.Background()
+	repo := NewRepository(db)
+	owner, other := insertUser(t, db, "เจ้าของ"), insertUser(t, db, "คนอื่น")
+	bid := insertBooking(t, db, owner, insertUser(t, db, "มะลิ"), 2)
+	for range 3 {
+		require.NoError(t, Insert(ctx, db, Draft{Recipient: owner, Kind: KindBookingCreated, BookingID: bid, BusinessDate: "2026-10-10"}))
+	}
+	require.NoError(t, Insert(ctx, db, Draft{Recipient: other, Kind: KindBookingCreated, BookingID: bid, BusinessDate: "2026-10-10"}))
+
+	list, err := repo.ListByUser(ctx, owner, 20)
+	require.NoError(t, err)
+	require.Len(t, list, 3, "เห็นเฉพาะของตัวเอง")
+
+	ok, err := repo.MarkRead(ctx, other, list[0].ID, at(12))
+	require.NoError(t, err)
+	assert.False(t, ok, "กดอ่านของคนอื่น → ไม่พบ")
+
+	ok, err = repo.MarkRead(ctx, owner, list[0].ID, at(12))
+	require.NoError(t, err)
+	assert.True(t, ok)
+	n, err := repo.CountUnread(ctx, owner)
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, n)
+
+	require.NoError(t, repo.MarkAllRead(ctx, owner, at(13)))
+	n, _ = repo.CountUnread(ctx, owner)
+	assert.Zero(t, n)
+	n, _ = repo.CountUnread(ctx, other)
+	assert.EqualValues(t, 1, n, "read-all ไม่แตะของคนอื่น")
+}

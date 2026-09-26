@@ -3,7 +3,9 @@ package notification
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -28,4 +30,37 @@ func Insert(ctx context.Context, db *gorm.DB, d Draft) error {
 		return fmt.Errorf("notification: ไม่พบการจอง %s", d.BookingID)
 	}
 	return nil
+}
+
+type repository struct {
+	db *gorm.DB
+}
+
+func NewRepository(db *gorm.DB) *repository {
+	return &repository{db: db}
+}
+
+// ListByUser = แจ้งเตือนล่าสุดของผู้รับ (ใหม่สุดก่อน, id เป็น tie-breaker)
+func (r *repository) ListByUser(ctx context.Context, userID uuid.UUID, limit int) ([]Notification, error) {
+	list := []Notification{}
+	err := r.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC, id").Limit(limit).Find(&list).Error
+	return list, err
+}
+
+func (r *repository) CountUnread(ctx context.Context, userID uuid.UUID) (int64, error) {
+	var n int64
+	err := r.db.WithContext(ctx).Model(&Notification{}).Where("user_id = ? AND read_at IS NULL", userID).Count(&n).Error
+	return n, err
+}
+
+// MarkRead ใส่ user_id ใน WHERE ด้วย — ของคนอื่นได้ 0 แถว (ไม่ต้องอ่านมาเช็คเจ้าของก่อน); อ่านแล้วไม่ทับเวลาเดิม
+func (r *repository) MarkRead(ctx context.Context, userID, id uuid.UUID, now time.Time) (bool, error) {
+	res := r.db.WithContext(ctx).Model(&Notification{}).Where("id = ? AND user_id = ?", id, userID).
+		Update("read_at", gorm.Expr("COALESCE(read_at, ?)", now))
+	return res.RowsAffected > 0, res.Error
+}
+
+func (r *repository) MarkAllRead(ctx context.Context, userID uuid.UUID, now time.Time) error {
+	return r.db.WithContext(ctx).Model(&Notification{}).Where("user_id = ? AND read_at IS NULL", userID).
+		Update("read_at", now).Error
 }

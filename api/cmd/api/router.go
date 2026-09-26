@@ -9,6 +9,7 @@ import (
 	"jongyoung/internal/booking"
 	"jongyoung/internal/config"
 	"jongyoung/internal/middleware"
+	"jongyoung/internal/notification"
 	"jongyoung/internal/restaurant"
 	"jongyoung/internal/review"
 	"jongyoung/internal/user"
@@ -35,6 +36,7 @@ func newRouter(ctx context.Context, cfg config.Config, db *gorm.DB, sqlDB *sql.D
 	restaurantHandler := restaurant.NewHandler(restaurant.NewService(restaurant.NewRepository(db), time.Now))
 	reviewHandler := review.NewHandler(review.NewService(review.NewRepository(db)))
 	bookingHandler := booking.NewHandler(booking.NewService(booking.NewRepository(db), time.Now), time.Now)
+	notificationHandler := notification.NewHandler(notification.NewService(notification.NewRepository(db), time.Now))
 
 	var auth gin.HandlerFunc
 	if cfg.App.DevAuth {
@@ -99,6 +101,10 @@ func newRouter(ctx context.Context, cfg config.Config, db *gorm.DB, sqlDB *sql.D
 	bookings.GET("/:id", bookingHandler.Get)
 	bookings.PUT("/:id", bookingHandler.Update)
 	bookings.DELETE("/:id", bookingHandler.Cancel)
+
+	v1.GET("/me/notifications", auth, notificationHandler.ListMine)
+	v1.PUT("/me/notifications/read-all", auth, notificationHandler.MarkAllRead)
+	v1.PUT("/me/notifications/:id/read", auth, notificationHandler.MarkRead)
 
 	return r
 }

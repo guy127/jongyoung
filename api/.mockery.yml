@@ -24,3 +24,6 @@ packages:
   jongyoung/internal/review:
     config:
       all: true
+  jongyoung/internal/notification:
+    config:
+      all: true
