@@ -33,6 +33,7 @@ export default function OwnerNavbar() {
         <div className="order-last flex w-full gap-1 md:order-0 md:w-auto md:flex-1">
           {item("/owner/restaurants", "ร้านของฉัน", pathname === "/owner/restaurants")}
           {item("/owner/bookings", "การจองรายวัน", pathname.startsWith("/owner/bookings"))}
+          {item("/owner/closures", "ปิดร้านชั่วคราว", pathname.startsWith("/owner/closures"))}
         </div>
         <div role="group" aria-label="โหมดการใช้งาน" className="ml-auto flex overflow-hidden rounded-lg border border-white/30 md:ml-0">
           <Link href="/" className="px-3 py-1.5 text-white/85 transition-colors hover:bg-white/10 hover:text-white">ลูกค้า</Link>

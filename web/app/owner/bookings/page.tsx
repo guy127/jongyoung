@@ -1,10 +1,11 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Fragment, Suspense } from "react";
 
-import { bookingStatusLabel, fmtLongDate, fmtRange, fmtTime, gapLabel, isGap, keyToDate, nextDayLabel, shiftDate, todayKey } from "@/lib/format";
+import { bookingStatusLabel, clockToMinutes, fmtLongDate, fmtRange, fmtTime, gapLabel, isGap, keyToDate, minutesToClock, nextDayLabel, shiftDate, todayKey } from "@/lib/format";
 import { useBoard } from "@/services/bookings";
 import { useClosures } from "@/services/closures";
 import { useMe } from "@/services/me";
@@ -60,6 +61,14 @@ function Board() {
               ? <strong className="font-semibold text-text">วันปิดประจำสัปดาห์ — ไม่รับจอง</strong>
               : <>{fmtTime(board.data.opens_at)}–{fmtTime(board.data.closes_at)} {nextDayLabel(board.data.closes_at, date)}</>} · {seats} ที่นั่ง
           </span>
+        )}
+        {board.data && date === todayKey() && !board.data.closed && (
+          // ปิดกะทันหัน: กรอกวันนี้ + เวลาปัจจุบันปัดลง :00/:30 ถึงเวลาปิดร้านไว้ให้
+          <Link className="obtn obtn-sm ml-auto"
+            href={`/owner/closures?${new URLSearchParams({ restaurant: restaurantId ?? "", date,
+              start: minutesToClock(Math.floor(clockToMinutes(fmtTime(new Date())) / 30) * 30), end: fmtTime(board.data.closes_at) })}`}>
+            ปิดร้านตอนนี้
+          </Link>
         )}
       </div>
 
