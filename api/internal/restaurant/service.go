@@ -193,34 +193,64 @@ func (s *service) Availability(ctx context.Context, id uuid.UUID, date time.Time
 	return rest, booking.Slots(rest.Hours(), rest.Seats, bookings, date, s.now()), nil
 }
 
-// NextAvailable หาวันทำการถัดจาก date (ไม่เกิน 14 วัน) ที่มีช่วงรอบเวลาที่ค้นว่างพอสำหรับ party คน
-// ดึง booking ทั้ง 14 วันด้วย query เดียว แล้วไล่ทีละวันใน Go; ไม่เจอ → nil
+// NextAvailable หาวันทำการแรก (ตั้งแต่ date ถึง date+14) ที่ยังมีช่วงว่างพอสำหรับ party คน
+//   - ร้านเปิดตอนเวลาที่ค้นแต่เต็ม → หาช่วงรอบเวลาเดิมของวันถัด ๆ ไป (การ์ดแสดงวันที่ค้นอยู่แล้ว จึงเริ่มวันถัดไป)
+//   - ร้านไม่เปิดตอนเวลาที่ค้นเลย (ค้น 10:30 ที่ร้าน 17:00–23:00) → ช่วงว่างแรก ๆ ของรอบนั้นแทน เริ่มจากวันที่ค้น
+//
+// ดึง booking ทั้งช่วงด้วย query เดียว แล้วไล่ทีละวันใน Go; ไม่เจอ → nil
 func (s *service) NextAvailable(ctx context.Context, id uuid.UUID, date time.Time, minute, party int) (*NextAvailable, error) {
 	rest, err := s.repository.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	h := rest.Hours()
-	from, _ := h.Window(date.AddDate(0, 0, 1))
+	from, _ := h.Window(date)
 	_, to := h.Window(date.AddDate(0, 0, nextAvailableDays))
 	bookings, err := s.repository.BookingsBetween(ctx, []uuid.UUID{id}, from, to)
 	if err != nil {
 		return nil, err
 	}
 	now := s.now()
-	for day := 1; day <= nextAvailableDays; day++ {
+	for day := 0; day <= nextAvailableDays; day++ {
 		d := date.AddDate(0, 0, day)
+		around := booking.SlotsAround(h, rest.Seats, bookings, d, minute, now)
 		var ok []booking.CardSlot
-		for _, slot := range booking.SlotsAround(h, rest.Seats, bookings, d, minute, now) {
-			if !slot.Closed && slot.Available >= party {
-				ok = append(ok, slot)
-			}
+		if day > 0 {
+			ok = freeSlots(around, party)
+		}
+		if len(ok) == 0 && !h.OpenAtMinute(minute) {
+			ok = firstFree(booking.Slots(h, rest.Seats, bookings, d, now), party, len(around))
 		}
 		if len(ok) > 0 {
 			return &NextAvailable{Date: d, Slots: ok}, nil
 		}
 	}
 	return nil, nil
+}
+
+// freeSlots เลือกเฉพาะช่วงที่เปิดและว่างพอ
+func freeSlots(slots []booking.CardSlot, party int) []booking.CardSlot {
+	var ok []booking.CardSlot
+	for _, s := range slots {
+		if !s.Closed && s.Available >= party {
+			ok = append(ok, s)
+		}
+	}
+	return ok
+}
+
+// firstFree คืนช่วงที่ว่างพอ n ช่วงแรกของรอบ
+func firstFree(slots []booking.Slot, party, n int) []booking.CardSlot {
+	var ok []booking.CardSlot
+	for _, s := range slots {
+		if len(ok) == n {
+			break
+		}
+		if s.Available >= party {
+			ok = append(ok, booking.CardSlot{StartAt: s.StartAt, EndAt: s.EndAt, Available: s.Available})
+		}
+	}
+	return ok
 }
 
 func apply(rest *Restaurant, in Input) {

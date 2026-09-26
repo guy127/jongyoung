@@ -49,11 +49,21 @@ func (h Hours) Window(date time.Time) (opensAt, closesAt time.Time) {
 	return opensAt, closesAt
 }
 
+// OpenAtMinute บอกว่าเวลาบนนาฬิกานี้ร้านเปิดอยู่ไหม (อยู่ในรอบ ไม่ว่าจะก่อนหรือหลังเที่ยงคืน)
+// นับนาทีจากเวลาเปิดวนรอบ 24 ชม. แล้วเทียบกับความยาวรอบ — วิธีเดียวกับ Fits
+func (h Hours) OpenAtMinute(minuteOfDay int) bool {
+	offset := (minuteOfDay - h.OpenMinute + 24*60) % (24 * 60)
+	return offset < h.DurationMinutes()
+}
+
 // At แปลงเวลาบนนาฬิกา (นาทีจากเที่ยงคืน) ที่ผู้ใช้เลือกในวันทำการ date เป็นเวลาจริง
-// เวลาที่น้อยกว่าเวลาเปิด = ส่วนหลังเที่ยงคืนของรอบนั้น → บวก 1 วัน
+// ถ้ารอบของร้านข้ามเที่ยงคืน (18:00–02:00, หรือ 24 ชม. ที่เริ่มหลังเที่ยงคืน) เวลาที่น้อยกว่าเวลาเปิด
+// = ส่วนหลังเที่ยงคืนของรอบนั้น → บวก 1 วัน
+// ร้านที่รอบจบในวันเดียว (11:00–22:00) เวลาก่อนเปิดคือ "ยังไม่เปิด" ของวันเดียวกัน ไม่ต้องบวกวัน
 func (h Hours) At(date time.Time, minuteOfDay int) time.Time {
 	y, m, d := date.In(Bangkok).Date()
-	if minuteOfDay < h.OpenMinute {
+	crossesMidnight := h.OpenMinute+h.DurationMinutes() > 24*60
+	if crossesMidnight && minuteOfDay < h.OpenMinute {
 		d++
 	}
 	return time.Date(y, m, d, 0, minuteOfDay, 0, 0, Bangkok)

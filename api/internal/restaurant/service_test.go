@@ -178,6 +178,18 @@ func TestNextAvailable(t *testing.T) {
 		assert.NotEmpty(t, next.Slots)
 	})
 
+	t.Run("ค้นเวลาที่ร้านยังไม่เปิด (10:30 ที่ร้าน 18:00–22:00) → ช่วงว่างแรกของรอบวันเดียวกัน", func(t *testing.T) {
+		repo := NewMockRepository(t)
+		repo.EXPECT().FindByID(ctx, id).Return(rest, nil)
+		repo.EXPECT().BookingsBetween(ctx, []uuid.UUID{id}, mock.Anything, mock.Anything).Return(nil, nil)
+		next, err := newServiceWith(repo).NextAvailable(ctx, id, date, 10*60+30, 2)
+		require.NoError(t, err)
+		require.NotNil(t, next)
+		assert.Equal(t, "2026-10-10", next.Date.Format("2006-01-02"))
+		require.Len(t, next.Slots, 5)
+		assert.True(t, next.Slots[0].StartAt.Equal(time.Date(2026, 10, 10, 18, 0, 0, 0, booking.Bangkok)))
+	})
+
 	t.Run("จำนวนคนมากกว่าที่นั่งทั้งร้าน → ไม่เจอเลย คืน nil", func(t *testing.T) {
 		repo := NewMockRepository(t)
 		repo.EXPECT().FindByID(ctx, id).Return(rest, nil)

@@ -54,12 +54,31 @@ func TestWindow(t *testing.T) {
 	}
 }
 
+func TestOpenAtMinute(t *testing.T) {
+	assert.False(t, normal.OpenAtMinute(10*60+30), "10:30 ร้าน 11:00–22:00 ยังไม่เปิด")
+	assert.True(t, normal.OpenAtMinute(11*60))
+	assert.False(t, normal.OpenAtMinute(22*60), "22:00 ปิดแล้ว (ช่วงเปิดคือ [open, close))")
+	assert.True(t, overnight.OpenAtMinute(60), "01:00 ร้าน 18:00–02:00 ยังเปิดอยู่")
+	assert.False(t, overnight.OpenAtMinute(3*60))
+	assert.True(t, allDay.OpenAtMinute(4*60))
+}
+
 func TestAt(t *testing.T) {
 	date := bkk(2026, 10, 10, 0, 0)
 	assert.True(t, overnight.At(date, 30).Equal(bkk(2026, 10, 11, 0, 30)), "00:30 ของวันทำการ 10 = เช้าวันที่ 11")
 	assert.True(t, overnight.At(date, 19*60).Equal(bkk(2026, 10, 10, 19, 0)))
 	assert.True(t, normal.At(date, 12*60).Equal(bkk(2026, 10, 10, 12, 0)))
 	assert.True(t, allDay.At(date, 0).Equal(bkk(2026, 10, 10, 0, 0)))
+
+	// ร้านปกติ: เวลาก่อนเปิด = "ยังไม่เปิด" ของวันเดียวกัน ไม่ใช่เช้าวันถัดไป
+	// (บั๊กเดิม: ค้น 10:30 ที่ร้าน 11:00–22:00 แล้วได้ปุ่มเวลาของวันที่ 11)
+	assert.True(t, normal.At(date, 10*60+30).Equal(bkk(2026, 10, 10, 10, 30)))
+	// ร้านปิดเที่ยงคืนพอดี (10:00–00:00) ไม่ถือว่าข้ามวัน
+	closesMidnight := Hours{OpenMinute: 10 * 60, CloseMinute: 0}
+	assert.True(t, closesMidnight.At(date, 9*60).Equal(bkk(2026, 10, 10, 9, 0)))
+	// ร้าน 24 ชม. ที่รอบเริ่ม 10:00: 09:00 เป็นช่วงท้ายรอบ = เช้าวันถัดไป
+	allDayFrom10 := Hours{OpenMinute: 10 * 60, CloseMinute: 10 * 60}
+	assert.True(t, allDayFrom10.At(date, 9*60).Equal(bkk(2026, 10, 11, 9, 0)))
 }
 
 func TestFits(t *testing.T) {
