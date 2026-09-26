@@ -24,6 +24,7 @@ const messages: Record<string, string> = {
   SEATS_BELOW_EXISTING_BOOKINGS: "ลดที่นั่งไม่ได้ มีการจองที่ใช้ที่นั่งมากกว่านี้",
   HOURS_CONFLICT_EXISTING_BOOKINGS: "เปลี่ยนเวลาไม่ได้ มีการจองที่อยู่นอกเวลาใหม่",
   IMAGE_REQUIRED: "ร้านต้องมีรูปอย่างน้อย 1 รูป",
+  INVALID_MAP_URL: "ลิงก์แผนที่ต้องเป็นลิงก์ Google Maps (https)",
   INVALID_OPENING_HOURS: "เวลาเปิด–ปิดต้องลงที่ :00 หรือ :30",
   OWN_RESTAURANT: "เจ้าของร้านรีวิวร้านตัวเองไม่ได้",
   REVIEW_EXISTS: "คุณรีวิวร้านนี้แล้ว แก้ไขรีวิวเดิมแทนได้",

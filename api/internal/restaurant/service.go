@@ -258,6 +258,7 @@ func apply(rest *Restaurant, in Input) {
 	rest.Description = in.Description
 	rest.Cuisine = in.Cuisine
 	rest.Address = in.Address
+	rest.MapURL = in.MapURL
 	rest.Seats = in.Seats
 	rest.OpenMinute = in.OpenMinute
 	rest.CloseMinute = in.CloseMinute

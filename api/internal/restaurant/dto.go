@@ -3,6 +3,8 @@ package restaurant
 import (
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"jongyoung/internal/booking"
@@ -16,6 +18,7 @@ type RestaurantRequest struct {
 	Description         string   `json:"description" binding:"max=2000"`
 	Cuisine             string   `json:"cuisine" binding:"max=60" example:"อาหารไทย"`
 	Address             string   `json:"address" binding:"required,max=300"`
+	MapURL              string   `json:"map_url" binding:"max=500" example:"https://maps.app.goo.gl/AbCdEf123"` // ไม่บังคับ
 	Seats               int      `json:"seats" binding:"required,gt=0,lte=1000" example:"10"`
 	OpenTime            string   `json:"open_time" binding:"required" example:"11:00"`
 	CloseTime           string   `json:"close_time" binding:"required" example:"22:00"`
@@ -27,6 +30,7 @@ type RestaurantRequest struct {
 var (
 	errInvalidClock  = errors.New(`เวลาเปิด–ปิดต้องเป็นรูปแบบ "HH:MM" และลงที่ :00 หรือ :30`)
 	errClosedAllWeek = errors.New("ร้านต้องเปิดอย่างน้อย 1 วันต่อสัปดาห์")
+	errInvalidMapURL = errors.New("ลิงก์แผนที่ต้องเป็นลิงก์ Google Maps (https)")
 )
 
 // ToInput แปลงเวลา "HH:MM" เป็นนาทีจากเที่ยงคืน — ต้องลง :00/:30 เพราะช่วงจองเป็นช่วงละ 30 นาที
@@ -46,11 +50,34 @@ func (req RestaurantRequest) ToInput() (Input, error) {
 	if closed == booking.WeekdayMask(time.Sunday, time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday) {
 		return Input{}, errClosedAllWeek
 	}
+	mapURL := strings.TrimSpace(req.MapURL)
+	if mapURL != "" && !isGoogleMapsURL(mapURL) {
+		return Input{}, errInvalidMapURL
+	}
 	return Input{
-		Name: req.Name, Description: req.Description, Cuisine: req.Cuisine, Address: req.Address,
+		Name: req.Name, Description: req.Description, Cuisine: req.Cuisine, Address: req.Address, MapURL: mapURL,
 		Seats: req.Seats, OpenMinute: open, CloseMinute: shut, ClosedWeekdays: closed,
 		CancelBeforeMinutes: req.CancelBeforeMinutes,
 	}, nil
+}
+
+// isGoogleMapsURL รับเฉพาะลิงก์ Google Maps แบบ https — ลิงก์นี้ไปอยู่ใน <a href> ที่ลูกค้ากด
+// จึงห้ามรับ URL อะไรก็ได้ (javascript:, เว็บหลอก)
+// ลิงก์แชร์จากแอปเป็น maps.app.goo.gl; จากเว็บเป็น google.com/maps หรือ google.co.th/maps
+func isGoogleMapsURL(s string) bool {
+	u, err := url.Parse(s)
+	if err != nil || u.Scheme != "https" {
+		return false
+	}
+	switch u.Hostname() {
+	case "maps.app.goo.gl", "maps.google.com", "maps.google.co.th":
+		return true
+	case "google.com", "www.google.com", "google.co.th", "www.google.co.th":
+		return u.Path == "/maps" || strings.HasPrefix(u.Path, "/maps/")
+	case "goo.gl":
+		return strings.HasPrefix(u.Path, "/maps/")
+	}
+	return false
 }
 
 // ParseClock แปลง "HH:MM" (ลง :00 หรือ :30) เป็นนาทีนับจากเที่ยงคืน
@@ -88,6 +115,7 @@ type RestaurantResponse struct {
 	Description         string          `json:"description"`
 	Cuisine             string          `json:"cuisine"`
 	Address             string          `json:"address"`
+	MapURL              string          `json:"map_url"` // ว่าง = หน้าเว็บค้นแผนที่จาก address
 	Seats               int             `json:"seats"`
 	OpenTime            string          `json:"open_time" example:"18:00"`
 	CloseTime           string          `json:"close_time" example:"02:00"`
@@ -145,7 +173,7 @@ func NewRestaurantResponse(r Restaurant) RestaurantResponse {
 	}
 	return RestaurantResponse{
 		ID: r.ID, OwnerID: r.OwnerID, Name: r.Name, Description: r.Description, Cuisine: r.Cuisine,
-		Address: r.Address, Seats: r.Seats,
+		Address: r.Address, MapURL: r.MapURL, Seats: r.Seats,
 		OpenTime: formatClock(r.OpenMinute), CloseTime: formatClock(r.CloseMinute),
 		Overnight: r.CloseMinute < r.OpenMinute, Open24h: r.OpenMinute == r.CloseMinute, ClosedWeekdays: closed,
 		CancelBeforeMinutes: r.CancelBeforeMinutes,

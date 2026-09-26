@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chipState, closedDaysLabel, dateKey, isClosedDay, defaultSearch, fmtTime, nextDayLabel, ratingLabel, shiftDate } from "./format";
+import { chipState, closedDaysLabel, dateKey, isClosedDay, defaultSearch, fmtTime, isGoogleMapsUrl, mapHref, nextDayLabel, ratingLabel, shiftDate } from "./format";
 
 describe("chipState (ข้อ 9 เคส 27) — เทียบกับจำนวนคนที่เลือก ไม่ใช่ 1", () => {
   const seats = 10;
@@ -82,5 +82,23 @@ describe("วันปิดประจำสัปดาห์", () => {
     expect(isClosedDay([1], "2026-10-12")).toBe(true);
     expect(isClosedDay([1], "2026-10-13")).toBe(false);
     expect(isClosedDay([0], "2026-10-11")).toBe(true);
+  });
+});
+
+describe("ลิงก์แผนที่", () => {
+  it("มีลิงก์ที่เจ้าของร้านวาง → ใช้ลิงก์นั้น", () => {
+    expect(mapHref("สยาม", "https://maps.app.goo.gl/AbC")).toBe("https://maps.app.goo.gl/AbC");
+  });
+  it("ไม่มี → ค้นจากที่อยู่", () => {
+    expect(mapHref("สยาม พารากอน", "")).toBe("https://www.google.com/maps/search/?api=1&query=%E0%B8%AA%E0%B8%A2%E0%B8%B2%E0%B8%A1%20%E0%B8%9E%E0%B8%B2%E0%B8%A3%E0%B8%B2%E0%B8%81%E0%B8%AD%E0%B8%99");
+  });
+  it("รับเฉพาะลิงก์ Google Maps แบบ https", () => {
+    expect(isGoogleMapsUrl("https://maps.app.goo.gl/AbC")).toBe(true);
+    expect(isGoogleMapsUrl("https://www.google.com/maps/place/x")).toBe(true);
+    expect(isGoogleMapsUrl("https://goo.gl/maps/AbC")).toBe(true);
+    expect(isGoogleMapsUrl("javascript:alert(1)")).toBe(false);
+    expect(isGoogleMapsUrl("http://maps.app.goo.gl/AbC")).toBe(false);
+    expect(isGoogleMapsUrl("https://www.google.com/search?q=x")).toBe(false);
+    expect(isGoogleMapsUrl("https://maps.app.goo.gl.evil.example/x")).toBe(false);
   });
 });

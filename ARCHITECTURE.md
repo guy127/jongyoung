@@ -168,7 +168,7 @@ react-hook-form + zod, Tailwind v4, lucide-react
 | `bookings` | `start_at`/`end_at` (UTC), `status` active/cancelled (ไม่ลบจริง), partial index สำหรับ booking ที่ active |
 | `reviews` | `unique (restaurant_id, user_id)` — 1 คน 1 รีวิวต่อร้าน |
 
-ไม่มีตารางโต๊ะ (นับที่นั่งรวม) และไม่เก็บพิกัด (แผนที่เป็นลิงก์ Google Maps จาก `address`)
+ไม่มีตารางโต๊ะ (นับที่นั่งรวม) และไม่เก็บพิกัด (แผนที่เป็นลิงก์ Google Maps: `map_url` ที่เจ้าของร้านวาง หรือค้นจาก `address`)
 Migration อยู่ที่ `api/migrations/` (goose, มี Down ทุกไฟล์) — seed data แยกไว้ที่ `api/cmd/seed/`
 
 ### 4.2. Cache / Queue
@@ -180,7 +180,7 @@ Migration อยู่ที่ `api/migrations/` (goose, มี Down ทุก�
 
 **Keycloak** — **Purpose:** OIDC identity provider — **Integration Method:** OIDC authorization code flow (next-auth), JWKS + discovery (go-oidc)
 
-**Google Maps** — **Purpose:** ลิงก์แผนที่ของร้าน — **Integration Method:** URL ค้นหาจาก `address` (ไม่ใช้ API key)
+**Google Maps** — **Purpose:** ลิงก์แผนที่ของร้าน — **Integration Method:** ลิงก์ที่เจ้าของร้านวาง (`map_url`, รับเฉพาะโดเมน Google Maps) หรือ URL ค้นหาจาก `address` (ไม่ใช้ API key)
 
 **Google Calendar** — **Purpose:** เพิ่มการจองลงปฏิทิน — **Integration Method:** template URL + ไฟล์ `.ics` ที่สร้างฝั่ง web
 

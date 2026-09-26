@@ -7,7 +7,7 @@ import BookingPanel from "@/components/booking/BookingPanel";
 import EditBookingLoader from "@/components/booking/EditBookingLoader";
 import ReviewsSection from "@/components/review/ReviewsSection";
 import { serverGet } from "@/lib/api";
-import { closedDaysLabel, defaultSearch } from "@/lib/format";
+import { closedDaysLabel, defaultSearch, mapHref } from "@/lib/format";
 import type { Page, Restaurant, Review } from "@/lib/types";
 
 type Search = { date?: string; time?: string; party_size?: string; edit?: string };
@@ -54,7 +54,7 @@ export default async function RestaurantPage({ params, searchParams }: { params:
             <p className="text-sm">
               ที่อยู่: {restaurant.address} ·{" "}
               <a className="link" target="_blank" rel="noreferrer"
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurant.address)}`}>เปิดแผนที่</a>
+                href={mapHref(restaurant.address, restaurant.map_url)}>เปิดแผนที่</a>
             </p>
             {restaurant.images.length > 1 && (
               <div className="mt-2 grid grid-cols-3 gap-3">

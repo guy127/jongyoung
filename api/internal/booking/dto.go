@@ -49,6 +49,7 @@ type RestaurantSummary struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`
 	Address   string    `json:"address"`
+	MapURL    string    `json:"map_url"` // ว่าง = ค้นแผนที่จาก address
 	Overnight bool      `json:"overnight"`
 }
 
@@ -90,6 +91,7 @@ func NewBookingResponse(v View, now time.Time) BookingResponse {
 		ID:   v.ID,
 		Code: Code(v.ID),
 		Restaurant: RestaurantSummary{ID: v.RestaurantID, Name: v.RestaurantName, Address: v.RestaurantAddress,
+			MapURL:    v.RestaurantMapURL,
 			Overnight: v.CloseMinute < v.OpenMinute},
 		CustomerName: v.CustomerName,
 		PartySize:    v.PartySize,

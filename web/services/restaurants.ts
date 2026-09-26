@@ -8,6 +8,7 @@ export type RestaurantInput = {
   description: string;
   cuisine: string;
   address: string;
+  map_url: string;
   seats: number;
   open_time: string;
   close_time: string;

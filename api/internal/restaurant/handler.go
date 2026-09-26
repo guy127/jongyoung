@@ -346,6 +346,10 @@ func (h *handler) bindInput(c *gin.Context) (uuid.UUID, Input, RestaurantRequest
 		return uuid.Nil, Input{}, req, false
 	}
 	in, err := req.ToInput()
+	if errors.Is(err, errInvalidMapURL) {
+		httputil.Abort(c, http.StatusBadRequest, "INVALID_MAP_URL", err.Error(), nil)
+		return uuid.Nil, Input{}, req, false
+	}
 	if err != nil {
 		httputil.Abort(c, http.StatusBadRequest, "INVALID_OPENING_HOURS", err.Error(), nil)
 		return uuid.Nil, Input{}, req, false

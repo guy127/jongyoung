@@ -1085,6 +1085,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "map_url": {
+                    "description": "ว่าง = ค้นแผนที่จาก address",
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -1183,6 +1187,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/internal_restaurant.ImageResponse"
                     }
+                },
+                "map_url": {
+                    "description": "ว่าง = หน้าเว็บค้นแผนที่จาก address",
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -1312,6 +1320,12 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "map_url": {
+                    "description": "ไม่บังคับ",
+                    "type": "string",
+                    "maxLength": 500,
+                    "example": "https://maps.app.goo.gl/AbCdEf123"
+                },
                 "name": {
                     "type": "string",
                     "maxLength": 120,
@@ -1365,6 +1379,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/internal_restaurant.ImageResponse"
                     }
+                },
+                "map_url": {
+                    "description": "ว่าง = หน้าเว็บค้นแผนที่จาก address",
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"

@@ -110,3 +110,33 @@ export const minutesToClock = (minutes: number) => {
   const m = ((minutes % 1440) + 1440) % 1440;
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 };
+
+/** ลิงก์แผนที่ของร้าน: ใช้ลิงก์ Google Maps ที่เจ้าของร้านวางไว้ ถ้าไม่มีค่อยค้นจากที่อยู่ */
+export const mapHref = (address: string, mapUrl?: string) =>
+  mapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+
+/** กติกาเดียวกับ isGoogleMapsURL ฝั่ง Go — ตรวจที่ฟอร์มเพื่อ UX เท่านั้น API ตรวจซ้ำเสมอ */
+export function isGoogleMapsUrl(s: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(s);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:") return false;
+  const isMapsPath = u.pathname === "/maps" || u.pathname.startsWith("/maps/");
+  switch (u.hostname) {
+    case "maps.app.goo.gl":
+    case "maps.google.com":
+    case "maps.google.co.th":
+      return true;
+    case "google.com":
+    case "www.google.com":
+    case "google.co.th":
+    case "www.google.co.th":
+      return isMapsPath;
+    case "goo.gl":
+      return u.pathname.startsWith("/maps/");
+  }
+  return false;
+}

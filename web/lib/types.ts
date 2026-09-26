@@ -13,6 +13,7 @@ export type Restaurant = {
   description: string;
   cuisine: string;
   address: string;
+  map_url: string; // ว่าง = ค้นแผนที่จาก address (ใช้ผ่าน mapHref)
   seats: number;
   open_time: string;
   close_time: string;
@@ -36,7 +37,7 @@ export type NextAvailable = { business_date: string; slots: Slot[] } | null;
 export type Booking = {
   id: string;
   code: string;
-  restaurant: { id: string; name: string; address: string; overnight: boolean };
+  restaurant: { id: string; name: string; address: string; map_url: string; overnight: boolean };
   customer_name?: string;
   party_size: number;
   start_at: string;

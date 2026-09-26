@@ -212,6 +212,7 @@ restaurants
   description           text
   cuisine               text                          -- ใช้ filter + แนะนำ "ร้านประเภทเดียวกัน" ตอนร้านเต็ม
   address               text not null                 -- แสดงในหน้ายืนยัน + ลิงก์ Google Maps (ไม่เก็บพิกัด)
+  map_url               text not null default ''      -- ลิงก์ Google Maps ที่เจ้าของร้านวางเอง (ไม่บังคับ); ว่าง = ค้นจาก address
   seats                 int  not null check (seats > 0)
   open_minute           int  not null check (open_minute between 0 and 1439)
   close_minute          int  not null check (close_minute between 0 and 1439)
@@ -254,7 +255,7 @@ reviews
 ```
 
 - **ไม่มีตารางโต๊ะ** — โจทย์นับเป็นที่นั่งรวม ร้าน 10 ที่ = รับพร้อมกันได้ 10 คน
-- **ไม่เก็บพิกัด** → แผนที่เป็นลิงก์ Google Maps ค้นจาก `address` และไม่มีฟีเจอร์ "ร้านใกล้เคียง"
+- **ไม่เก็บพิกัด** → แผนที่เป็นลิงก์ Google Maps (`map_url` ถ้าเจ้าของร้านวางไว้ ไม่งั้นค้นจาก `address`) และไม่มีฟีเจอร์ "ร้านใกล้เคียง"
 - เวลาเก็บเป็น `timestamptz` (UTC) ทั้งหมด; `open_minute/close_minute` เก็บเป็นนาทีจากเที่ยงคืน **เวลาไทย**
 - แปลงเป็นเวลาไทยที่ฝั่ง web เท่านั้น (`Asia/Bangkok` ไม่มี DST — พูดถึงได้ตอนสัมภาษณ์ว่าถ้ามี DST ต้องเก็บ timezone ของร้านด้วย)
 - migration มีทั้ง Up และ Down และทดสอบ `goose down` แล้ว
@@ -287,6 +288,7 @@ reviews
 | สร้างร้านได้ทุกคนที่ล็อกอิน | 201 |
 | แก้/ลบได้เฉพาะร้านตัวเอง | ไม่ใช่เจ้าของ → **403** |
 | ต้องมีรูปอย่างน้อย 1 รูป (URL) และมี `address` | ไม่มี → 400 |
+| `map_url` (ไม่บังคับ) ต้องเป็นลิงก์ Google Maps แบบ https (`maps.app.goo.gl`, `google.com/maps`, …) — ลิงก์นี้ไปอยู่ใน `<a href>` ที่ลูกค้ากด ห้ามรับ URL อะไรก็ได้ | ผิด → 400 `INVALID_MAP_URL` |
 | `seats > 0` | |
 | `cancel_before_minutes >= 30` | ตั้งต่ำกว่า → 400 |
 | **ลดจำนวนที่นั่งต่ำกว่าที่มีคนจองไว้แล้ว** | ปฏิเสธ **409** `SEATS_BELOW_EXISTING_BOOKINGS` พร้อม `details: { at, peak }` |
@@ -613,7 +615,7 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
   `DUPLICATE_BOOKING` → "คุณมีการจองที่ทับช่วงนี้อยู่แล้ว" + ปุ่มไป `/bookings/:id` ของรายการเดิม (ตาราง 5.2) (รีวิวใช้ optimistic ได้)
 - ปุ่มกดจองต้อง disable ตั้งแต่ก่อนยิง และเก็บสถานะ submitting ที่ตัว form (กัน Enter ซ้ำ)
 - หน้ายืนยัน: เพิ่มลงปฏิทินได้ 2 ทาง — ลิงก์ Google Calendar (template URL) และไฟล์ `.ics` ที่สร้างฝั่ง web (`lib/ics.ts`)
-  แผนที่ = ลิงก์ Google Maps ค้นหาจาก `address` (ไม่ต้องใช้ API key)
+  แผนที่ = `map_url` ของร้าน ถ้าไม่มีค่อยค้นหาจาก `address` (`mapHref` ใน `lib/format.ts`, ไม่ต้องใช้ API key)
 - ซ่อนปุ่มแก้/ลบเมื่อไม่ใช่เจ้าของ — เป็นเรื่อง UX เท่านั้น API ต้องกันซ้ำเสมอ
 - ปุ่มที่กดไม่ได้เพราะกติกา (เช่น เลยเวลายกเลิก) ให้ disabled พร้อมข้อความบอกเหตุผล ไม่ใช่ซ่อน
 - แสดงเวลาเป็นเวลาไทยทุกที่ (`Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok' })`)

@@ -6,7 +6,7 @@ import { use } from "react";
 import { Alert, LinkButton, Skeleton, buttonClass } from "@/components/bases/ui";
 import { apiError } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
-import { fmtLongDate, fmtRange, fmtShortDate, fmtTime, keyToDate } from "@/lib/format";
+import { fmtLongDate, fmtRange, fmtShortDate, fmtTime, keyToDate, mapHref } from "@/lib/format";
 import { downloadIcs, googleCalendarUrl, type CalendarEvent } from "@/lib/ics";
 import { useBooking } from "@/services/bookings";
 
@@ -56,7 +56,7 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
           <dd className="flex flex-col gap-1">
             <span>{b.restaurant.address}</span>
             <a className="link" target="_blank" rel="noreferrer"
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.restaurant.address)}`}>เปิดใน Google Maps</a>
+              href={mapHref(b.restaurant.address, b.restaurant.map_url)}>เปิดใน Google Maps</a>
           </dd>
         </div>
         {!cancelled && (

@@ -8,7 +8,7 @@ import { z } from "zod";
 
 import { apiError } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
-import { WEEKDAY_ORDER, WEEKDAYS } from "@/lib/format";
+import { isGoogleMapsUrl, WEEKDAY_ORDER, WEEKDAYS } from "@/lib/format";
 import type { ApiError, Restaurant } from "@/lib/types";
 import { useImages, useSaveRestaurant } from "@/services/restaurants";
 
@@ -19,6 +19,7 @@ const schema = z.object({
   name: z.string().trim().min(1, "ต้องมีชื่อร้าน").max(120),
   cuisine: z.string().trim().max(60),
   address: z.string().trim().min(1, "ต้องมีที่อยู่").max(300),
+  map_url: z.string().trim().max(500).refine((s) => s === "" || isGoogleMapsUrl(s), "ต้องเป็นลิงก์ Google Maps (https)"),
   description: z.string().max(2000),
   seats: z.number({ message: "ใส่จำนวนที่นั่ง" }).int().min(1, "อย่างน้อย 1 ที่").max(1000),
   open_time: z.string(),
@@ -39,7 +40,7 @@ export default function RestaurantForm({ restaurant, onDone }: { restaurant?: Re
     resolver: zodResolver(schema),
     defaultValues: restaurant
       ? { ...restaurant, closed_weekdays: restaurant.closed_weekdays.map(String), image_urls: "" }
-      : { name: "", cuisine: "", address: "", description: "", seats: 10, open_time: "11:00", close_time: "22:00", closed_weekdays: [], cancel_before_minutes: 30, image_urls: "" },
+      : { name: "", cuisine: "", address: "", map_url: "", description: "", seats: 10, open_time: "11:00", close_time: "22:00", closed_weekdays: [], cancel_before_minutes: 30, image_urls: "" },
   });
 
   const onSubmit = handleSubmit(async ({ image_urls, closed_weekdays, ...values }) => {
@@ -63,12 +64,15 @@ export default function RestaurantForm({ restaurant, onDone }: { restaurant?: Re
   );
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col border border-border bg-surface">
+    // min-w-0: ไม่งั้น grid item กว้างตาม URL รูปที่ยาวที่สุด → จอแคบแล้วปุ่มบันทึกหลุดขอบขวา
+    <form onSubmit={onSubmit} className="flex min-w-0 flex-col border border-border bg-surface">
       <h2 className="border-b border-border px-4 py-3 text-base font-semibold">{restaurant ? `แก้ไข: ${restaurant.name}` : "เพิ่มร้านใหม่"}</h2>
       <div className="grid gap-4 p-4 sm:grid-cols-2">
         {field("ชื่อร้าน *", <input {...register("name")} className={input} />, errors.name?.message)}
         {field("ประเภทอาหาร", <input {...register("cuisine")} className={input} placeholder="เช่น อาหารไทย" />)}
         {field("ที่อยู่ *", <input {...register("address")} className={input} />, errors.address?.message, true)}
+        {field("ลิงก์ Google Maps (ไม่บังคับ — ไม่ใส่จะค้นแผนที่จากที่อยู่)",
+          <input {...register("map_url")} inputMode="url" className={input} placeholder="https://maps.app.goo.gl/..." />, errors.map_url?.message, true)}
         {field("คำอธิบาย", <textarea {...register("description")} rows={2} className={`${input} h-auto py-2`} />, undefined, true)}
         {field("จำนวนที่นั่ง *", <input type="number" {...register("seats", { valueAsNumber: true })} className={input} />, errors.seats?.message)}
         {field("ยกเลิกได้ก่อนเวลาจอง (นาที) *", <input type="number" {...register("cancel_before_minutes", { valueAsNumber: true })} className={input} />, errors.cancel_before_minutes?.message)}
@@ -113,18 +117,19 @@ function ImageManager({ restaurant }: { restaurant: Restaurant }) {
   const [url, setUrl] = useState("");
   const err = apiError(add.error ?? remove.error);
   return (
-    <fieldset className="mx-4 mb-4 flex flex-col gap-2">
+    // fieldset ของ browser ตั้ง min-width: min-content ไว้ → ต้องใส่ min-w-0 ให้ URL ยาว ๆ ถูกตัดด้วย … ได้
+    <fieldset className="mx-4 mb-4 flex min-w-0 flex-col gap-2">
       <legend className="pb-1 font-medium">รูป (URL) — อย่างน้อย 1 รูป แถวแรกคือรูปปก</legend>
       {restaurant.images.map((img) => (
         <div key={img.id} className="flex items-center gap-2">
-          <span className="flex-1 truncate text-muted">{img.url}</span>
+          <span className="min-w-0 flex-1 truncate text-muted" title={img.url}>{img.url}</span>
           <button type="button" disabled={restaurant.images.length <= 1 || remove.isPending} onClick={() => remove.mutate(img.id)}
             title={restaurant.images.length <= 1 ? "ลบรูปสุดท้ายไม่ได้" : undefined}
             className="obtn obtn-sm obtn-danger">ลบ</button>
         </div>
       ))}
       <div className="flex gap-2">
-        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." aria-label="URL รูปใหม่" className={`${input} flex-1`} />
+        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." aria-label="URL รูปใหม่" className={`${input} min-w-0 flex-1`} />
         <button type="button" disabled={!url || add.isPending} onClick={() => add.mutate(url, { onSuccess: () => setUrl("") })}
           className="obtn"><ImagePlus size={16} aria-hidden />เพิ่มรูป</button>
       </div>

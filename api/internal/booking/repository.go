@@ -33,6 +33,7 @@ type View struct {
 	Booking
 	RestaurantName      string
 	RestaurantAddress   string
+	RestaurantMapURL    string
 	RestaurantOwnerID   uuid.UUID
 	OpenMinute          int
 	CloseMinute         int
@@ -152,7 +153,7 @@ func (r *repository) Cancel(ctx context.Context, id uuid.UUID, now time.Time) er
 // viewQuery = booking + ร้าน + ชื่อลูกค้า (JOIN ครั้งเดียว ไม่ N+1)
 func (r *repository) viewQuery(ctx context.Context) *gorm.DB {
 	return r.db.WithContext(ctx).Table("bookings b").
-		Select(`b.*, r.name AS restaurant_name, r.address AS restaurant_address, r.owner_id AS restaurant_owner_id,
+		Select(`b.*, r.name AS restaurant_name, r.address AS restaurant_address, r.map_url AS restaurant_map_url, r.owner_id AS restaurant_owner_id,
 			r.open_minute, r.close_minute, r.cancel_before_minutes, u.display_name AS customer_name`).
 		Joins("JOIN restaurants r ON r.id = b.restaurant_id").
 		Joins("JOIN users u ON u.id = b.user_id")

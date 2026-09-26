@@ -17,6 +17,7 @@ type Restaurant struct {
 	Description         string
 	Cuisine             string
 	Address             string
+	MapURL              string `gorm:"column:map_url"` // ว่าง = ค้นแผนที่จาก Address
 	Seats               int
 	OpenMinute          int
 	CloseMinute         int
@@ -58,6 +59,7 @@ type Input struct {
 	Description         string
 	Cuisine             string
 	Address             string
+	MapURL              string
 	Seats               int
 	OpenMinute          int
 	CloseMinute         int

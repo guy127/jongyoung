@@ -112,3 +112,19 @@ func TestRepositoryBookings(t *testing.T) {
 		assert.EqualValues(t, 2, n)
 	})
 }
+
+func TestRepositoryUpdate(t *testing.T) {
+	db := testdb.New(t)
+	repo := NewRepository(db)
+	ctx := context.Background()
+	r := createRestaurant(t, repo, createOwner(t, db), "ร้านแก้ไข", 0, 0)
+
+	r.MapURL = "https://maps.app.goo.gl/AbCdEf123"
+	r.ClosedWeekdays = booking.WeekdayMask(time.Monday)
+	require.NoError(t, repo.Update(ctx, &r))
+
+	got, err := repo.FindByID(ctx, r.ID)
+	require.NoError(t, err)
+	assert.Equal(t, r.MapURL, got.MapURL)
+	assert.Equal(t, r.ClosedWeekdays, got.ClosedWeekdays, "วันปิดต้องถูกบันทึกตอนแก้ไขด้วย")
+}

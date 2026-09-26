@@ -94,6 +94,9 @@ definitions:
         type: string
       id:
         type: string
+      map_url:
+        description: ว่าง = ค้นแผนที่จาก address
+        type: string
       name:
         type: string
       overnight:
@@ -160,6 +163,9 @@ definitions:
         items:
           $ref: '#/definitions/internal_restaurant.ImageResponse'
         type: array
+      map_url:
+        description: ว่าง = หน้าเว็บค้นแผนที่จาก address
+        type: string
       name:
         type: string
       open_24h:
@@ -243,6 +249,11 @@ definitions:
           type: string
         maxItems: 10
         type: array
+      map_url:
+        description: ไม่บังคับ
+        example: https://maps.app.goo.gl/AbCdEf123
+        maxLength: 500
+        type: string
       name:
         example: ครัวบ้านสวน
         maxLength: 120
@@ -288,6 +299,9 @@ definitions:
         items:
           $ref: '#/definitions/internal_restaurant.ImageResponse'
         type: array
+      map_url:
+        description: ว่าง = หน้าเว็บค้นแผนที่จาก address
+        type: string
       name:
         type: string
       open_24h:
