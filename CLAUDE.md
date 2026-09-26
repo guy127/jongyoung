@@ -242,6 +242,8 @@ bookings
   end_at        timestamptz not null
   status        text not null default 'active'   -- 'active' | 'cancelled'
   cancelled_at  timestamptz
+  cancelled_by  text check (cancelled_by in ('customer', 'restaurant'))  -- null = ยังไม่ยกเลิก/ข้อมูลเก่าก่อนมีคอลัมน์นี้ (ไม่ backfill)
+  cancel_reason text not null default ''         -- เหตุผลจากร้าน ลูกค้าเห็นได้
   created_at, updated_at
   check (end_at > start_at)
   index on (restaurant_id, start_at, end_at) where status = 'active'
@@ -255,6 +257,33 @@ reviews
   body          text
   created_at, updated_at
   unique (restaurant_id, user_id)      -- 1 คน 1 รีวิวต่อร้าน
+
+restaurant_closures                   -- ช่วงที่ร้านปิดชั่วคราว (ไฟดับ, ปิดปรับปรุง, หยุดยาว) เป็นช่วงเวลาจริง [start_at, end_at)
+  id            uuid pk               -- ปิดทั้งวัน/หลายวันเก็บรูปแบบเดียวกัน (= ช่วงที่ครอบทั้งรอบของวันนั้น)
+  restaurant_id uuid not null references restaurants(id) on delete cascade
+  start_at      timestamptz not null
+  end_at        timestamptz not null
+  reason        text not null check (reason <> '')
+  created_at    timestamptz not null default now()
+  check (end_at > start_at)
+  index on (restaurant_id, end_at)
+
+notifications                         -- แจ้งเตือนในเว็บ; ไม่เก็บข้อความ — หน้าเว็บประกอบข้อความไทยจาก kind เอง
+  id              uuid pk
+  user_id         uuid not null references users(id)   -- ผู้รับ
+  kind            text not null check (kind in ('booking_created', 'booking_updated', 'booking_cancelled', 'booking_cancelled_by_restaurant'))
+  booking_id      uuid not null references bookings(id)
+  restaurant_id   uuid not null references restaurants(id)
+  restaurant_name text not null      -- snapshot ตอนเกิดเหตุ: booking อาจถูกแก้ภายหลัง แต่แจ้งเตือนต้องบอกสิ่งที่เกิดตอนนั้น
+  customer_name   text not null
+  business_date   date not null      -- ใช้ทำลิงก์ไปบอร์ด owner
+  start_at        timestamptz not null
+  end_at          timestamptz not null
+  party_size      int not null
+  reason          text not null default ''
+  read_at         timestamptz
+  created_at      timestamptz not null default now()
+  index on (user_id, created_at desc)
 ```
 
 - **ไม่มีตารางโต๊ะ** — โจทย์นับเป็นที่นั่งรวม ร้าน 10 ที่ = รับพร้อมกันได้ 10 คน
@@ -278,6 +307,8 @@ reviews
 และ booking ล่วงหน้าของ `customer1` อย่างน้อย 2 รายการ (รายการหนึ่งอยู่ในรอบข้ามเที่ยงคืน) + booking ที่ผ่านมาแล้ว 1 รายการ
 ทุกร้านต้องมี `address` และรูปอย่างน้อย 1 รูป
 
+ต้องมีด้วย: การจองของ `customer1` ที่ร้านยกเลิก 1 รายการ + แจ้งเตือนที่ยังไม่อ่าน, ร้านบุฟเฟ่ต์ปิดปรับปรุง 5 วันข้างหน้า, owner2 มีแจ้งเตือนการจองใหม่
+
 ---
 
 ## 5. กฎธุรกิจทั้งหมด
@@ -297,7 +328,9 @@ reviews
 | ช่วงพัก (ไม่บังคับ) ส่งคู่ `break_start`/`break_end` และต้องอยู่ข้างในเวลาเปิด–ปิด ไม่ติดขอบ | ผิด → 400 `INVALID_BREAK` |
 | **ลดจำนวนที่นั่งต่ำกว่าที่มีคนจองไว้แล้ว** | ปฏิเสธ **409** `SEATS_BELOW_EXISTING_BOOKINGS` พร้อม `details: { at, peak }` |
 | **แก้เวลาเปิด–ปิดให้แคบกว่า booking ที่มีอยู่** | ปฏิเสธ 409 `HOURS_CONFLICT_EXISTING_BOOKINGS` พร้อม booking ที่ตกนอกเวลา |
-| **ลบร้านที่ยังมี booking ในอนาคต** | soft delete ได้ แต่ต้องยกเลิก booking ในอนาคตทั้งหมดในทรานแซกชันเดียวกัน (อธิบายเหตุผลได้ว่าทำไมเลือกแบบนี้ ไม่ใช่ block การลบ) |
+| ปิดร้านชั่วคราว (บางช่วง/ทั้งวัน/หลายวัน) ต้องมีเหตุผล ≤ 200 ตัว, ไม่ย้อนหลัง, ≤ 90 วัน | ผิด → 400 `INVALID_CLOSURE` |
+| ช่วงปิดทับการจองที่ยังไม่เริ่ม | 409 `CLOSURE_AFFECTS_BOOKINGS` + `details.bookings` → ส่งซ้ำพร้อม `confirm_booking_ids` ที่ตรงกันพอดีจึงยกเลิก + แจ้งลูกค้าในทรานแซกชันเดียว |
+| **ลบร้านที่ยังมี booking ในอนาคต** | soft delete ได้ แต่ต้องยกเลิก booking ในอนาคตทั้งหมดในทรานแซกชันเดียวกัน ด้วย `cancelled_by='restaurant'` + แจ้งลูกค้า (อธิบายเหตุผลได้ว่าทำไมเลือกแบบนี้ ไม่ใช่ block การลบ) |
 | ร้านที่ถูก soft delete | หายจาก list และจองใหม่ไม่ได้ (404) แต่ประวัติการจอง/รีวิวเดิมยังอ่านได้ |
 
 การตรวจลดที่นั่ง/ย่นเวลาต้องล็อกแถวร้าน (`FOR UPDATE`) เหมือนตอนจอง — ไม่งั้นมีคนจองแทรกระหว่างตรวจ
@@ -315,6 +348,7 @@ reviews
 | 3 | `start_at` ยังไม่ผ่านไปแล้ว | 400 |
 | 4 | **จองล่วงหน้าอย่างน้อย 30 นาที** (`start_at >= now + 30m`) — กันจองรอบที่กำลังจะเริ่มใน 2 นาที | 400 `TOO_LATE_TO_BOOK` |
 | 5 | ช่วงจองอยู่ในเวลาเปิด–ปิดของร้าน (รองรับเปิดข้ามเที่ยงคืน + 24 ชม.) และวันทำการนั้นไม่ใช่วันปิดประจำสัปดาห์ | 400 (`CLOSED_WEEKDAY` ถ้าตกวันปิด) |
+| 5b | ช่วงจองไม่ทับช่วงที่ร้านปิดชั่วคราว (ตรวจในล็อก ก่อนกฎข้อ 8) | 400 `RESTAURANT_CLOSED` |
 | 6 | `party_size <= restaurant.seats` (ขอเกินความจุร้านไปเลย) | 400 |
 | 7 | **ที่นั่งไม่เกินในทุกวินาที** — ดู 5.3 | **409** `NOT_ENOUGH_SEATS` |
 | 8 | ผู้ใช้คนเดียวกันจองร้านเดียวกันซ้อนเวลากันเองไม่ได้ | **409** `DUPLICATE_BOOKING` |
@@ -468,6 +502,8 @@ closes_at = opens_at + duration
 - `Slots` ข้ามช่วงพัก; `OpenAtMinute` ตอบ false ในช่วงพัก (ใช้ใน next-available)
 - หน้าเว็บรู้ว่าตรงไหนเป็นช่วงพักจาก slot ที่ต่อกันไม่สนิท (`isGap`/`contiguousFrom`) — API ไม่ต้องส่งช่วงพักแยก
 
+**ช่วงปิดชั่วคราว:** เก็บเป็นช่วงเวลาจริง ตรวจด้วย `closureAt` ตัวเดียว (`checkSlot`, `Slots`, `SlotsAround`); แปลงคำขอด้วย `Hours.Span`/`Hours.Days`
+
 **ตัวแปลงวันทำการ ↔ เวลาจริง ต้องเป็นฟังก์ชันเดียวใน `businessday.go`** ที่ availability, list, POST /bookings,
 PUT /bookings และหน้า owner เรียกใช้ร่วมกัน — ห้ามเขียนซ้ำในแต่ละที่
 
@@ -480,6 +516,8 @@ PUT /bookings และหน้า owner เรียกใช้ร่วม�
 | booking ที่เลยเวลาไปแล้ว แก้/ยกเลิกไม่ได้ | 409 `BOOKING_ALREADY_STARTED` |
 | ยกเลิกได้เมื่อ `now <= start_at - cancel_before_minutes` | ช้ากว่านั้น → **403** `CANCEL_WINDOW_PASSED` พร้อม `details.cancel_until` |
 | การแก้ไขแบบเลื่อนเวลา ใช้ cancel window ของเวลา**เดิม** | กันเลี่ยงกฎด้วยการเลื่อนเวลาแทนยกเลิก |
+
+ยกเลิกโดยลูกค้าเอง (`DELETE /bookings/:id`) → `cancelled_by='customer'` (ต่างจากร้านยกเลิกที่ `cancelled_by='restaurant'` ดู 5.1)
 
 ตัวอย่างจากโจทย์: ร้าน 10 ที่ A จอง 7 B จอง 3 (เต็มพอดี) → A แก้เป็น 8 คน = ต้องใช้ 11 ที่ → **ปฏิเสธ**; A แก้เป็น 5 คน → **ผ่าน**
 
@@ -545,6 +583,9 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 | PUT / DELETE | `/restaurants/:id` | ✓ owner | |
 | POST | `/restaurants/:id/images` | ✓ owner | รับ `{ url }` |
 | DELETE | `/restaurants/:id/images/:imageId` | ✓ owner | ลบรูปสุดท้ายไม่ได้ (400 `IMAGE_REQUIRED`) |
+| GET | `/restaurants/:id/closures` | – | ช่วงปิดที่ `end_at > now` เรียงตามเวลาเริ่ม |
+| POST | `/restaurants/:id/closures` | ✓ owner | ปิดชั่วคราว (บางช่วง/ทั้งวัน/หลายวัน) — ทับการจองต้องยืนยันด้วย `confirm_booking_ids` → 409 `CLOSURE_AFFECTS_BOOKINGS` |
+| DELETE | `/restaurants/:id/closures/:closureId` | ✓ owner | เปิดร้านกลับ; การจองที่ยกเลิกไปแล้วไม่ฟื้น |
 | GET | `/restaurants/:id/bookings` | ✓ owner | `?date=` (**วันทำการ เหมือนกัน**) — แขกตอนตี 1 ของคืนวันเสาร์ต้องอยู่ในวันเสาร์ |
 | POST | `/bookings` | ✓ | body `{ restaurant_id, date, start_time, end_time, party_size }` (`date` = วันทำการ, เวลาเป็น `HH:MM` แล้ว server แปลงด้วย `businessday.go`) → 409 `NOT_ENOUGH_SEATS` หรือ `DUPLICATE_BOOKING` |
 | GET | `/me/bookings` | ✓ | `?status=upcoming\|past\|cancelled` |
@@ -556,6 +597,9 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 | POST | `/restaurants/:id/reviews` | ✓ | สร้าง; มีอยู่แล้ว → 409; เจ้าของร้าน → 403 |
 | PUT | `/restaurants/:id/reviews` | ✓ | แก้ของตัวเอง; ยังไม่มี → 404 |
 | DELETE | `/restaurants/:id/reviews` | ✓ | ลบของตัวเอง |
+| GET | `/me/notifications` | ✓ | `{ items: [...20 ล่าสุด], unread_count }` |
+| PUT | `/me/notifications/:id/read` | ✓ | ของคนอื่น/ไม่มี → 404 (ไม่บอกว่ามีอยู่จริง) |
+| PUT | `/me/notifications/read-all` | ✓ | อ่านทั้งหมด |
 
 **Availability response — ต้องส่ง timestamp เต็ม ไม่ใช่ `"00:30"` ลอย ๆ**
 เพราะรอบข้ามเที่ยงคืนทำให้เวลาเดียวกันอยู่คนละวัน ฝั่ง web ต้องไม่ต้องเดา:
@@ -602,6 +646,9 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 | `HOURS_CONFLICT_EXISTING_BOOKINGS` | 409 | `booking_ids` |
 | `OWN_RESTAURANT` | 403 | – |
 | `REVIEW_EXISTS` | 409 | – |
+| `RESTAURANT_CLOSED` | 400 | `reason`, `start_at`, `end_at` |
+| `INVALID_CLOSURE` | 400 | – |
+| `CLOSURE_AFFECTS_BOOKINGS` | 409 | `bookings` |
 
 **Middleware order:** Recovery → RequestID/Logger → CORS (`http://jongyoung.localhost` เท่านั้น) → RateLimit(เบา ๆ) → JWT (verify + JIT provisioning) → เช็คความเป็นเจ้าของใน service
 
@@ -617,7 +664,10 @@ prefix `/api/v1` — JSON ทั้งหมด — base URL `http://api.jongyou
 | `/me/bookings` | การจองของฉัน (tab กำลังจะถึง/ผ่านมาแล้ว/ยกเลิกแล้ว) แก้-ยกเลิกในหน้านี้ | client |
 | `/owner/restaurants` | ร้านของฉัน (ตาราง + สร้าง/แก้/ลบ) | client |
 | `/owner/bookings?restaurant=&date=` | ตารางการจองรายวันทำการ + แถบที่นั่งต่อช่วง (เลือกร้านจาก dropdown) | client |
+| `/owner/closures?restaurant=` | ปิดร้านชั่วคราว (บางช่วง/ทั้งวัน/หลายวัน) + ตารางช่วงปิดที่ยังไม่จบ + เปิดร้านกลับ | client |
 | `/api/auth/[...nextauth]`, `/api/auth/logout` | next-auth + logout | – |
+
+กระดิ่งแจ้งเตือนใน navbar ทั้งโหมดลูกค้าและเจ้าของร้าน (poll 60 วินาที)
 
 **Flow การจอง = 2 แท็ป:** กดปุ่มเวลาบนการ์ดร้าน → หน้าร้านเปิดพร้อมเวลาที่เลือกไว้ในแผงจอง → "ยืนยันการจอง" → `/bookings/[id]`
 
@@ -854,6 +904,28 @@ web (Vitest + Testing Library)
 29. ป้าย "(เช้าวันที่ n)" ขึ้นเมื่อ slot อยู่หลังเที่ยงคืนของวันทำการ
 30. 409 `DUPLICATE_BOOKING` ไม่แสดงคำว่า "เต็ม" และมีลิงก์ไปรายการเดิม
 
+### ปิดร้านชั่วคราว + Notification (`internal/booking`, `internal/restaurant`, `internal/notification`)
+
+Go unit (`businessday_test.go`, `availability_test.go`) — `TestClosureAt`: ทับ / จบตอนเริ่มปิดพอดีไม่ทับ / หลายช่วงเลือกตัวแรกที่ทับ / ว่าง;
+`TestSlotsSkipClosure`: `Slots` ข้ามช่วงปิด, `SlotsAround` ได้ `closed`
+
+service test (mock ด้วย mockery `mocks_test.go`)
+- `booking.TestServiceClosuresAndNotify`: ทับช่วงปิด → `ClosedError` (ไม่ตรวจกฎ 8/7 ต่อ); จองสำเร็จ → แจ้งเจ้าของร้าน; เจ้าของร้านจองร้านตัวเอง → ไม่แจ้งตัวเอง
+- `restaurant.TestCreateClosure`: ไม่มีการจองทับ → บันทึกเลย; มีการจองทับไม่ส่ง confirm → `CLOSURE_AFFECTS_BOOKINGS` พร้อมรายการ; confirm ตรง → ยกเลิก + notification ครบ; confirm ไม่ตรง (มีการจองใหม่แทรก) → 409 ใหม่
+- `notification.TestServiceMarkRead`: mark อ่านของตัวเองสำเร็จ; ของคนอื่น → 404
+
+integration (testcontainers)
+- `restaurant.TestClosures`: ปิดร้านพร้อม confirm → ช่วงปิด + booking ถูกยกเลิก (ทรานแซกชันเดียว); list ร้าน `?date=` ที่มีช่วงปิด → ปุ่มเวลาได้ `closed`
+- `notification.TestInsertSnapshot` / `TestInsertMissingBooking` / `TestRepositoryReadState`: snapshot ถูกต้องตอนสร้าง; อ้าง booking ที่ไม่มีจริง → error; `ListMine` เรียงล่าสุดก่อน + `unread_count` ถูก, `read-all` แตะเฉพาะของตัวเอง
+
+handler test (`httptest`)
+- `restaurant.TestHandlerCreateClosure`: POST closures โดยไม่ใช่เจ้าของ → 403
+- `notification.TestHandler`: `/me/notifications` ไม่มี token → 401; mark อ่านของคนอื่น → 404
+
+web (Vitest) — `lib/notifications.test.ts`: ข้อความตาม `kind` ครบ 4 แบบ + ป้าย "(เช้าวันที่ n)"; `bellLabel` ตัวเลขยังไม่อ่าน + ข้อความไม่มีตัวเลขตอนเป็น 0
+
+E2E (`owner.spec.ts`) — เจ้าของร้านปิดช่วงที่มีการจอง → เห็นรายการ → ยืนยัน → ลูกค้า login เห็นกระดิ่ง + badge "ร้านยกเลิก" + เหตุผล
+
 ---
 
 ## 10. สิ่งที่ต้องส่ง (11 ต.ค. — ไม่มีเลื่อน)
@@ -887,6 +959,9 @@ web (Vitest + Testing Library)
 | timezone | เก็บ UTC ที่ DB, `Asia/Bangkok` แสดงที่ web; ถ้าร้านอยู่หลาย timezone ต้องเก็บ timezone ต่อร้าน และคำนวณวันทำการด้วยปฏิทินของ timezone นั้น |
 | ทำไมไม่ใช้ realm role แยก owner/customer | บทบาทผูกกับร้านแต่ละร้าน ไม่ใช่ผูกกับบัญชี — เป็นข้อมูล ไม่ใช่สิทธิ์ระดับ realm |
 | ออกแบบ UI ยังไงให้คนจองสำเร็จ | เลือกเวลาได้ตั้งแต่หน้าแรก (time chip), กติกายกเลิกเห็นก่อนกดจอง, มีหน้ายืนยัน, error บอกทางออกไม่ใช่บอกว่าพัง |
+| ทำไมยืนยันด้วยรายการ id ไม่ใช่ `confirm: true` | กันยกเลิกการจองที่เจ้าของร้านยังไม่เคยเห็น — มีคนจองแทรกระหว่างดูรายการจะได้ 409 ใหม่ |
+| ทำไมสร้าง notification ในทรานแซกชันเดียวกัน | จองไม่สำเร็จไม่มีแจ้งเตือนหลง, ยกเลิกสำเร็จลูกค้าได้รับแจ้งแน่นอน; ต่อยอดอีเมล/LINE ด้วย outbox + worker |
+| ทำไม polling ไม่ใช่ WebSocket | ง่าย อธิบายได้ ช้ากว่ากันไม่เกิน 60 วินาที ซึ่งพอสำหรับการแจ้งยกเลิกล่วงหน้า |
 
 ---
 

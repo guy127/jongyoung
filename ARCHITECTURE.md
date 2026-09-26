@@ -25,9 +25,10 @@ jongyoung/
 │   │   ├── httputil/          # error response รูปแบบเดียว, pagination
 │   │   ├── platform/          # database (เปิด GORM), testdb (Postgres ใน testcontainers)
 │   │   ├── user/              # ผู้ใช้ + EnsureExists (upsert จาก claims)
-│   │   ├── restaurant/        # CRUD ร้าน, รูป, ค้นหา + Bayesian, ปุ่มเวลาบนการ์ด, availability
+│   │   ├── restaurant/        # CRUD ร้าน, รูป, ค้นหา + Bayesian, ปุ่มเวลาบนการ์ด, availability, ปิดร้านชั่วคราว
 │   │   ├── booking/           # ⭐ businessday.go, availability.go, rules.go, changes.go + จอง/แก้/ยกเลิก/บอร์ด
-│   │   └── review/            # รีวิว + คะแนนรวมแบบ atomic
+│   │   ├── review/            # รีวิว + คะแนนรวมแบบ atomic
+│   │   └── notification/      # แจ้งเตือนในเว็บ (กระดิ่ง) — handler/service/repository/model/dto/error
 │   ├── migrations/            # goose SQL (Up + Down) — ห้ามมี seed data
 │   ├── docs/                  # Swagger 2 + OpenAPI 3 ที่ generate จาก comment (./dev.sh docs)
 │   └── Dockerfile
@@ -128,6 +129,10 @@ react-hook-form + zod, Tailwind v4, lucide-react
   ทำให้ขอบเขตทรานแซกชันรั่วออกนอก service (และ `booking` import `restaurant` ไม่ได้อยู่แล้ว เพราะ `restaurant` import `booking` → import cycle)
   คอลัมน์ที่แตะมีแค่ `id, owner_id, name, address, map_url, seats, open_minute, close_minute, closed_weekdays, break_start_minute, break_end_minute, cancel_before_minutes, rating_sum, rating_count`
   — ถ้าเปลี่ยน schema ส่วนนี้ต้องแก้ทั้งสามแพ็กเกจ
+  ในทางกลับกัน `restaurant.CancelByRestaurant` ก็แตะตาราง `bookings` ข้ามโดเมนเช่นกัน (ปิดชั่วคราว/ลบร้านต้องยกเลิก booking ในทรานแซกชันเดียว) —
+  คอลัมน์ที่แตะคือ `status, cancelled_at, updated_at, cancelled_by, cancel_reason` (สองตัวหลังเป็นคอลัมน์ใหม่จาก migration 00009)
+- **booking/restaurant เขียนตาราง `notifications` ผ่าน `notification.Insert(ctx, tx, …)` ในทรานแซกชันของตัวเองโดยตั้งใจ** (เหตุผลเดียวกับการแตะตาราง `restaurants` ข้างบน)
+  package `notification` ไม่ import `booking`/`restaurant` จึงไม่มี import cycle
 
 **Technologies:** Go 1.26, Gin, GORM (pgx) + raw SQL, goose, coreos/go-oidc, caarlos0/env + validator, swaggo, log/slog
 

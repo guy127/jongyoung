@@ -13,6 +13,11 @@ export function tomorrow() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date(Date.now() + 86_400_000));
 }
 
+/** วันที่ n วันจากวันนี้ตามเวลาไทย (YYYY-MM-DD) */
+export function daysFromToday(n: number) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date(Date.now() + n * 86_400_000));
+}
+
 /** วันจันทร์ถัดไป (หลังวันนี้) ตามเวลาไทย — seed ให้ "บ้านชาบู บุฟเฟ่ต์" ปิดทุกวันจันทร์ */
 export function nextMonday() {
   const today = new Date(`${tomorrow()}T12:00:00+07:00`).getTime() - 86_400_000;
