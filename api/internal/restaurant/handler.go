@@ -215,7 +215,7 @@ func (h *handler) AddImage(c *gin.Context) {
 	}
 	var req ImageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		httputil.BadRequest(c, "url ไม่ถูกต้อง")
+		httputil.BadRequest(c, "url รูปต้องเป็นลิงก์ https")
 		return
 	}
 	userID, _ := reqctx.UserID(c.Request.Context())

@@ -27,7 +27,7 @@ type RestaurantRequest struct {
 	BreakEnd            string   `json:"break_end" example:"17:00"`
 	ClosedWeekdays      []int    `json:"closed_weekdays" binding:"omitempty,dive,min=0,max=6" example:"1"` // 0 = อาทิตย์ … 6 = เสาร์
 	CancelBeforeMinutes int      `json:"cancel_before_minutes" binding:"required,gte=30,lte=1440" example:"30"`
-	ImageURLs           []string `json:"image_urls" binding:"omitempty,max=10,dive,url"`
+	ImageURLs           []string `json:"image_urls" binding:"omitempty,max=10,dive,https_url"` // https เท่านั้น — next/image ตั้งให้โหลดได้แค่ https
 }
 
 var (
@@ -121,7 +121,7 @@ func formatClock(minute int) string {
 }
 
 type ImageRequest struct {
-	URL string `json:"url" binding:"required,url"`
+	URL string `json:"url" binding:"required,https_url"` // https เท่านั้น (เหตุผลเดียวกับ image_urls)
 }
 
 type ImageResponse struct {

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"jongyoung/internal/config"
 	"jongyoung/internal/platform/database"
@@ -53,7 +54,8 @@ func run() error {
 
 	router := newRouter(ctx, cfg, db, sqlDB)
 
-	server := &http.Server{Addr: cfg.App.Addr(), Handler: router}
+	// ReadHeaderTimeout: client ที่ส่ง header ช้า ๆ ค้างไว้ (Slowloris) จะถูกตัดใน 10 วินาที ไม่กิน connection ไปตลอด
+	server := &http.Server{Addr: cfg.App.Addr(), Handler: router, ReadHeaderTimeout: 10 * time.Second}
 	serverErr := make(chan error, 1)
 	go func() {
 		slog.Info("server started", "addr", server.Addr)

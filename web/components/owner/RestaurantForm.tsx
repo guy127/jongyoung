@@ -14,6 +14,9 @@ import { useImages, useSaveRestaurant } from "@/services/restaurants";
 
 const clocks = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`);
 
+const isHttpsUrl = (s: string) => s.startsWith("https://");
+const imageLines = (s: string) => s.split("\n").map((l) => l.trim()).filter(Boolean);
+
 // กติกาเดียวกับ API (ข้อ 5.1) — ตรวจที่หน้าเว็บเพื่อ UX เท่านั้น API ตรวจซ้ำเสมอ
 const schema = z.object({
   name: z.string().trim().min(1, "ต้องมีชื่อร้าน").max(120),
@@ -29,7 +32,8 @@ const schema = z.object({
   // checkbox หลายตัวชื่อเดียวกัน react-hook-form คืนเป็น string[] ("0"–"6") → แปลงเป็นตัวเลขตอนส่ง
   closed_weekdays: z.array(z.string()).max(6, "ร้านต้องเปิดอย่างน้อย 1 วันต่อสัปดาห์"),
   cancel_before_minutes: z.number({ message: "ใส่จำนวนนาที" }).int().min(30, "ขั้นต่ำ 30 นาที").max(1440),
-  image_urls: z.string(),
+  // https เท่านั้น — next/image ตั้งให้โหลดรูปได้แค่ https (next.config.ts) และ API ก็ตรวจแบบเดียวกัน
+  image_urls: z.string().refine((s) => imageLines(s).every(isHttpsUrl), "URL รูปต้องขึ้นต้นด้วย https://"),
 }).refine((v) => (v.break_start === "") === (v.break_end === ""), { path: ["break_end"], message: "กรอกช่วงพักให้ครบทั้งเวลาเริ่มและจบ หรือเว้นว่างทั้งคู่" });
 type Values = z.infer<typeof schema>;
 
@@ -46,7 +50,7 @@ export default function RestaurantForm({ restaurant, onDone }: { restaurant?: Re
   });
 
   const onSubmit = handleSubmit(async ({ image_urls, closed_weekdays, ...values }) => {
-    const urls = image_urls.split("\n").map((s) => s.trim()).filter(Boolean);
+    const urls = imageLines(image_urls);
     if (!restaurant && urls.length === 0) return setServerError({ code: "IMAGE_REQUIRED", message: "" });
     setServerError(null);
     try {
@@ -96,7 +100,7 @@ export default function RestaurantForm({ restaurant, onDone }: { restaurant?: Re
           <p className="text-muted">นับตามรอบที่เริ่มเปิดในวันนั้น — ร้าน 18:00–02:00 ปิดวันจันทร์ ตีหนึ่งของเช้าวันจันทร์ยังเป็นรอบวันอาทิตย์</p>
           {errors.closed_weekdays && <span className="text-full">{errors.closed_weekdays.message}</span>}
         </fieldset>
-        {!restaurant && field("URL รูป * (บรรทัดละ 1 รูป, รูปแรกเป็นรูปปก)", <textarea {...register("image_urls")} rows={3} className={`${input} h-auto py-2`} placeholder="https://..." />, undefined, true)}
+        {!restaurant && field("URL รูป * (บรรทัดละ 1 รูป, รูปแรกเป็นรูปปก)", <textarea {...register("image_urls")} rows={3} className={`${input} h-auto py-2`} placeholder="https://..." />, errors.image_urls?.message, true)}
       </div>
       {restaurant && <ImageManager restaurant={restaurant} />}
       {serverError && (
@@ -134,9 +138,10 @@ function ImageManager({ restaurant }: { restaurant: Restaurant }) {
       ))}
       <div className="flex gap-2">
         <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." aria-label="URL รูปใหม่" className={`${input} min-w-0 flex-1`} />
-        <button type="button" disabled={!url || add.isPending} onClick={() => add.mutate(url, { onSuccess: () => setUrl("") })}
+        <button type="button" disabled={!isHttpsUrl(url) || add.isPending} onClick={() => add.mutate(url, { onSuccess: () => setUrl("") })}
           className="obtn"><ImagePlus size={16} aria-hidden />เพิ่มรูป</button>
       </div>
+      {url && !isHttpsUrl(url) && <p className="text-full">URL รูปต้องขึ้นต้นด้วย https://</p>}
       {err && <p role="alert" className="text-full">✕ {errorMessage(err)}</p>}
     </fieldset>
   );

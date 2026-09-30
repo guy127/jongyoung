@@ -54,3 +54,33 @@ func TestHandlerCreateClosure(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "มะลิ")
 	})
 }
+
+func postImage(t *testing.T, svc Service, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.POST("/restaurants/:id/images", func(c *gin.Context) {
+		c.Request = c.Request.WithContext(reqctx.WithUserID(c.Request.Context(), uuid.New())) // แทน middleware.JWT
+	}, NewHandler(svc).AddImage)
+	req := httptest.NewRequest(http.MethodPost, "/restaurants/"+uuid.NewString()+"/images", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+// รูปแสดงผ่าน next/image ซึ่งตั้งให้โหลดได้เฉพาะ https (web/next.config.ts) — URL แบบอื่นจะกลายเป็นรูปเสีย
+func TestHandlerAddImageRequiresHTTPS(t *testing.T) {
+	for _, url := range []string{"http://example.com/a.jpg", "javascript:alert(1)", "ftp://example.com/a.jpg"} {
+		t.Run(url+" → 400 (ไม่เรียก service)", func(t *testing.T) {
+			w := postImage(t, NewMockService(t), `{"url":"`+url+`"}`)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	}
+
+	t.Run("https → ผ่านไปถึง service", func(t *testing.T) {
+		svc := NewMockService(t)
+		svc.EXPECT().AddImage(mock.Anything, mock.Anything, mock.Anything, "https://example.com/a.jpg").Return(Image{URL: "https://example.com/a.jpg"}, nil)
+		assert.Equal(t, http.StatusCreated, postImage(t, svc, `{"url":"https://example.com/a.jpg"}`).Code)
+	})
+}
