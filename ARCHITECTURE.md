@@ -99,6 +99,7 @@ Browser ─POST /api/v1/bookings (Bearer)─▶ middleware.JWT: verify (go-oidc)
 - เจ้าของร้าน (`/owner/*`): จัดการร้าน/รูป และบอร์ดการจองรายวันทำการพร้อมแถบที่นั่งต่อช่วง 30 นาที
 - หน้า list/detail เป็น Server Component เรียก API ตรง (ไม่ต้องใช้ token); หน้าที่ต้อง login และฟอร์มเป็น Client Component (TanStack Query + axios)
 - next-auth เก็บ access/refresh/id token ใน session cookie ที่เข้ารหัส และต่ออายุ token ใน callback `jwt` เมื่อเหลือไม่ถึง 30 วินาที
+  — session ที่ browser อ่านได้ (`/api/auth/session`) มีแค่ access token; id token อ่านเฉพาะใน route logout ฝั่ง server ด้วย `getToken()`
 - axios interceptor แนบ `Authorization: Bearer` และพาไป login เมื่อได้ 401
 - แปลงเวลาเป็น `Asia/Bangkok` ที่ฝั่งนี้เท่านั้น และติดป้าย "(เช้าวันที่ n)" ให้เวลาหลังเที่ยงคืนของรอบ
 

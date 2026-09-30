@@ -3,8 +3,7 @@ import "next-auth/jwt";
 
 declare module "next-auth" {
   interface Session {
-    accessToken?: string;
-    idToken?: string;
+    accessToken?: string; // browser ใช้แนบ Bearer — id token/refresh token อยู่ใน JWT ฝั่ง server เท่านั้น
     error?: "RefreshAccessTokenError";
   }
 }

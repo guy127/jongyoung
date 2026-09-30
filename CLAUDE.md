@@ -64,7 +64,8 @@ client secret ใน realm export เป็น **ค่าสำหรับ dev
 
 2. Keycloak redirect กลับ /api/auth/callback/keycloak
    → next-auth แลก code เป็น token
-   → callback jwt เก็บ accessToken / refreshToken / idToken / expiresAt ใน session (cookie ของ next-auth)
+   → callback jwt เก็บ accessToken / refreshToken / idToken / expiresAt ใน JWT (cookie ของ next-auth ที่เข้ารหัส)
+   → callback session ส่งให้ browser แค่ accessToken — idToken/refreshToken อยู่ฝั่ง server เท่านั้น
 
 3. เรียก API
    → axios interceptor: getSession() → Authorization: Bearer <accessToken>
@@ -76,7 +77,7 @@ client secret ใน realm export เป็น **ค่าสำหรับ dev
    → refresh ไม่ผ่าน → ใส่ session.error → หน้าเว็บเรียก signOut()
 
 5. ออกจากระบบ
-   → GET /api/auth/logout (route handler) → redirect ไป Keycloak end_session พร้อม id_token_hint + ลบ cookie ของ next-auth
+   → GET /api/auth/logout (route handler) → อ่าน idToken ด้วย getToken() → redirect ไป Keycloak end_session พร้อม id_token_hint + ลบ cookie ของ next-auth
 ```
 
 - `proxy.ts` (middleware ของ next-auth) กันหน้า `/me/*`, `/owner/*` และ `/bookings/*` ถ้ายังไม่ login
