@@ -306,7 +306,7 @@ score = (C·m + rating_sum) / (C + rating_count)     C = 5, m = ค่าเฉ�
 | integration | `*_integration_test.go` (testcontainers) | SQL, lock, การจองพร้อมกันถูกไหม บน Postgres จริง |
 | E2E | `e2e/tests/*.spec.ts` (Playwright) | ผู้ใช้ทำงานได้จริงไหม ตั้งแต่ login ที่ Keycloak จนจองเสร็จ |
 
-- `api/internal/booking` — กติกาที่นั่ง (รวมเคส A/B/C), lead time, ข้ามเที่ยงคืน, 24 ชม., วันทำการ, cancel window, แก้ไขโดยไม่นับตัวเอง, จองพร้อมกัน / กดซ้ำ (Postgres จริง)
+- `api/internal/booking` — กติกาที่นั่ง (รวมเคส A/B/C), lead time, ข้ามเที่ยงคืน, 24 ชม., วันทำการ, cancel window, แก้ไขโดยไม่นับตัวเอง, จองพร้อมกัน / กดซ้ำ (Postgres จริง), handler ตอบ 401 / 403 / 409 พร้อม code + details ถูกต้อง (httptest)
 - `api/internal/restaurant` — ลดที่นั่ง/ย่นเวลาชนการจองที่มีอยู่, Bayesian sort, ปุ่มเวลาบนการ์ด (query เดียวต่อหน้า), วันถัดไปที่ว่าง
 - `api/internal/review` — รีวิวร้านตัวเอง 403, รีวิวซ้ำ 409, คะแนนรวมถูกต้องเมื่อรีวิวพร้อมกัน
 - `api/internal/middleware`, `user` — 401, สร้าง/อัปเดตผู้ใช้จาก token
