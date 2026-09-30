@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import Rating from "@/components/bases/Rating";
+import { EmptyState, LinkButton } from "@/components/bases/ui";
 import BookingPanel from "@/components/booking/BookingPanel";
 import EditBookingLoader from "@/components/booking/EditBookingLoader";
 import ClosureBanner from "@/components/restaurant/ClosureBanner";
@@ -17,10 +18,22 @@ type Search = { date?: string; time?: string; party_size?: string; edit?: string
 export default async function RestaurantPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Search> }) {
   const { id } = await params;
   const sp = await searchParams;
-  const [restaurant, reviews] = await Promise.all([
-    serverGet<Restaurant>(`/restaurants/${id}`),
-    serverGet<Page<Review>>(`/restaurants/${id}/reviews?limit=5`),
-  ]);
+  // API ล่ม/500 → แสดงกล่องโหลดไม่สำเร็จ (เหมือนหน้าแรก); 404 → serverGet คืน null ไม่ throw
+  // notFound() อยู่นอก try เพราะมัน throw error พิเศษของ Next — ถ้าอยู่ข้างใน catch จะกลืนไป
+  let restaurant: Restaurant | null = null;
+  let reviews: Page<Review> | null = null;
+  try {
+    [restaurant, reviews] = await Promise.all([
+      serverGet<Restaurant>(`/restaurants/${id}`),
+      serverGet<Page<Review>>(`/restaurants/${id}/reviews?limit=5`),
+    ]);
+  } catch {
+    return (
+      <EmptyState title="โหลดข้อมูลร้านไม่สำเร็จ" action={<LinkButton href="/" variant="cta">กลับหน้าแรก</LinkButton>}>
+        ระบบขัดข้องชั่วคราว ลองรีเฟรชหน้านี้อีกครั้ง
+      </EmptyState>
+    );
+  }
   if (!restaurant) notFound();
 
   const def = defaultSearch();

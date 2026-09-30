@@ -7,6 +7,14 @@
 - **Auth:** Keycloak (OIDC)
 - **รันทั้งระบบด้วย** Docker Compose คำสั่งเดียว
 
+## สิ่งที่ส่ง
+
+| # | อย่าง | อยู่ที่ |
+|---|---|---|
+| 1 | Git repository | repo นี้ — วิธีรันอยู่ข้อ 1 |
+| 2 | วิดีโอเดโม ≤ 5 นาที | <ใส่ลิงก์> |
+| 3 | UI Design | [docs/ui-design.md](docs/ui-design.md) |
+
 ---
 
 ## 1. วิธีรัน

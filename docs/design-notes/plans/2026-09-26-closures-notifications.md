@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go + Gin + GORM + goose + mockery + testcontainers (api), Next.js + TanStack Query + Vitest + Playwright (web/e2e)
 
-**Spec:** `docs/superpowers/specs/2026-09-26-closures-notifications-design.md`
+**Spec:** `docs/design-notes/specs/2026-09-26-closures-notifications-design.md`
 
 ## Global Constraints
 

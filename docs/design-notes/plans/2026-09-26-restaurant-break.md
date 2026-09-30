@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go + Gin + GORM + goose (api), Next.js + TanStack Query + react-hook-form + zod + Vitest (web)
 
-**Spec:** `docs/superpowers/specs/2026-09-26-restaurant-break-design.md`
+**Spec:** `docs/design-notes/specs/2026-09-26-restaurant-break-design.md`
 
 ## Global Constraints
 
