@@ -109,6 +109,18 @@ func seed(tx *gorm.DB, now time.Time) error {
 	// 6) เต็มทั้งรอบพรุ่งนี้ (โชว์ empty state "ว่างวันถัดไป")
 	baansuan := s.restaurant(owner2, "ครัวบ้านสวน", "อาหารไทย", "ซอยสุขุมวิท 49 แขวงคลองตันเหนือ เขตวัฒนา กรุงเทพฯ",
 		"อาหารไทยรสมือแม่ในบ้านไม้ริมสวน แกงเขียวหวานไก่บ้าน ปลากะพงทอดน้ำปลา", 8, 11*60, 22*60, 30, 6)
+	// 7) ร้านเล็ก 10 ที่ (โชว์ sweep line: ช่วงทับกันแต่ไม่ได้มีคนพร้อมกันเกิน 10 ก็จองได้)
+	pasta := s.restaurant(owner2, "บ้านพาสต้า ซอยเอกมัย", "อิตาเลียน", "ซอยเอกมัย 10 แขวงคลองตันเหนือ เขตวัฒนา กรุงเทพฯ",
+		"พาสต้าซอสมะเขือเทศและคาร์โบนาราทำสด ที่นั่งน้อย ควรจองล่วงหน้า", 10, 11*60, 21*60, 30, 7)
+	// 8) เปิดตั้งแต่เช้า 06:00–14:00 (โชว์รอบที่เริ่มก่อนเที่ยงมาก)
+	noodle := s.restaurant(owner1, "ก๋วยเตี๋ยวเรือยามเช้า", "ก๋วยเตี๋ยว", "ท่าน้ำวัดราชาธิวาส เขตปทุมวัน กรุงเทพฯ",
+		"ก๋วยเตี๋ยวเรือเนื้อตุ๋นและหมูตุ๋น ตักเอง ปรุงเอง เปิดตั้งแต่ตีหก", 20, 6*60, 14*60, 30, 8)
+
+	// ผู้จองตัวอย่าง (ไม่ใช่บัญชี Keycloak) แยกจากผู้รีวิว เพื่อให้เคสการจองไม่ไปปนกับตัวเลขรีวิว
+	guests := make([]uuid.UUID, 10)
+	for i := range guests {
+		guests[i] = s.user(fmt.Sprintf("seed-guest-%02d", i+1), fmt.Sprintf("guest%02d@example.test", i+1), reviewerNames[i%len(reviewerNames)])
+	}
 
 	// รีวิว
 	s.reviews(sushi, reviewers[:46], []int{5, 5, 5, 5, 4}, sushiReviews)       // sum 221 / 46 ≈ 4.8
@@ -139,6 +151,24 @@ func seed(tx *gorm.DB, now time.Time) error {
 	// โจ๊ก 24 ชม.: มีคนคร่อมเที่ยงคืน
 	s.book(jok, reviewers[47], 3, s.at(tomorrow, 23, 30), s.at(tomorrow.AddDate(0, 0, 1), 0, 30), booking.StatusActive)
 
+	// เคสการจองหลายแบบ (วันพรุ่งนี้ ทุกเคสต้องผ่านกติกาที่นั่ง เพราะ seed เขียน SQL ตรงไม่ผ่าน service)
+	// บ้านพาสต้า 10 ที่: 12:00–12:30 คน 7 + 12:30–13:00 คน 7 + ลูกค้า 12:00–13:00 คน 3
+	//   → ไม่มีวินาทีไหนเกิน 10 (naive SUM = 17 จะปฏิเสธผิด) ยังจองเพิ่มได้ 3 ที่ตลอดช่วง 12:00–13:00
+	s.book(pasta, guests[0], 7, s.at(tomorrow, 12, 0), s.at(tomorrow, 12, 30), booking.StatusActive)
+	s.book(pasta, guests[1], 7, s.at(tomorrow, 12, 30), s.at(tomorrow, 13, 0), booking.StatusActive)
+	s.book(pasta, customer1, 3, s.at(tomorrow, 12, 0), s.at(tomorrow, 13, 0), booking.StatusActive)
+	// 18:00–19:00 เต็มพอดี 10 ที่ (6 + 4) → ปุ่มเวลาช่วงนี้ต้องเป็น "เต็ม"
+	s.book(pasta, guests[2], 6, s.at(tomorrow, 18, 0), s.at(tomorrow, 20, 0), booking.StatusActive)
+	s.book(pasta, guests[3], 4, s.at(tomorrow, 18, 0), s.at(tomorrow, 19, 0), booking.StatusActive)
+	s.book(pasta, guests[4], 2, s.at(tomorrow, 19, 0), s.at(tomorrow, 20, 0), booking.StatusActive)
+	// ก๋วยเตี๋ยวเรือ 20 ที่: 07:00–08:00 เต็มพอดี (12 + 8) และเช้าตรู่ 06:00 ก็จองได้
+	s.book(noodle, guests[5], 12, s.at(tomorrow, 6, 0), s.at(tomorrow, 8, 0), booking.StatusActive)
+	s.book(noodle, guests[6], 8, s.at(tomorrow, 7, 0), s.at(tomorrow, 9, 0), booking.StatusActive)
+	s.book(noodle, guests[7], 6, s.at(tomorrow, 8, 0), s.at(tomorrow, 10, 0), booking.StatusActive)
+	// ซูชิ: จองช่วงพักพอดีตอนจบ 15:00 ได้ (ไม่ทับช่วงพัก) + ลูกค้าอีกรายการพรุ่งนี้เที่ยง
+	s.book(sushi, guests[8], 4, s.at(tomorrow, 14, 0), s.at(tomorrow, 15, 0), booking.StatusActive)
+	s.book(sushi, customer1, 2, s.at(tomorrow.AddDate(0, 0, 1), 12, 0), s.at(tomorrow.AddDate(0, 0, 1), 13, 0), booking.StatusActive)
+
 	// ร้านยกเลิกการจองของ customer1 (ร้านตามสั่ง 4 วันข้างหน้า) + แจ้งเตือนที่ยังไม่อ่าน → login แล้วเห็นตัวเลขบนกระดิ่ง
 	day4 := s.today.AddDate(0, 0, 4)
 	byShop := s.book(tamsang, customer1, 2, s.at(day4, 12, 0), s.at(day4, 13, 0), booking.StatusActive)
@@ -163,7 +193,7 @@ func seed(tx *gorm.DB, now time.Time) error {
 		rating_count = (SELECT COUNT(*) FROM reviews WHERE restaurant_id = r.id)`)
 
 	if s.err == nil {
-		slog.Info("seed เสร็จ", "restaurants", 6)
+		slog.Info("seed เสร็จ", "restaurants", 8)
 	}
 	return s.err
 }
