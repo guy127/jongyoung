@@ -12,7 +12,7 @@
 |  | หัวข้อ | อยู่ที่ |
 |---|---|---|
 | 1 | Git repository | repo นี้ — วิธีรันอยู่ข้อ 1 |
-| 2 | วิดีโอเดโม ≤ 5 นาที | <ใส่ลิงก์> |
+| 2 | วิดีโอเดโม ≤ 5 นาที | https://drive.google.com/file/d/1YUjIhx3QtYxxJW4itI5D-ACn9uXU5hF0/view?usp=sharing |
 | 3 | UI Design | [docs/ui-design.md](docs/ui-design.md) |
 
 ---
