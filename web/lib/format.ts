@@ -94,6 +94,57 @@ export function closureRangeLabel(c: { start_at: string; end_at: string }): stri
   return `${fmtShortDate(c.start_at)} ${fmtTime(c.start_at)} – ${fmtShortDate(c.end_at)} ${fmtTime(c.end_at)}`;
 }
 
+export type HoursShape = { open_time: string; close_time: string; break_start: string; break_end: string; open_24h: boolean };
+
+/** นาทีของรอบเปิดหนึ่งรอบ — พอร์ตของ Hours.DurationMinutes ฝั่ง Go (ใช้สร้าง dropdown ของฟอร์มปิดร้านชั่วคราวเท่านั้น backend ตรวจ Window จริงเสมอ) */
+function durationMinutes(r: HoursShape): number {
+  if (r.open_24h) return 1440;
+  return ((clockToMinutes(r.close_time) - clockToMinutes(r.open_time) + 1440) % 1440) || 1440;
+}
+
+/** เวลาจริงของจุด offset นาทีถัดจากเวลาเปิด ในวันทำการ date — พอร์ตของ Hours.At ฝั่ง Go (เดินวันไปข้างหน้าตาม offset ไม่เดาจาก clock ลอย ๆ กันกรณี 24 ชม. วนทับเวลาเปิด) */
+function pointISO(date: string, openMinute: number, offset: number): string {
+  const total = openMinute + offset;
+  const day = total >= 1440 ? shiftDate(date, Math.floor(total / 1440)) : date;
+  return `${day}T${minutesToClock(total)}:00+07:00`;
+}
+
+/** รอบเปิดของวันทำการ date เป็นเวลาจริง — พอร์ตของ Hours.Window ฝั่ง Go */
+export function businessWindow(r: HoursShape, date: string): { opensAt: string; closesAt: string } {
+  const open = clockToMinutes(r.open_time);
+  return { opensAt: pointISO(date, open, 0), closesAt: pointISO(date, open, durationMinutes(r)) };
+}
+
+export type ClosureClockOption = { offset: number; clock: string; iso: string; label: string };
+
+/**
+ * จุดเวลาทุกครึ่งชั่วโมงในรอบเปิด-ปิดของวันทำการ date (รวมจุดเริ่มเปิดและจุดปิด) ข้ามช่วงพักภายใน
+ * ใช้ประกอบ dropdown "ตั้งแต่/ถึง" ของฟอร์มปิดร้านชั่วคราว (owner/closures) กันเลือกเวลานอกรอบหรือผิดคืนร้านข้ามเที่ยงคืน
+ * UX เท่านั้น — backend ตรวจ Window/Fits จริงเสมอ; ป้ายข้ามคืนใช้ nextDayLabel ตัวเดียวกับทั้งระบบ
+ */
+export function closureClockPoints(r: HoursShape, date: string): ClosureClockOption[] {
+  const open = clockToMinutes(r.open_time);
+  const duration = durationMinutes(r);
+  const breakFrom = r.break_start ? (clockToMinutes(r.break_start) - open + 1440) % 1440 : null;
+  const breakTo = r.break_end ? (clockToMinutes(r.break_end) - open + 1440) % 1440 : null;
+  const points: ClosureClockOption[] = [];
+  for (let offset = 0; offset <= duration; offset += 30) {
+    if (breakFrom !== null && breakTo !== null && offset > breakFrom && offset < breakTo) continue; // ข้างในช่วงพัก (ติดขอบพักยังเลือกได้)
+    const iso = pointISO(date, open, offset);
+    const clock = minutesToClock(open + offset);
+    const dayMark = nextDayLabel(iso, date);
+    points.push({ offset, clock, iso, label: dayMark ? `${clock} ${dayMark}` : clock });
+  }
+  return points;
+}
+
+/** ตัวเลือก "ตั้งแต่": ทุกจุดยกเว้นจุดสุดท้าย (เวลาปิด — เริ่มที่นั่นไม่ได้ ไม่มีช่วงเหลือให้ปิด) */
+export const closureStartOptions = (r: HoursShape, date: string): ClosureClockOption[] => closureClockPoints(r, date).slice(0, -1);
+
+/** ตัวเลือก "ถึง": เฉพาะจุดที่อยู่หลัง startOffset ในรอบเดียวกัน */
+export const closureEndOptions = (r: HoursShape, date: string, startOffset: number): ClosureClockOption[] =>
+  closureClockPoints(r, date).filter((p) => p.offset > startOffset);
+
 /** ป้ายของช่องว่างระหว่าง slot: ทับช่วงที่ร้านปิดชั่วคราว → "ร้านปิด … · เหตุผล" ไม่งั้นเป็นช่วงพักประจำ */
 export function gapLabel(from: string, to: string, closures: { start_at: string; end_at: string; reason: string }[]): string {
   const a = new Date(from).getTime();

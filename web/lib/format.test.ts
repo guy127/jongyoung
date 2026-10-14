@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookingStatusLabel, chipState, closedDaysLabel, closureRangeLabel, contiguousFrom, gapLabel, hoursLabel, isGap, dateKey, isClosedDay, defaultSearch, fmtTime, isGoogleMapsUrl, mapHref, nextDayLabel, ratingLabel, shiftDate } from "./format";
+import { bookingStatusLabel, businessWindow, chipState, closedDaysLabel, closureClockPoints, closureEndOptions, closureRangeLabel, closureStartOptions, contiguousFrom, gapLabel, hoursLabel, isGap, dateKey, isClosedDay, defaultSearch, fmtTime, isGoogleMapsUrl, mapHref, nextDayLabel, ratingLabel, shiftDate } from "./format";
 
 describe("chipState (ข้อ 9 เคส 27) — เทียบกับจำนวนคนที่เลือก ไม่ใช่ 1", () => {
   const seats = 10;
@@ -159,6 +159,80 @@ describe("gapLabel — ช่องว่างระหว่าง slot เป
   });
   it("ไม่ทับ → พักร้าน", () => {
     expect(gapLabel("2026-10-10T14:00:00+07:00", "2026-10-10T17:00:00+07:00", closures)).toBe("พักร้าน 14:00–17:00");
+  });
+});
+
+describe("closureClockPoints / closureStartOptions / closureEndOptions — dropdown ฟอร์มปิดร้านชั่วคราว (owner/closures) ต้องไม่ให้เลือกเวลานอกรอบ", () => {
+  const overnight = { open_time: "18:00", close_time: "02:00", break_start: "", break_end: "", open_24h: false };
+  const withBreak = { open_time: "11:00", close_time: "22:00", break_start: "15:00", break_end: "17:00", open_24h: false };
+  const h24 = { open_time: "00:00", close_time: "00:00", break_start: "", break_end: "", open_24h: true };
+
+  it("ร้านข้ามเที่ยงคืน 18:00–02:00: ไม่มี 17:00/03:00 — จุดสุดท้ายคือ 02:00 ของเช้าวันถัดไป", () => {
+    const points = closureClockPoints(overnight, "2026-10-10");
+    const clocks = points.map((p) => p.clock);
+    expect(clocks).not.toContain("17:00");
+    expect(clocks).not.toContain("03:00");
+    expect(clocks[0]).toBe("18:00");
+    expect(clocks.at(-1)).toBe("02:00");
+    expect(points.at(-1)!.label).toBe("02:00 (เช้าวันที่ 11)");
+    expect(points[0].label).toBe("18:00"); // ไม่ข้ามคืน ไม่มีป้าย
+  });
+
+  it("ร้านมีช่วงพัก 15:00–17:00: ข้ามเวลาในช่วงพัก แต่ยังเลือกขอบพักได้ (15:00 และ 17:00)", () => {
+    const clocks = closureClockPoints(withBreak, "2026-10-10").map((p) => p.clock);
+    expect(clocks).toContain("15:00");
+    expect(clocks).toContain("17:00");
+    expect(clocks).not.toContain("15:30");
+    expect(clocks).not.toContain("16:00");
+    expect(clocks).not.toContain("16:30");
+  });
+
+  it("ร้าน 24 ชม.: วนกลับมาจบที่ 00:00 ของเช้าวันถัดไป (ไม่ใช่ของวันเดียวกัน)", () => {
+    const points = closureClockPoints(h24, "2026-10-10");
+    expect(points[0]).toMatchObject({ clock: "00:00", label: "00:00" });
+    expect(points.at(-1)).toMatchObject({ clock: "00:00", label: "00:00 (เช้าวันที่ 11)" });
+    expect(points.at(-1)!.iso).toBe("2026-10-11T00:00:00+07:00");
+  });
+
+  it("closureStartOptions ตัดจุดสุดท้าย (เวลาปิด) ออก — เริ่มที่นั่นไม่มีช่วงให้ปิด", () => {
+    const starts = closureStartOptions(overnight, "2026-10-10");
+    expect(starts.at(-1)!.clock).not.toBe("02:00");
+    expect(starts.at(-1)!.clock).toBe("01:30");
+  });
+
+  it("closureEndOptions คืนเฉพาะจุดหลัง start — ร้าน 24 ชม. เลือก start=23:30 แล้ว end มีแค่ 00:00 (เช้าวันถัดไป)", () => {
+    const starts = closureStartOptions(h24, "2026-10-10");
+    const last = starts.at(-1)!; // 23:30
+    expect(last.clock).toBe("23:30");
+    const ends = closureEndOptions(h24, "2026-10-10", last.offset);
+    expect(ends).toHaveLength(1);
+    expect(ends[0]).toMatchObject({ clock: "00:00", label: "00:00 (เช้าวันที่ 11)" });
+  });
+
+  it("closureEndOptions ของร้านปกติ 11:00–22:00 เลือก start=14:00 → ไม่มีเวลาก่อนหรือเท่ากับ 14:00", () => {
+    const normal = { open_time: "11:00", close_time: "22:00", break_start: "", break_end: "", open_24h: false };
+    const starts = closureStartOptions(normal, "2026-10-10");
+    const start1400 = starts.find((p) => p.clock === "14:00")!;
+    const ends = closureEndOptions(normal, "2026-10-10", start1400.offset);
+    expect(ends.every((p) => p.offset > start1400.offset)).toBe(true);
+    expect(ends[0].clock).toBe("14:30");
+    expect(ends.at(-1)!.clock).toBe("22:00");
+  });
+});
+
+describe("businessWindow — ใช้ทำกล่องสรุปวันเวลาจริงก่อนยืนยันปิดร้าน (โหมดทั้งวันหรือหลายวัน)", () => {
+  it("ร้านข้ามเที่ยงคืน 18:00–02:00: closesAt ของวันทำการ 10 คือ 02:00 ของวันที่ 11", () => {
+    const overnight = { open_time: "18:00", close_time: "02:00", break_start: "", break_end: "", open_24h: false };
+    expect(businessWindow(overnight, "2026-10-10")).toEqual({ opensAt: "2026-10-10T18:00:00+07:00", closesAt: "2026-10-11T02:00:00+07:00" });
+  });
+
+  it("ปิดหลายวัน 10–12 ของร้านข้ามเที่ยงคืน → กล่องสรุปบอกวันจริงถูกต้องด้วย closureRangeLabel", () => {
+    const overnight = { open_time: "18:00", close_time: "02:00", break_start: "", break_end: "", open_24h: false };
+    const from = businessWindow(overnight, "2026-10-10");
+    const to = businessWindow(overnight, "2026-10-12");
+    const label = closureRangeLabel({ start_at: from.opensAt, end_at: to.closesAt });
+    expect(label).toContain("10 ต.ค. 18:00");
+    expect(label).toContain("13 ต.ค. 02:00"); // รอบของวันที่ 12 ปิดเช้าวันที่ 13
   });
 });
 

@@ -5,12 +5,12 @@ import { Suspense, useState } from "react";
 
 import { apiError } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
-import { closureRangeLabel, fmtShortDate, fmtTime, minutesToClock, todayKey } from "@/lib/format";
+import { businessWindow, closureClockPoints, closureRangeLabel, fmtShortDate, fmtTime, isClosedDay, todayKey } from "@/lib/format";
 import type { AffectedBooking, ApiError } from "@/lib/types";
 import { type ClosureInput, useClosures, useCreateClosure, useDeleteClosure } from "@/services/closures";
 import { useMe } from "@/services/me";
+import { useRestaurant } from "@/services/restaurants";
 
-const clocks = Array.from({ length: 48 }, (_, i) => minutesToClock(i * 30));
 const input = "h-9 rounded-md border border-border-strong bg-surface px-2.5 text-text";
 
 export default function ClosuresPage() {
@@ -30,14 +30,15 @@ function Closures() {
   const params = useSearchParams();
   const me = useMe();
   const restaurantId = params.get("restaurant") ?? me.data?.restaurants[0]?.id;
+  const restaurant = useRestaurant(restaurantId);
   const closures = useClosures(restaurantId);
   const create = useCreateClosure(restaurantId);
   const remove = useDeleteClosure(restaurantId);
 
   const [mode, setMode] = useState<"partial" | "days">("partial");
   const [date, setDate] = useState(params.get("date") ?? todayKey());
-  const [start, setStart] = useState(params.get("start") ?? "18:00");
-  const [end, setEnd] = useState(params.get("end") ?? "22:00");
+  const [startOffset, setStartOffset] = useState(0);
+  const [endOffset, setEndOffset] = useState(30);
   const [from, setFrom] = useState(todayKey());
   const [to, setTo] = useState(todayKey());
   const [reason, setReason] = useState("");
@@ -46,14 +47,44 @@ function Closures() {
   const [error, setError] = useState<ApiError | null>(null);
   const [done, setDone] = useState("");
 
+  const hours = restaurant.data;
+  const closedToday = hours ? isClosedDay(hours.closed_weekdays, date) : false;
+  const pastDate = date < todayKey();
+  const dateBlocked = pastDate || closedToday;
+
+  // จุดเวลาในรอบเปิด-ปิดของวันทำการที่เลือกเท่านั้น (ข้อ 5.4) — กันเลือกเวลานอกรอบหรือผิดคืนของร้านข้ามเที่ยงคืน
+  const points = hours ? closureClockPoints(hours, date) : [];
+  const startOptions = points.slice(0, -1);
+  const effectiveStart = startOptions.some((p) => p.offset === startOffset) ? startOffset : startOptions[0]?.offset ?? 0;
+  const endOptions = points.filter((p) => p.offset > effectiveStart);
+  const effectiveEnd = endOptions.some((p) => p.offset === endOffset) ? endOffset : endOptions[0]?.offset ?? effectiveStart + 30;
+  const startPoint = points.find((p) => p.offset === effectiveStart);
+  const endPoint = points.find((p) => p.offset === effectiveEnd);
+
+  // ช่วงเวลาจริงที่จะปิด — แสดงเสมอก่อนกดบันทึก กันปิดผิดคืนแบบเงียบ ๆ (ร้านข้ามเที่ยงคืน)
+  const preview: { start_at: string; end_at: string } | null =
+    mode === "partial"
+      ? startPoint && endPoint
+        ? { start_at: startPoint.iso, end_at: endPoint.iso }
+        : null
+      : hours
+        ? { start_at: businessWindow(hours, from).opensAt, end_at: businessWindow(hours, to).closesAt }
+        : null;
+
   // แก้ฟอร์มแล้วรายการที่เห็นอาจไม่ตรงช่วงใหม่ → ต้องบันทึกใหม่ให้ API ตรวจอีกรอบ
   const edit = (set: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     set(e.target.value);
     setAffected(null);
   };
+  const editOffset = (set: (n: number) => void) => (e: React.ChangeEvent<HTMLSelectElement>) => {
+    set(Number(e.target.value));
+    setAffected(null);
+  };
 
   const body = (): ClosureInput =>
-    mode === "partial" ? { date, start_time: start, end_time: end, reason } : { from_date: from, to_date: to, reason };
+    mode === "partial"
+      ? { date, start_time: startPoint?.clock, end_time: endPoint?.clock, reason }
+      : { from_date: from, to_date: to, reason };
 
   const submit = async (confirm?: AffectedBooking[]) => {
     setError(null);
@@ -120,10 +151,25 @@ function Closures() {
 
         {mode === "partial" ? (
           <div className="grid gap-3 sm:grid-cols-3">
-            <label className="flex flex-col gap-1 font-medium">วันทำการ<input type="date" value={date} onChange={edit(setDate)} className={input} /></label>
-            <label className="flex flex-col gap-1 font-medium">ตั้งแต่<select value={start} onChange={edit(setStart)} className={input}>{clocks.map((c) => <option key={c}>{c}</option>)}</select></label>
-            <label className="flex flex-col gap-1 font-medium">ถึง<select value={end} onChange={edit(setEnd)} className={input}>{clocks.map((c) => <option key={c}>{c}</option>)}</select></label>
-            <p className="text-muted sm:col-span-3">ร้านเปิดข้ามเที่ยงคืน: เวลาก่อนเวลาเปิด = หลังเที่ยงคืนของรอบนั้น (เหมือนตอนลูกค้าจอง)</p>
+            <label className="flex flex-col gap-1 font-medium">รอบของวันที่<input type="date" value={date} onChange={edit(setDate)} className={input} /></label>
+            <label className="flex flex-col gap-1 font-medium">
+              ตั้งแต่
+              <select value={effectiveStart} onChange={editOffset(setStartOffset)} disabled={dateBlocked || !hours} className={input}>
+                {startOptions.map((p) => <option key={p.offset} value={p.offset}>{p.label}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 font-medium">
+              ถึง
+              <select value={effectiveEnd} onChange={editOffset(setEndOffset)} disabled={dateBlocked || !hours} className={input}>
+                {endOptions.map((p) => <option key={p.offset} value={p.offset}>{p.label}</option>)}
+              </select>
+            </label>
+            <p className="text-muted sm:col-span-3">เลือกคืนที่ร้านเปิด เวลาหลังเที่ยงคืนจะนับรวมในคืนนั้น</p>
+            {dateBlocked && (
+              <p role="alert" className="rounded-md border border-full-line bg-full-weak p-3 text-full sm:col-span-3">
+                {pastDate ? "วันที่เลือกผ่านไปแล้ว" : "วันนี้เป็นวันปิดประจำสัปดาห์ของร้านอยู่แล้ว ไม่ต้องปิดเพิ่ม"}
+              </p>
+            )}
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
@@ -132,13 +178,26 @@ function Closures() {
           </div>
         )}
 
+        {preview && (
+          <p className="rounded-md border border-border-strong bg-chip px-3 py-2 font-medium tabular">
+            จะปิด: {closureRangeLabel(preview)}
+          </p>
+        )}
+
         <label className="flex flex-col gap-1 font-medium">
           เหตุผล * <span className="font-normal text-muted">ลูกค้าจะเห็นข้อความนี้</span>
           <textarea required maxLength={200} rows={2} value={reason} onChange={edit(setReason)} className={`${input} h-auto py-2`} placeholder="เช่น ไฟดับทั้งซอย, ปิดปรับปรุงร้าน" />
         </label>
 
         {!affected && (
-          <button type="submit" disabled={create.isPending} aria-busy={create.isPending || undefined} className="obtn obtn-primary self-start">บันทึกช่วงปิด</button>
+          <button
+            type="submit"
+            disabled={create.isPending || (mode === "partial" && (dateBlocked || !preview))}
+            aria-busy={create.isPending || undefined}
+            className="obtn obtn-primary self-start"
+          >
+            บันทึกช่วงปิด
+          </button>
         )}
 
         {affected && (
