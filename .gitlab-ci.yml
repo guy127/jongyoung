@@ -56,7 +56,9 @@ api:test:
     DOCKER_TLS_CERTDIR: "" # dind แบบไม่มี TLS ภายใน job เดียว (runner ต้องเปิด privileged)
     TESTCONTAINERS_HOST_OVERRIDE: docker # container ของ Postgres เปิดพอร์ตที่ host "docker" ไม่ใช่ localhost
   script:
-    - go test -count=1 ./...
+    # -p 1: รัน package ทีละตัว ไม่งั้นแต่ละ package ที่ใช้ testcontainers จะแย่งสร้าง Postgres container
+    # พร้อมกันบน runner (ทรัพยากรจำกัดกว่าเครื่อง dev) แล้ว wait "database system is ready" ไม่ทันเวลา → เทสต์หลุดทั้งที่โค้ดถูก
+    - go test -count=1 -p 1 ./...
 
 web:test:
   extends: .web
