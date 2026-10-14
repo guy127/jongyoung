@@ -7,7 +7,7 @@ case "${1:-help}" in
   up)    docker compose up -d --build ;;                      # สร้างและรันทั้งระบบ
   down)  docker compose down ;;                               # หยุดระบบ (ข้อมูลยังอยู่)
   logs)  docker compose logs -f api web ;;                    # ดู log ของ api และ web
-  reset) docker compose run --rm seed --reset ;;              # ล้างข้อมูลแล้วใส่ข้อมูลตัวอย่างใหม่
+  reset) shift; docker compose run --rm seed --reset "$@" ;;  # ล้างข้อมูลแล้วใส่ข้อมูลตัวอย่างใหม่ (--day=YYYY-MM-DD เลือกวันโชว์เคส)
   lint)
     (cd api && go vet ./... && test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; })
     (cd web && npm run lint && npx tsc --noEmit)
@@ -35,7 +35,7 @@ case "${1:-help}" in
   up      สร้างและรันทั้งระบบ (http://jongyoung.localhost)
   down    หยุดระบบ
   logs    ดู log ของ api และ web
-  reset   ล้างข้อมูลแล้วใส่ข้อมูลตัวอย่างใหม่
+  reset   ล้างข้อมูลแล้วใส่ข้อมูลตัวอย่างใหม่ — ./dev.sh reset --day=2026-10-19 ให้เคสการจองไปอยู่วันนั้น
   lint    go vet + gofmt + eslint + tsc
   test    unit/integration test ของ Go และ web
   e2e     E2E test (Playwright) กับระบบที่รันอยู่ — ส่งต่ออาร์กิวเมนต์ได้ เช่น ./dev.sh e2e --project=mobile

@@ -32,14 +32,15 @@ const (
 
 func main() {
 	reset := flag.Bool("reset", false, "ล้างข้อมูลร้าน/การจอง/รีวิวเดิมก่อนใส่ใหม่")
+	day := flag.String("day", "", "วันทำการที่ใช้โชว์เคสการจอง YYYY-MM-DD (ค่าเริ่มต้น = พรุ่งนี้) — ใช้เตรียมข้อมูลไว้ล่วงหน้าก่อนวันเดโม")
 	flag.Parse()
-	if err := run(*reset); err != nil {
+	if err := run(*reset, *day); err != nil {
 		slog.Error("seed ล้มเหลว", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(reset bool) error {
+func run(reset bool, day string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -64,7 +65,7 @@ func run(reset bool) error {
 				return err
 			}
 		}
-		return seed(tx, time.Now().In(booking.Bangkok))
+		return seed(tx, time.Now().In(booking.Bangkok), day)
 	})
 }
 
@@ -74,7 +75,7 @@ type seeder struct {
 	err   error     // เก็บ error แรกไว้ ทำให้โค้ดด้านล่างอ่านเป็นลำดับขั้นได้โดยไม่ต้องเช็คทุกบรรทัด
 }
 
-func seed(tx *gorm.DB, now time.Time) error {
+func seed(tx *gorm.DB, now time.Time, day string) error {
 	y, m, d := now.Date()
 	s := &seeder{tx: tx, today: time.Date(y, m, d, 0, 0, 0, 0, booking.Bangkok)}
 
@@ -131,6 +132,16 @@ func seed(tx *gorm.DB, now time.Time) error {
 	// jok: ไม่มีรีวิว
 
 	tomorrow := s.today.AddDate(0, 0, 1)
+	if day != "" {
+		d, err := time.ParseInLocation("2006-01-02", day, booking.Bangkok)
+		if err != nil {
+			return fmt.Errorf("--day ต้องเป็น YYYY-MM-DD: %w", err)
+		}
+		if !d.After(s.today) {
+			return fmt.Errorf("--day ต้องเป็นวันหลังจากวันนี้")
+		}
+		tomorrow = d
+	}
 
 	// การจองของ customer1: กำลังจะถึง 2 รายการ (หนึ่งรายการคร่อมเที่ยงคืน) + ผ่านไปแล้ว 1 + ยกเลิกแล้ว 1
 	seaMidnight := s.book(seafood, customer1, 3, s.at(tomorrow, 23, 30), s.at(tomorrow.AddDate(0, 0, 1), 0, 30), booking.StatusActive)
