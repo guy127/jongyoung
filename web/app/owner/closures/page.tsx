@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import { apiError } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
@@ -39,6 +39,7 @@ function Closures() {
   const [date, setDate] = useState(params.get("date") ?? todayKey());
   const [startOffset, setStartOffset] = useState(0);
   const [endOffset, setEndOffset] = useState(30);
+  const [linkDefaultsApplied, setLinkDefaultsApplied] = useState(false);
   const [from, setFrom] = useState(todayKey());
   const [to, setTo] = useState(todayKey());
   const [reason, setReason] = useState("");
@@ -60,6 +61,18 @@ function Closures() {
   const effectiveEnd = endOptions.some((p) => p.offset === endOffset) ? endOffset : endOptions[0]?.offset ?? effectiveStart + 30;
   const startPoint = points.find((p) => p.offset === effectiveStart);
   const endPoint = points.find((p) => p.offset === effectiveEnd);
+
+  // ลิงก์ "ปิดร้านตอนนี้" จากบอร์ด (owner/bookings) ส่ง start/end มาเป็นเวลานาฬิกา "HH:MM" ผ่าน query string
+  // ต้องรอจุดเวลาของวันนั้นโหลดก่อน (hours มาจาก API) แล้วจับคู่เป็น offset ของ dropdown — ทำครั้งเดียวตอนเปิดหน้า
+  // ไม่ตั้งค่า offset ตรง ๆ จาก query string เพราะอาจไม่ตรงจุดที่เลือกได้ของร้านนั้น (ร้านข้ามเที่ยงคืน/มีช่วงพัก)
+  useEffect(() => {
+    if (linkDefaultsApplied || points.length === 0) return;
+    const wantStart = points.find((p) => p.clock === params.get("start"));
+    const wantEnd = points.find((p) => p.clock === params.get("end"));
+    if (wantStart) setStartOffset(wantStart.offset);
+    if (wantEnd) setEndOffset(wantEnd.offset);
+    setLinkDefaultsApplied(true);
+  }, [points, linkDefaultsApplied, params]);
 
   // ช่วงเวลาจริงที่จะปิด — แสดงเสมอก่อนกดบันทึก กันปิดผิดคืนแบบเงียบ ๆ (ร้านข้ามเที่ยงคืน)
   const preview: { start_at: string; end_at: string } | null =
