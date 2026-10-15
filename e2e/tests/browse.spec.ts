@@ -6,7 +6,7 @@ import { nextMonday, tomorrow } from "./helpers";
 test.describe("ค้นหาร้าน (ไม่ต้อง login)", () => {
   test("หน้าแรกแสดงร้านทั้งหมด พร้อมปุ่มเวลา 5 ช่วงรอบเวลาที่ค้น", async ({ page }) => {
     await page.goto(`/?date=${tomorrow()}&time=19:00&party_size=2`);
-    await expect(page.locator("article")).toHaveCount(6);
+    await expect(page.locator("article")).toHaveCount(8);
     const chips = page.getByRole("group", { name: "เวลาว่างของ ซูชิ ทาคุมิ" }).getByRole("link");
     await expect(chips).toHaveCount(5);
     await expect(chips.nth(2)).toHaveAccessibleName(/^19:00/);
@@ -17,7 +17,8 @@ test.describe("ค้นหาร้าน (ไม่ต้อง login)", () =>
     const names = await page.locator("article .card-title").allTextContents();
     expect(names[0]).toBe("ซูชิ ทาคุมิ");
     expect(names.indexOf("บ้านชาบู บุฟเฟ่ต์")).toBeGreaterThan(names.indexOf("ซูชิ ทาคุมิ"));
-    expect(names.at(-1)).toBe("โจ๊กสามย่าน 24 ชม.");
+    // ร้านไม่มีรีวิวเลยอยู่ท้ายสุดเสมอ (seed มี 3 ร้าน: โจ๊ก, บ้านพาสต้า, ก๋วยเตี๋ยวเรือ — ลำดับกันเองไม่สำคัญ)
+    expect(names.slice(-3).sort()).toEqual(["ก๋วยเตี๋ยวเรือยามเช้า", "บ้านพาสต้า ซอยเอกมัย", "โจ๊กสามย่าน 24 ชม."].sort());
     // ร้านรีวิวน้อยแสดงป้าย "รีวิวน้อย" แทนดาวเด่น
     await expect(page.locator("article", { hasText: "บ้านชาบู" }).getByText("รีวิวน้อย (1)")).toBeVisible();
   });
